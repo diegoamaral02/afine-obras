@@ -27,7 +27,20 @@ function ObraModal({ obra, onClose, addToast }) {
   async function save() {
     if (!form.nome || !form.cliente) { alert("Nome e cliente são obrigatórios."); return; }
     setSaving(true);
-    const payload = { ...form, progresso: +form.progresso, updatedAt: serverTimestamp() };
+    const payload = { 
+  nome:         form.nome,
+  cliente:      form.cliente,
+  gerenciadora: form.gerenciadora,
+  responsavel:  form.responsavel,
+  endereco:     form.endereco,
+  contrato:     form.contrato,
+  area:         form.area,
+  progresso:    +form.progresso,
+  inicio:       form.inicio,
+  termino:      form.termino,
+  status:       form.status,
+  updatedAt:    serverTimestamp()
+};
     try {
       if (obra?.id) { await updateDoc(doc(db, "obras", obra.id), payload); addToast("Obra atualizada!"); }
       else { payload.createdAt = serverTimestamp(); await addDoc(collection(db, "obras"), payload); addToast("Obra criada!"); }
