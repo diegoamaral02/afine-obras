@@ -97,7 +97,7 @@ export default function OSDigital({ manutencao, descritivos, descExtra, funciona
             <label>Descrição adicional / observações</label>
             <textarea value={descricaoExtra} onChange={e=>setDescricaoExtra(e.target.value)} rows={3} placeholder="Detalhes adicionais..."/>
           </div>
-          <div style={{display:"flex",gap:8"}}>
+          <div style={{display:"flex",gap:8}}>
             <button className="btn" onClick={onFechar}>Cancelar</button>
             <button className="btn btn-primary" style={{flex:1,justifyContent:"center"}} onClick={avancar}>Próximo →</button>
           </div>

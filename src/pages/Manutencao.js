@@ -419,7 +419,7 @@ function ManutencaoModal({ manut, obraId, funcionarios, onClose, addToast }) {
                 <div style={{fontSize:12}}>Prestador: {osDigital.funcionario?.nome} · Gerente: {osDigital.nomeGerente}</div>
                 {osDigital.assinGerente && <img src={osDigital.assinGerente} alt="Assinatura gerente" style={{maxHeight:60,marginTop:6,border:"1px solid #ddd",borderRadius:4,background:"#fff"}}/>}
               </div>
-              <div style={{display:"flex",gap:8"}}>
+              <div style={{display:"flex",gap:8}}>
                 <button className="btn btn-sm" onClick={()=>setShowOS(true)}>Refazer OS</button>
                 <button className="btn btn-sm btn-primary" onClick={()=>exportarOSParaPDF(osDigital,{...form,materiais:form.materiais})}>
                   📄 Exportar PDF
