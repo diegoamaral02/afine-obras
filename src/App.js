@@ -1,7 +1,7 @@
 // src/App.js
 import React, { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate } from "react-router-dom";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "./firebase";
 import { useAuth } from "./contexts/AuthContext";
 import { initials } from "./utils/helpers";
@@ -15,13 +15,11 @@ import { Equipe, Materiais, Ocorrencias } from "./pages/Equipe";
 
 import "./index.css";
 
-// ─── Protected wrapper ────────────────────────────────────────────────────────
 function Protected({ children }) {
   const { currentUser } = useAuth();
   return currentUser ? children : <Navigate to="/login" replace />;
 }
 
-// ─── Sidebar ──────────────────────────────────────────────────────────────────
 function Sidebar({ obras, obraAtual, setObraAtual, ocorrAbertas, escoposAndamento, sideOpen, setSideOpen }) {
   const { currentUser, userProfile, logout } = useAuth();
   const navigate = useNavigate();
@@ -42,13 +40,13 @@ function Sidebar({ obras, obraAtual, setObraAtual, ocorrAbertas, escoposAndament
   const obraAtualInfo = obras.find(o => o.id === obraAtual);
 
   const navItems = [
-    { to: "/",           icon: "📊", label: "Painel",        roles: ["gestor","encarregado","campo"] },
-    { to: "/obras",      icon: "🏗️", label: "Obras",         roles: ["gestor","encarregado"] },
-    { to: "/escopos",    icon: "✅", label: "Escopos",       roles: ["gestor","encarregado","campo"], badge: escoposAndamento > 0 ? escoposAndamento : null, badgeType: "amber" },
-    { to: "/diario",     icon: "📓", label: "Diário de obra",roles: ["gestor","encarregado","campo"] },
-    { to: "/equipe",     icon: "👷", label: "Equipe",        roles: ["gestor","encarregado"] },
-    { to: "/materiais",  icon: "📦", label: "Materiais",     roles: ["gestor","encarregado"] },
-    { to: "/ocorrencias",icon: "⚠️", label: "Ocorrências",  roles: ["gestor","encarregado","campo"], badge: ocorrAbertas > 0 ? ocorrAbertas : null, badgeType: "red" },
+    { to: "/",            icon: "📊", label: "Painel",         roles: ["gestor","encarregado","campo"] },
+    { to: "/obras",       icon: "🏗️", label: "Obras",          roles: ["gestor","encarregado"] },
+    { to: "/escopos",     icon: "✅", label: "Escopos",        roles: ["gestor","encarregado","campo"], badge: escoposAndamento > 0 ? escoposAndamento : null, badgeType: "amber" },
+    { to: "/diario",      icon: "📓", label: "Diário de obra", roles: ["gestor","encarregado","campo"] },
+    { to: "/equipe",      icon: "👷", label: "Equipe",         roles: ["gestor","encarregado"] },
+    { to: "/materiais",   icon: "📦", label: "Materiais",      roles: ["gestor","encarregado"] },
+    { to: "/ocorrencias", icon: "⚠️", label: "Ocorrências",   roles: ["gestor","encarregado","campo"], badge: ocorrAbertas > 0 ? ocorrAbertas : null, badgeType: "red" },
   ];
 
   return (
@@ -110,7 +108,6 @@ function Sidebar({ obras, obraAtual, setObraAtual, ocorrAbertas, escoposAndament
   );
 }
 
-// ─── Shell (after login) ──────────────────────────────────────────────────────
 function AppShell() {
   const [obras,        setObras]        = useState([]);
   const [obraAtual,    setObraAtual]    = useState(null);
@@ -119,28 +116,26 @@ function AppShell() {
   const [sideOpen,     setSideOpen]     = useState(false);
   const { userProfile } = useAuth();
 
-  // Carrega obras em tempo real
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "obras"), snap => {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setObras(data);
-      // Auto-seleciona a primeira obra se nenhuma selecionada
-      if (!obraAtual && data.length > 0) {
-        // gestor vê tudo, campo/encarregado vê só as suas
-        const perfil = userProfile?.perfil;
-        const obras_permitidas = perfil === "gestor"
-          ? data
-          : data.filter(o => userProfile?.obras?.includes(o.id));
-        if (obras_permitidas.length > 0) setObraAtual(obras_permitidas[0].id);
+      if (data.length > 0) {
+        setObraAtual(prev => {
+          if (prev) return prev;
+          const perfil = userProfile?.perfil;
+          const permitidas = perfil === "gestor"
+            ? data
+            : data.filter(o => userProfile?.obras?.includes(o.id));
+          return permitidas.length > 0 ? permitidas[0].id : null;
+        });
       }
     });
     return unsub;
   }, []); // eslint-disable-line
 
-  // Badge: ocorrências abertas
   useEffect(() => {
     if (!obraAtual) return;
-    const { query, where } = require("firebase/firestore");
     const q = query(
       collection(db, "ocorrencias"),
       where("obraId", "==", obraAtual),
@@ -149,10 +144,8 @@ function AppShell() {
     return onSnapshot(q, snap => setOcorrAbertas(snap.size));
   }, [obraAtual]);
 
-  // Badge: escopos em andamento
   useEffect(() => {
     if (!obraAtual) return;
-    const { query, where } = require("firebase/firestore");
     const q = query(
       collection(db, "escopos"),
       where("obraId", "==", obraAtual),
@@ -160,16 +153,6 @@ function AppShell() {
     );
     return onSnapshot(q, snap => setEscoposAnd(snap.size));
   }, [obraAtual]);
-
-  const pageTitle = {
-    "/":            "Painel",
-    "/obras":       "Todas as obras",
-    "/escopos":     "Escopos",
-    "/diario":      "Diário de obra",
-    "/equipe":      "Equipe",
-    "/materiais":   "Materiais",
-    "/ocorrencias": "Ocorrências",
-  };
 
   return (
     <div className="app-shell">
@@ -184,22 +167,12 @@ function AppShell() {
       />
 
       <div className="main-content">
-        {/* Topbar mobile */}
         <div className="topbar">
-          <button
-            className="btn btn-icon"
-            style={{ display:"none" }}
-            id="menu-btn"
-            onClick={() => setSideOpen(s => !s)}
-          >
-            ☰
-          </button>
           <span style={{ fontWeight:600, fontSize:15, color:"var(--azul)" }}>
             {obras.find(o => o.id === obraAtual)?.nome || "AFINE · Gestão de Obras"}
           </span>
           <button className="btn btn-sm" style={{ marginLeft:"auto" }}
-            onClick={() => setSideOpen(s => !s)}
-          >
+            onClick={() => setSideOpen(s => !s)}>
             ☰
           </button>
         </div>
@@ -218,7 +191,6 @@ function AppShell() {
         </div>
       </div>
 
-      {/* Overlay para fechar sidebar no mobile */}
       {sideOpen && (
         <div
           onClick={() => setSideOpen(false)}
@@ -229,10 +201,8 @@ function AppShell() {
   );
 }
 
-// ─── Root ─────────────────────────────────────────────────────────────────────
 export default function App() {
   const { currentUser } = useAuth();
-
   return (
     <BrowserRouter>
       <Routes>
