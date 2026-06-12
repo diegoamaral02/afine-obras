@@ -1,6 +1,6 @@
 // src/pages/Equipe.js
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, query, where, addDoc, updateDoc, doc, serverTimestamp } from "firebase/firestore";
+import { collection, onSnapshot, query, where, addDoc, updateDoc, doc } from "firebase/firestore";
 import { db } from "../firebase";
 import { statusBadge, fmtDate, initials } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -23,10 +23,10 @@ function EquipeModal({ membro, obraId, onClose, addToast }) {
   async function save() {
     if (!form.nome) { alert("Informe o nome."); return; }
     setSaving(true);
-    const payload = { ...form, obraId, updatedAt: serverTimestamp() };
+    const payload = { ...form, obraId, updatedAt: new Date().toISOString() };
     try {
       if (membro?.id) { await updateDoc(doc(db, "equipe", membro.id), payload); addToast("Colaborador atualizado!"); }
-      else { payload.createdAt = serverTimestamp(); await addDoc(collection(db, "equipe"), payload); addToast("Colaborador adicionado!"); }
+      else { payload.createdAt = new Date().toISOString(); await addDoc(collection(db, "equipe"), payload); addToast("Colaborador adicionado!"); }
       onClose();
     } catch (err) { addToast("Erro: " + err.message, "error"); }
     setSaving(false);
@@ -124,7 +124,7 @@ export function Materiais({ obraAtual }) {
 
   async function saveMat() {
     if (!form.desc) { alert("Informe o material."); return; }
-    await addDoc(collection(db, "materiais"), { ...form, prev: +form.prev, rec: +form.rec, uso: +form.uso, obraId: obraAtual, createdAt: serverTimestamp() });
+    await addDoc(collection(db, "materiais"), { ...form, prev: +form.prev, rec: +form.rec, uso: +form.uso, obraId: obraAtual, createdAt: new Date().toISOString() });
     addToast("Material registrado!");
     setModal(false);
   }
@@ -208,7 +208,7 @@ export function Ocorrencias({ obraAtual }) {
 
   async function save() {
     if (!form.descricao) { alert("Informe a descrição."); return; }
-    await addDoc(collection(db, "ocorrencias"), { ...form, obraId: obraAtual, status: "ABERTA", createdAt: serverTimestamp() });
+    await addDoc(collection(db, "ocorrencias"), { ...form, obraId: obraAtual, status: "ABERTA", createdAt: new Date().toISOString() });
     addToast("Ocorrência registrada!");
     setModal(false);
   }

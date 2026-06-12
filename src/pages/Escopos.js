@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import {
   collection, onSnapshot, query, where,
-  addDoc, updateDoc, doc, serverTimestamp
+  addDoc, updateDoc, doc
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { statusBadge, pctColor, fmtDate } from "../utils/helpers";
@@ -66,14 +66,14 @@ function EscopoModal({ escopo, obraId, onClose, addToast }) {
       obraId,
       fotos,
       osFile: osFile || null,
-      updatedAt: serverTimestamp(),
+      updatedAt: new Date().toISOString(),
     };
     try {
       if (escopo?.id) {
         await updateDoc(doc(db, "escopos", escopo.id), payload);
         addToast("Escopo atualizado com sucesso!");
       } else {
-        payload.createdAt = serverTimestamp();
+        payload.createdAt = new Date().toISOString();
         await addDoc(collection(db, "escopos"), payload);
         addToast("Escopo criado com sucesso!");
       }

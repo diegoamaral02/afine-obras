@@ -1,6 +1,6 @@
 // src/pages/Diario.js
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, query, where, addDoc, serverTimestamp, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, query, where, addDoc, orderBy } from "firebase/firestore";
 import { db } from "../firebase";
 import { fmtDate, initials } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -30,7 +30,7 @@ function RDOModal({ obraId, onClose, addToast }) {
         obraId,
         autor:     currentUser.email,
         autorNome: userProfile?.nome || currentUser.email,
-        createdAt: serverTimestamp(),
+        createdAt: new Date().toISOString(),
       });
       addToast("RDO registrado com sucesso!");
       onClose();
