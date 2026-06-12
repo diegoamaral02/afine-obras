@@ -1,6 +1,6 @@
 // src/pages/Obras.js
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, doc, serverTimestamp } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, doc } from "firebase/firestore";
 import { db } from "../firebase";
 import { statusBadge, fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -9,17 +9,17 @@ import { useToast } from "../hooks/useToast";
 
 function ObraModal({ obra, onClose, addToast }) {
   const [form, setForm] = useState({
-    nome:        obra?.nome        || "",
-    cliente:     obra?.cliente     || "",
-    gerenciadora:obra?.gerenciadora|| "",
-    responsavel: obra?.responsavel || "",
-    endereco:    obra?.endereco    || "",
-    contrato:    obra?.contrato    || "",
-    area:        obra?.area        || "",
-    inicio:      obra?.inicio      || "",
-    termino:     obra?.termino     || "",
-    status:      obra?.status      || "EM ANDAMENTO",
-    progresso:   obra?.progresso   || 0,
+    nome:         obra?.nome         || "",
+    cliente:      obra?.cliente      || "",
+    gerenciadora: obra?.gerenciadora || "",
+    responsavel:  obra?.responsavel  || "",
+    endereco:     obra?.endereco     || "",
+    contrato:     obra?.contrato     || "",
+    area:         obra?.area         || "",
+    inicio:       obra?.inicio       || "",
+    termino:      obra?.termino      || "",
+    status:       obra?.status       || "EM ANDAMENTO",
+    progresso:    obra?.progresso    || 0,
   });
   const [saving, setSaving] = useState(false);
   function set(f, v) { setForm(p => ({ ...p, [f]: v })); }
@@ -27,25 +27,34 @@ function ObraModal({ obra, onClose, addToast }) {
   async function save() {
     if (!form.nome || !form.cliente) { alert("Nome e cliente são obrigatórios."); return; }
     setSaving(true);
-    const payload = { 
-  nome:         form.nome,
-  cliente:      form.cliente,
-  gerenciadora: form.gerenciadora,
-  responsavel:  form.responsavel,
-  endereco:     form.endereco,
-  contrato:     form.contrato,
-  area:         form.area,
-  progresso:    +form.progresso,
-  inicio:       form.inicio,
-  termino:      form.termino,
-  status:       form.status,
-  updatedAt:    serverTimestamp()
-};
+    const agora = new Date().toISOString();
+    const payload = {
+      nome:         form.nome,
+      cliente:      form.cliente,
+      gerenciadora: form.gerenciadora,
+      responsavel:  form.responsavel,
+      endereco:     form.endereco,
+      contrato:     form.contrato,
+      area:         form.area,
+      inicio:       form.inicio,
+      termino:      form.termino,
+      status:       form.status,
+      progresso:    Number(form.progresso) || 0,
+      updatedAt:    agora,
+    };
     try {
-      if (obra?.id) { await updateDoc(doc(db, "obras", obra.id), payload); addToast("Obra atualizada!"); }
-      else { payload.createdAt = serverTimestamp(); await addDoc(collection(db, "obras"), payload); addToast("Obra criada!"); }
+      if (obra?.id) {
+        await updateDoc(doc(db, "obras", obra.id), payload);
+        addToast("Obra atualizada!");
+      } else {
+        payload.createdAt = agora;
+        await addDoc(collection(db, "obras"), payload);
+        addToast("Obra criada!");
+      }
       onClose();
-    } catch (err) { addToast("Erro: " + err.message, "error"); }
+    } catch (err) {
+      addToast("Erro ao salvar: " + err.message, "error");
+    }
     setSaving(false);
   }
 
@@ -91,7 +100,8 @@ export default function Obras({ onObraSelect }) {
     });
   }, []);
 
-  const filtered = obras.filter(o => !search ||
+  const filtered = obras.filter(o =>
+    !search ||
     o.nome?.toLowerCase().includes(search.toLowerCase()) ||
     o.cliente?.toLowerCase().includes(search.toLowerCase()) ||
     o.contrato?.toLowerCase().includes(search.toLowerCase())
@@ -105,36 +115,31 @@ export default function Obras({ onObraSelect }) {
           <div className="panel-title">Todas as obras</div>
           <div style={{ fontSize:12, color:"var(--cinza-med)" }}>{obras.length} obras cadastradas</div>
         </div>
-        {isGestor && <button className="btn btn-primary" onClick={() => setModal({ obra:null })}>+ Nova obra</button>}
+        {isGestor && <button className="btn btn-primary" onClick={() => setModal({ obra: null })}>+ Nova obra</button>}
       </div>
       <div className="search-bar">🔍 <input placeholder="Buscar por nome, cliente ou contrato..." value={search} onChange={e => setSearch(e.target.value)} /></div>
       {loading && <div className="spinner" />}
       {!loading && filtered.length === 0 && <div className="empty-state"><div className="empty-icon">🏗️</div><p>Nenhuma obra encontrada</p></div>}
-      {!loading && (
+      {!loading && filtered.length > 0 && (
         <div className="table-wrap">
           <table>
             <thead><tr><th>Obra</th><th>Cliente</th><th>Responsável</th><th>Início</th><th>Término</th><th>Progresso</th><th>Status</th><th></th></tr></thead>
             <tbody>
               {filtered.map(o => (
                 <tr key={o.id}>
-                  <td>
-                    <div style={{ fontWeight:600 }}>{o.nome}</div>
-                    <div style={{ fontSize:11, color:"var(--cinza-med)" }}>{o.contrato}</div>
-                  </td>
+                  <td><div style={{ fontWeight:600 }}>{o.nome}</div><div style={{ fontSize:11, color:"var(--cinza-med)" }}>{o.contrato}</div></td>
                   <td style={{ fontSize:12 }}>{o.cliente}</td>
                   <td style={{ fontSize:12 }}>{o.responsavel || "–"}</td>
                   <td style={{ fontSize:12 }}>{fmtDate(o.inicio)}</td>
                   <td style={{ fontSize:12 }}>{fmtDate(o.termino)}</td>
                   <td style={{ minWidth:100 }}>
-                    <div className="progress-bar" style={{ marginBottom:3 }}>
-                      <div className={`progress-fill ${o.progresso >= 100 ? "green" : "blue"}`} style={{ width:`${o.progresso||0}%` }} />
-                    </div>
+                    <div className="progress-bar" style={{ marginBottom:3 }}><div className={`progress-fill ${o.progresso >= 100 ? "green" : "blue"}`} style={{ width:`${o.progresso||0}%` }}/></div>
                     <span style={{ fontSize:11 }}>{o.progresso||0}%</span>
                   </td>
                   <td><span className={`badge ${statusBadge(o.status)}`}>{o.status}</span></td>
                   <td style={{ display:"flex", gap:6 }}>
-                    <button className="btn btn-sm" onClick={() => onObraSelect(o.id)} title="Selecionar obra">🔀</button>
-                    {isGestor && <button className="btn btn-sm btn-icon" onClick={() => setModal({ obra:o })}>✏️</button>}
+                    <button className="btn btn-sm" onClick={() => onObraSelect(o.id)}>🔀</button>
+                    {isGestor && <button className="btn btn-sm btn-icon" onClick={() => setModal({ obra: o })}>✏️</button>}
                   </td>
                 </tr>
               ))}
