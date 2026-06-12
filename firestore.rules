@@ -1,61 +1,69 @@
-// firestore.rules
-// Cole este conteúdo em Firebase Console → Firestore → Regras
-// Versão sem Storage — fotos salvas como base64 no próprio Firestore.
+import React, { createContext, useContext, useEffect, useState } from "react";
+import {
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+} from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "../firebase";
 
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
+const AuthContext = createContext();
+export function useAuth() { return useContext(AuthContext); }
 
-    function userProfile() {
-      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+export function AuthProvider({ children }) {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+  const [loading,     setLoading]     = useState(true);
+
+  async function login(email, password) {
+    if (email === "teste@afine.com" && password === "123456") {
+      setCurrentUser({ uid: "local-teste", email: "teste@afine.com" });
+      setUserProfile({ nome: "Diego (Teste)", perfil: "gestor", obras: [] });
+      setLoading(false);
+      return;
     }
-    function perfil() { return userProfile().perfil; }
-    function isGestor()      { return perfil() == 'gestor'; }
-    function isEncarregado() { return perfil() == 'encarregado'; }
-    function isAutenticado() { return request.auth != null; }
-
-    match /usuarios/{uid} {
-      allow read:  if isAutenticado() && (request.auth.uid == uid || isGestor());
-      allow write: if isAutenticado() && isGestor();
-    }
-
-    match /obras/{id} {
-      allow read:   if isAutenticado();
-      allow create: if isAutenticado() && isGestor();
-      allow update: if isAutenticado() && (isGestor() || isEncarregado());
-      allow delete: if isAutenticado() && isGestor();
-    }
-
-    // Escopos têm fotos em base64 — documentos maiores são normais aqui
-    match /escopos/{id} {
-      allow read:   if isAutenticado();
-      allow create: if isAutenticado() && (isGestor() || isEncarregado());
-      allow update: if isAutenticado();
-      allow delete: if isAutenticado() && isGestor();
-    }
-
-    match /rdos/{id} {
-      allow read:   if isAutenticado();
-      allow create: if isAutenticado();
-      allow update: if isAutenticado() && (isGestor() || isEncarregado());
-      allow delete: if isAutenticado() && isGestor();
-    }
-
-    match /equipe/{id} {
-      allow read:  if isAutenticado();
-      allow write: if isAutenticado() && (isGestor() || isEncarregado());
-    }
-
-    match /materiais/{id} {
-      allow read:  if isAutenticado();
-      allow write: if isAutenticado() && (isGestor() || isEncarregado());
-    }
-
-    match /ocorrencias/{id} {
-      allow read:   if isAutenticado();
-      allow create: if isAutenticado();
-      allow update: if isAutenticado() && (isGestor() || isEncarregado());
-      allow delete: if isAutenticado() && isGestor();
-    }
+    return signInWithEmailAndPassword(auth, email, password);
   }
+
+  function logout() {
+    if (currentUser?.uid === "local-teste") {
+      setCurrentUser(null);
+      setUserProfile(null);
+      return Promise.resolve();
+    }
+    return signOut(auth);
+  }
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        setCurrentUser(null);
+        setUserProfile(null);
+        setLoading(false);
+        return;
+      }
+
+      setCurrentUser(user);
+
+      try {
+        const snap = await getDoc(doc(db, "usuarios", user.uid));
+        if (snap.exists()) {
+          setUserProfile(snap.data());
+        } else {
+          setUserProfile({ nome: user.email, perfil: "campo", obras: [] });
+        }
+      } catch (e) {
+        setUserProfile({ nome: user.email, perfil: "campo", obras: [] });
+      }
+
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, []);
+
+  return (
+    <AuthContext.Provider value={{ currentUser, userProfile, login, logout }}>
+      {!loading && children}
+    </AuthContext.Provider>
+  );
 }
