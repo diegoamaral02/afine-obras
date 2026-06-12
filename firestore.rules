@@ -1,0 +1,61 @@
+// firestore.rules
+// Cole este conteúdo em Firebase Console → Firestore → Regras
+// Versão sem Storage — fotos salvas como base64 no próprio Firestore.
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function userProfile() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+    function perfil() { return userProfile().perfil; }
+    function isGestor()      { return perfil() == 'gestor'; }
+    function isEncarregado() { return perfil() == 'encarregado'; }
+    function isAutenticado() { return request.auth != null; }
+
+    match /usuarios/{uid} {
+      allow read:  if isAutenticado() && (request.auth.uid == uid || isGestor());
+      allow write: if isAutenticado() && isGestor();
+    }
+
+    match /obras/{id} {
+      allow read:   if isAutenticado();
+      allow create: if isAutenticado() && isGestor();
+      allow update: if isAutenticado() && (isGestor() || isEncarregado());
+      allow delete: if isAutenticado() && isGestor();
+    }
+
+    // Escopos têm fotos em base64 — documentos maiores são normais aqui
+    match /escopos/{id} {
+      allow read:   if isAutenticado();
+      allow create: if isAutenticado() && (isGestor() || isEncarregado());
+      allow update: if isAutenticado();
+      allow delete: if isAutenticado() && isGestor();
+    }
+
+    match /rdos/{id} {
+      allow read:   if isAutenticado();
+      allow create: if isAutenticado();
+      allow update: if isAutenticado() && (isGestor() || isEncarregado());
+      allow delete: if isAutenticado() && isGestor();
+    }
+
+    match /equipe/{id} {
+      allow read:  if isAutenticado();
+      allow write: if isAutenticado() && (isGestor() || isEncarregado());
+    }
+
+    match /materiais/{id} {
+      allow read:  if isAutenticado();
+      allow write: if isAutenticado() && (isGestor() || isEncarregado());
+    }
+
+    match /ocorrencias/{id} {
+      allow read:   if isAutenticado();
+      allow create: if isAutenticado();
+      allow update: if isAutenticado() && (isGestor() || isEncarregado());
+      allow delete: if isAutenticado() && isGestor();
+    }
+  }
+}

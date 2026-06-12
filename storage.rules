@@ -1,0 +1,25 @@
+// storage.rules
+// Cole no Firebase Console → Storage → Regras
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Fotos de escopos: qualquer usuário autenticado pode ler e gravar
+    match /obras/{obraId}/escopos/{escopoId}/{allPaths=**} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null
+                   && request.resource.size < 15 * 1024 * 1024  // máx 15MB por arquivo
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // OS (Ordens de Serviço): aceita imagem ou PDF
+    match /obras/{obraId}/os/{allPaths=**} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null
+                   && request.resource.size < 20 * 1024 * 1024
+                   && (request.resource.contentType.matches('image/.*')
+                       || request.resource.contentType == 'application/pdf');
+    }
+  }
+}
