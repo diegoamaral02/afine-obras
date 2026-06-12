@@ -14,24 +14,13 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// USUÁRIO DE TESTE LOCAL
-// Email:  teste@afine.com
-// Senha:  123456
-//
-// Quando o Firebase estiver configurado e você criar seus usuários reais,
-// APAGUE as 11 linhas marcadas com "REMOVER DEPOIS" abaixo.
-// ─────────────────────────────────────────────────────────────────────────────
-
-// REMOVER DEPOIS ↓
 const TESTE_EMAIL = "teste@afine.com";
 const TESTE_SENHA = "123456";
 const TESTE_PERFIL = {
-  nome:   "Diego Nery (Teste)",
+  nome:   "Diego (Teste)",
   perfil: "gestor",
   obras:  [],
 };
-// REMOVER DEPOIS ↑
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
@@ -39,47 +28,50 @@ export function AuthProvider({ children }) {
   const [loading,     setLoading]     = useState(true);
 
   async function login(email, password) {
-    // REMOVER DEPOIS ↓
     if (email === TESTE_EMAIL && password === TESTE_SENHA) {
       const fakeUser = { uid: "local-teste", email: TESTE_EMAIL };
       setCurrentUser(fakeUser);
       setUserProfile(TESTE_PERFIL);
+      setLoading(false);
       return;
     }
-    // REMOVER DEPOIS ↑
-
-    // Login real via Firebase (sempre ativo)
-    return signInWithEmailAndPassword(auth, email, password);
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    const snap = await getDoc(doc(db, "usuarios", cred.user.uid));
+    if (snap.exists()) {
+      setUserProfile(snap.data());
+    }
+    return cred;
   }
 
   function logout() {
-    // REMOVER DEPOIS ↓
     if (currentUser?.uid === "local-teste") {
       setCurrentUser(null);
       setUserProfile(null);
       return Promise.resolve();
     }
-    // REMOVER DEPOIS ↑
-
     return signOut(auth);
   }
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      // REMOVER DEPOIS ↓
       if (currentUser?.uid === "local-teste") {
         setLoading(false);
         return;
       }
-      // REMOVER DEPOIS ↑
 
       setCurrentUser(user);
+
       if (user) {
         const snap = await getDoc(doc(db, "usuarios", user.uid));
-        setUserProfile(snap.exists() ? snap.data() : null);
+        if (snap.exists()) {
+          setUserProfile(snap.data());
+        } else {
+          setUserProfile({ nome: user.email, perfil: "campo", obras: [] });
+        }
       } else {
         setUserProfile(null);
       }
+
       setLoading(false);
     });
     return unsubscribe;
