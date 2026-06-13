@@ -549,7 +549,7 @@ export default function Manutencao({ obraAtual }) {
   },[obraAtual]);
 
   useEffect(()=>{
-    return onSnapshot(collection(db,"usuarios_lista"), snap=>{
+    return onSnapshot(collection(db,"usuarios"), snap=>{
       setFuncionarios(snap.docs.map(d=>({id:d.id,...d.data()})).filter(f=>f.status==="ATIVO"||!f.status));
     });
   },[]);

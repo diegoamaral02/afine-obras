@@ -272,7 +272,7 @@ export default function Diario({ obraAtual }) {
 
   // Todos funcionários para modal de permissões
   useEffect(() => {
-    return onSnapshot(collection(db,"usuarios_lista"), snap => setTodosFuncs(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    return onSnapshot(collection(db,"usuarios"), snap => setTodosFuncs(snap.docs.map(d=>({id:d.id,...d.data()}))));
   }, []);
 
   const climaEmoji = {"Ensolarado":"☀️","Parcialmente nublado":"⛅","Nublado":"☁️","Chuva fraca":"🌧️","Chuva forte":"⛈️"};

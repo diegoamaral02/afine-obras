@@ -1,7 +1,7 @@
-// src/components/PhotoUploader.js — com opção câmera ou galeria
+// src/components/PhotoUploader.js — camera + gallery, optional minFotos
 import React, { useRef, useState } from "react";
 
-const MIN_PHOTOS = 15;
+const DEFAULT_MIN = 15;
 
 function comprimirImagem(file) {
   return new Promise((resolve, reject) => {
@@ -13,14 +13,14 @@ function comprimirImagem(file) {
       img.onload = () => {
         const MAX = 800;
         let { width, height } = img;
-        if (width > MAX || height > MAX) {
-          if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
-          else { width = Math.round(width * MAX / height); height = MAX; }
+        if (width>MAX||height>MAX) {
+          if (width>height) { height=Math.round(height*MAX/width); width=MAX; }
+          else { width=Math.round(width*MAX/height); height=MAX; }
         }
         const canvas = document.createElement("canvas");
-        canvas.width = width; canvas.height = height;
-        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
-        resolve({ base64: canvas.toDataURL("image/jpeg", 0.70), nome: file.name });
+        canvas.width=width; canvas.height=height;
+        canvas.getContext("2d").drawImage(img,0,0,width,height);
+        resolve({ base64: canvas.toDataURL("image/jpeg",0.70), nome: file.name });
       };
       img.src = e.target.result;
     };
@@ -28,7 +28,8 @@ function comprimirImagem(file) {
   });
 }
 
-export default function PhotoUploader({ fotos, onChange }) {
+export default function PhotoUploader({ fotos, onChange, minFotos }) {
+  const MIN      = minFotos !== undefined ? minFotos : DEFAULT_MIN;
   const cameraRef  = useRef();
   const galeriaRef = useRef();
   const [loading,  setLoading]  = useState(false);
@@ -40,90 +41,76 @@ export default function PhotoUploader({ fotos, onChange }) {
     setLoading(true);
     try {
       const novas = await Promise.all(
-        files.map(async (file) => {
-          const { base64, nome } = await comprimirImagem(file);
-          return { base64, nome, caption: "", addedAt: new Date().toISOString() };
-        })
+        files.map(async f => { const {base64,nome}=await comprimirImagem(f); return {base64,nome,caption:"",addedAt:new Date().toISOString()}; })
       );
-      onChange([...fotos, ...novas]);
-    } catch (err) { alert("Erro ao processar foto: " + err.message); }
+      onChange([...fotos,...novas]);
+    } catch(err) { alert("Erro ao processar foto: "+err.message); }
     setLoading(false);
-    e.target.value = "";
+    e.target.value="";
   }
 
-  function remover(idx) { onChange(fotos.filter((_, i) => i !== idx)); }
-  function salvarCaption(idx, val) {
-    onChange(fotos.map((f, i) => i === idx ? { ...f, caption: val } : f));
-    setEditIdx(null);
-  }
+  function remover(idx) { onChange(fotos.filter((_,i)=>i!==idx)); }
+  function salvarCaption(idx,val) { onChange(fotos.map((f,i)=>i===idx?{...f,caption:val}:f)); setEditIdx(null); }
 
-  const count  = fotos.length;
-  const faltam = Math.max(0, MIN_PHOTOS - count);
-  const ok     = count >= MIN_PHOTOS;
+  const count = fotos.length;
+  const ok    = MIN===0 || count>=MIN;
+  const faltam= Math.max(0,MIN-count);
 
   return (
     <div>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
-        <label style={{ fontSize:12, fontWeight:600, color:"#444" }}>
-          Fotos do serviço <span style={{ color:"var(--vermelho)" }}>*</span>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+        <label style={{fontSize:12,fontWeight:600,color:"#4A4A4A"}}>
+          Fotos {MIN>0&&<span style={{color:"var(--vermelho)"}}>*</span>}
         </label>
-        <span style={{ fontSize:12, fontWeight:600, color: ok?"var(--verde)":"var(--vermelho)" }}>
-          {count} / {MIN_PHOTOS} {ok ? "✓" : `(faltam ${faltam})`}
-        </span>
+        {MIN>0 && (
+          <span style={{fontSize:12,fontWeight:600,color:ok?"var(--verde)":"var(--vermelho)"}}>
+            {count}/{MIN} {ok?"✓":`(faltam ${faltam})`}
+          </span>
+        )}
+        {MIN===0 && <span style={{fontSize:12,color:"#7A7A7A"}}>{count} foto{count!==1?"s":""}</span>}
       </div>
 
-      {!ok && (
-        <div className="alert alert-warning" style={{ marginBottom:10, fontSize:12 }}>
-          ⚠ Mínimo <strong>{MIN_PHOTOS} fotos</strong> obrigatórias. Faltam <strong>{faltam}</strong>.
+      {MIN>0 && !ok && (
+        <div className="alert alert-warning" style={{marginBottom:10,fontSize:12}}>
+          ⚠ Mínimo <strong>{MIN} fotos</strong> com descrição. Faltam <strong>{faltam}</strong>.
         </div>
       )}
 
       <div className="photo-grid">
-        {fotos.map((foto, idx) => (
+        {fotos.map((foto,idx)=>(
           <div key={idx} className="photo-thumb">
-            <img src={foto.base64} alt={foto.caption || "foto"} />
-            <button className="photo-del" onClick={() => remover(idx)}>×</button>
-            {editIdx === idx ? (
-              <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"rgba(0,0,0,.85)", padding:4 }}>
+            <img src={foto.base64} alt={foto.caption||"foto"}/>
+            <button className="photo-del" onClick={()=>remover(idx)}>×</button>
+            {editIdx===idx ? (
+              <div style={{position:"absolute",bottom:0,left:0,right:0,background:"rgba(0,0,0,.85)",padding:4}}>
                 <input autoFocus defaultValue={foto.caption}
-                  onBlur={e => salvarCaption(idx, e.target.value)}
-                  onKeyDown={e => e.key==="Enter" && salvarCaption(idx, e.target.value)}
-                  style={{ width:"100%", fontSize:10, padding:"2px 4px", borderRadius:3, border:"none" }}
-                />
+                  onBlur={e=>salvarCaption(idx,e.target.value)}
+                  onKeyDown={e=>e.key==="Enter"&&salvarCaption(idx,e.target.value)}
+                  style={{width:"100%",fontSize:10,padding:"2px 4px",borderRadius:3,border:"none"}}/>
               </div>
             ) : (
-              <div className="photo-caption" onClick={() => setEditIdx(idx)}
-                title="Clique para descrever"
-                style={{ cursor:"text", color: foto.caption?"#fff":"rgba(255,255,255,.5)" }}>
-                {foto.caption || "+ descrição"}
+              <div className="photo-caption" onClick={()=>setEditIdx(idx)} title="Clique para descrever"
+                style={{cursor:"text",color:foto.caption?"#fff":"rgba(255,255,255,.5)"}}>
+                {foto.caption||"+ descrição"}
               </div>
             )}
           </div>
         ))}
 
-        {/* Botões separados: câmera e galeria */}
-        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-          <button className="photo-add" onClick={() => cameraRef.current.click()} disabled={loading}
-            style={{ flex:1, borderColor:"var(--azul-med)", color:"var(--azul-med)" }}>
-            {loading ? <span style={{fontSize:11}}>...</span> : <><span style={{fontSize:20}}>📷</span><span style={{fontSize:11}}>Câmera</span></>}
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          <button className="photo-add" onClick={()=>cameraRef.current.click()} disabled={loading}
+            style={{flex:1,borderColor:"var(--afine-yellow-dk)",color:"var(--afine-yellow-dk)"}}>
+            {loading?<span style={{fontSize:11}}>...</span>:<><span style={{fontSize:18}}>📷</span><span style={{fontSize:10}}>Câmera</span></>}
           </button>
-          <button className="photo-add" onClick={() => galeriaRef.current.click()} disabled={loading}
-            style={{ flex:1 }}>
-            <span style={{fontSize:20}}>🖼️</span><span style={{fontSize:11}}>Galeria</span>
+          <button className="photo-add" onClick={()=>galeriaRef.current.click()} disabled={loading} style={{flex:1}}>
+            <span style={{fontSize:18}}>🖼️</span><span style={{fontSize:10}}>Galeria</span>
           </button>
         </div>
       </div>
 
-      {/* Input câmera — abre câmera diretamente */}
-      <input ref={cameraRef} type="file" accept="image/*" multiple capture="environment"
-        onChange={handleFiles} style={{ display:"none" }} />
-      {/* Input galeria — abre galeria de fotos */}
-      <input ref={galeriaRef} type="file" accept="image/*" multiple
-        onChange={handleFiles} style={{ display:"none" }} />
-
-      <p style={{ fontSize:11, color:"var(--cinza-med)", marginTop:6 }}>
-        Fotos comprimidas e salvas no banco. Nenhum custo adicional.
-      </p>
+      <input ref={cameraRef} type="file" accept="image/*" multiple capture="environment" onChange={handleFiles} style={{display:"none"}}/>
+      <input ref={galeriaRef} type="file" accept="image/*" multiple onChange={handleFiles} style={{display:"none"}}/>
+      <p style={{fontSize:11,color:"#7A7A7A",marginTop:6}}>Fotos comprimidas automaticamente. Clique na foto para adicionar descrição.</p>
     </div>
   );
 }
