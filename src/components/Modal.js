@@ -1,4 +1,4 @@
-// src/components/Modal.js
+// src/components/Modal.js — AFINE branded with yellow accent bar
 import React, { useEffect } from "react";
 
 export default function Modal({ title, onClose, children, footer }) {
@@ -19,8 +19,11 @@ export default function Modal({ title, onClose, children, footer }) {
           <h2>{title}</h2>
           <button className="btn-close" onClick={onClose}>×</button>
         </div>
+        <div className="modal-header-bar" />
         <div className="modal-body">{children}</div>
-        {footer && <div className="modal-footer">{footer}</div>}
+        {footer && (
+          <div className="modal-footer">{footer}</div>
+        )}
       </div>
     </div>
   );
