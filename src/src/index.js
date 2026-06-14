@@ -1,4 +1,3 @@
-// src/index.js
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";
@@ -13,3 +12,12 @@ root.render(
     </AuthProvider>
   </React.StrictMode>
 );
+
+// Registrar Service Worker para modo offline (PWA)
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js")
+      .then(() => console.log("SW registrado — modo offline ativo"))
+      .catch(err => console.log("SW erro:", err));
+  });
+}

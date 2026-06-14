@@ -1,4 +1,4 @@
-// src/App.js — v4 com todos os módulos
+// src/App.js — v5 com todos os módulos
 import React, { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate } from "react-router-dom";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
@@ -16,6 +16,8 @@ import Funcionarios from "./pages/Funcionarios";
 import Fornecedores from "./pages/Fornecedores";
 import Compras      from "./pages/Compras";
 import Financeiro   from "./pages/Financeiro";
+import DRE          from "./pages/DRE";
+import Medicao      from "./pages/Medicao";
 import MateriaisGlobal from "./pages/Materiais";
 import { Equipe, Ocorrencias } from "./pages/Equipe";
 
@@ -37,10 +39,11 @@ function Sidebar({ obraAtual, ocorrAbertas, manutAbertas, comprasPend, sideOpen,
       { to:"/", icon:"🏠", label:"Home", roles:["gestor","encarregado","campo"] },
     ]},
     { label:"Operação", items:[
-      { to:"/obras",       icon:"🏗️", label:"Obras",          roles:["gestor","encarregado"] },
-      { to:"/manutencao",  icon:"🔧", label:"Manutenção",     roles:["gestor","encarregado","campo"], badge:manutAbertas>0?manutAbertas:null, badgeType:"red" },
-      { to:"/diario",      icon:"📓", label:"Diário de obra", roles:["gestor","encarregado","campo"] },
-      { to:"/ocorrencias", icon:"⚠️", label:"Ocorrências",   roles:["gestor","encarregado","campo"], badge:ocorrAbertas>0?ocorrAbertas:null, badgeType:"red" },
+      { to:"/obras",       icon:"🏗️", label:"Obras",           roles:["gestor","encarregado"] },
+      { to:"/medicao",     icon:"📐", label:"Medição & FVS",   roles:["gestor","encarregado"] },
+      { to:"/manutencao",  icon:"🔧", label:"Manutenção",      roles:["gestor","encarregado","campo"], badge:manutAbertas>0?manutAbertas:null, badgeType:"red" },
+      { to:"/diario",      icon:"📓", label:"Diário de obra",  roles:["gestor","encarregado","campo"] },
+      { to:"/ocorrencias", icon:"⚠️", label:"Ocorrências",    roles:["gestor","encarregado","campo"], badge:ocorrAbertas>0?ocorrAbertas:null, badgeType:"red" },
     ]},
     { label:"Suprimentos", items:[
       { to:"/compras",      icon:"🛒", label:"Compras",        roles:["gestor","encarregado","campo"], badge:comprasPend>0?comprasPend:null, badgeType:"amber" },
@@ -48,7 +51,8 @@ function Sidebar({ obraAtual, ocorrAbertas, manutAbertas, comprasPend, sideOpen,
       { to:"/fornecedores", icon:"🏢", label:"Fornecedores",   roles:["gestor","encarregado"] },
     ]},
     { label:"Financeiro", items:[
-      { to:"/financeiro", icon:"💰", label:"Financeiro",       roles:["gestor"] },
+      { to:"/financeiro",   icon:"💰", label:"Lançamentos",    roles:["gestor"] },
+      { to:"/dre",          icon:"📊", label:"DRE & Indicadores", roles:["gestor"] },
     ]},
     { label:"Pessoas", items:[
       { to:"/equipe",       icon:"👷", label:"Equipe",         roles:["gestor","encarregado"] },
@@ -126,7 +130,6 @@ function AppShell() {
   return (
     <div className="app-shell">
       <Sidebar obraAtual={obraAtual} ocorrAbertas={ocorrAbertas} manutAbertas={manutAbertas} comprasPend={comprasPend} sideOpen={sideOpen} setSideOpen={setSideOpen}/>
-
       <div className="main-content">
         <div className="topbar">
           <div>
@@ -140,11 +143,11 @@ function AppShell() {
           </div>
           <button className="btn btn-sm" onClick={()=>setSideOpen(s=>!s)} style={{marginLeft:"auto"}}>☰</button>
         </div>
-
         <div className="page">
           <Routes>
             <Route path="/"             element={<Dashboard    obraAtual={obraAtual?.id}/>}/>
             <Route path="/obras"        element={<Obras         onObraSelect={setObraAtual}/>}/>
+            <Route path="/medicao"      element={<Medicao       obraAtual={obraAtual?.id}/>}/>
             <Route path="/manutencao"   element={<Manutencao    obraAtual={obraAtual?.id}/>}/>
             <Route path="/diario"       element={<Diario        obraAtual={obraAtual?.id}/>}/>
             <Route path="/equipe"       element={<Equipe        obraAtual={obraAtual?.id}/>}/>
@@ -152,13 +155,13 @@ function AppShell() {
             <Route path="/fornecedores" element={<Fornecedores/>}/>
             <Route path="/compras"      element={<Compras/>}/>
             <Route path="/financeiro"   element={<Financeiro/>}/>
+            <Route path="/dre"          element={<DRE/>}/>
             <Route path="/materiais"    element={<MateriaisGlobal/>}/>
             <Route path="/ocorrencias"  element={<Ocorrencias   obraAtual={obraAtual?.id}/>}/>
             <Route path="*"             element={<Navigate to="/" replace/>}/>
           </Routes>
         </div>
       </div>
-
       {sideOpen&&<div onClick={()=>setSideOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:99}}/>}
     </div>
   );

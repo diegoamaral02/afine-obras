@@ -31,17 +31,6 @@ const DESCRITIVOS_PRONTOS = [
 ];
 
 
-async function buscarCEP(cep) {
-  const c = cep.replace(/\D/g,"");
-  if (c.length !== 8) return null;
-  try {
-    const r = await fetch(`https://viacep.com.br/ws/${c}/json/`);
-    const d = await r.json();
-    if (d.erro) return null;
-    return d;
-  } catch { return null; }
-}
-
 function ManutencaoModal({ manut, obraId, funcionarios, onClose, addToast }) {
   const { userProfile } = useAuth();
   const isCampo = userProfile?.perfil === "campo";
