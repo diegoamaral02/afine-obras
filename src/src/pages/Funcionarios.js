@@ -1,7 +1,7 @@
 // src/pages/Funcionarios.js — cadastro com criação de login, perfis, obras
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, doc, setDoc, updateDoc } from "firebase/firestore";
-import { firebaseApiKey } from "../firebase";
+import { collection, onSnapshot, doc, setDoc } from "firebase/firestore";
+import { getApp } from "firebase/app";
 import { db } from "../firebase";
 import { statusBadge, fmtDate, initials } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -19,7 +19,8 @@ async function criarUsuarioFirebase(email, senha, apiKey) {
   return data.localId;
 }
 
-function FuncionarioModal({ func, obras, apiKey, onClose, addToast }) {
+function FuncionarioModal({ func, obras, onClose, addToast }) {
+  const apiKey = getApp().options.apiKey;
   const [form, setForm] = useState({
     nome: func?.nome||"", funcao: func?.funcao||"", empresa: func?.empresa||"",
     tel: func?.tel||"", cpf: func?.cpf||"", email: func?.email||"",
@@ -138,12 +139,8 @@ export default function Funcionarios() {
   const [search,  setSearch]  = useState("");
   const [filtro,  setFiltro]  = useState("ATIVO");
   const [modal,   setModal]   = useState(null);
-  const [apiKey,  setApiKey]  = useState("");
   const isGestor = userProfile?.perfil==="gestor";
 
-  useEffect(() => {
-    setApiKey(firebaseApiKey || "");
-  },[]);
 
   useEffect(() => {
     const u1 = onSnapshot(collection(db,"usuarios"), snap=>{
@@ -214,7 +211,7 @@ export default function Funcionarios() {
           </table>
         </div>
       )}
-      {modal&&<FuncionarioModal func={modal.func} obras={obras} apiKey={apiKey} onClose={()=>setModal(null)} addToast={addToast}/>}
+      {modal&&<FuncionarioModal func={modal.func} obras={obras} onClose={()=>setModal(null)} addToast={addToast}/>}
     </div>
   );
 }
