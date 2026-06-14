@@ -1,3 +1,4 @@
+import { buscarCEP } from "../utils/cep";
 // src/pages/Obras.js — completo com endereço, busca CEP, fotos, medições, subcontratados
 import React, { useEffect, useState } from "react";
 import { collection, onSnapshot, addDoc, updateDoc, doc } from "firebase/firestore";
@@ -10,7 +11,8 @@ import { useToast } from "../hooks/useToast";
 
 const TIPOS_OBRA = ["Reforma geral","Layout","Adequação","Retrofit","Manutenção preventiva","Manutenção corretiva","Instalação","Ampliação","Outro"];
 
-async function buscarCEP(cep) {
+// CEP moved to utils/cep.js
+// async function buscarCEP(cep) {
   const c = cep.replace(/\D/g,"");
   if (c.length !== 8) return null;
   try {

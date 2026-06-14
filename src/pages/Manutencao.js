@@ -1,3 +1,4 @@
+import { buscarCEP } from "../utils/cep";
 // src/pages/Manutencao.js — versão completa com todas as melhorias
 import React, { useEffect, useState } from "react";
 import { collection, onSnapshot, query, where, addDoc, updateDoc, doc } from "firebase/firestore";
@@ -29,7 +30,7 @@ const DESCRITIVOS_PRONTOS = [
   "Pintura corretiva","Rejunte e silicone em banheiros","Revisão geral preventiva",
 ];
 
-// Busca CEP via ViaCEP
+
 async function buscarCEP(cep) {
   const c = cep.replace(/\D/g,"");
   if (c.length !== 8) return null;
