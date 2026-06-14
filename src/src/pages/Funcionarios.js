@@ -1,26 +1,22 @@
-// src/pages/Funcionarios.js — cadastro com criação de login, perfis, obras
+// src/pages/Funcionarios.js
 import React, { useEffect, useState } from "react";
 import { collection, onSnapshot, doc, setDoc } from "firebase/firestore";
-import { getApp } from "firebase/app";
+import { auth } from "../firebase";
 import { db } from "../firebase";
 import { statusBadge, fmtDate, initials } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
+import { createUserWithEmailAndPassword } from "firebase/auth";
 
-async function criarUsuarioFirebase(email, senha, apiKey) {
-  const res = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`,
-    { method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ email, password:senha, returnSecureToken:true }) }
-  );
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message==="EMAIL_EXISTS"?"Este e-mail já está cadastrado.":data.error.message);
-  return data.localId;
+// Cria usuário usando o próprio SDK do Firebase Auth (sem REST API)
+async function criarUsuario(email, senha) {
+  // Usa createUserWithEmailAndPassword do SDK — não precisa de apiKey separada
+  const cred = await createUserWithEmailAndPassword(auth, email, senha);
+  return cred.user.uid;
 }
 
 function FuncionarioModal({ func, obras, onClose, addToast }) {
-  const apiKey = getApp().options.apiKey;
   const [form, setForm] = useState({
     nome: func?.nome||"", funcao: func?.funcao||"", empresa: func?.empresa||"",
     tel: func?.tel||"", cpf: func?.cpf||"", email: func?.email||"",
@@ -42,8 +38,9 @@ function FuncionarioModal({ func, obras, onClose, addToast }) {
     try {
       let uid = func?.uid;
       if (isNovo) {
-        uid = await criarUsuarioFirebase(form.email, senha, apiKey);
-        addToast("Login criado!");
+        // Usa Firebase Auth SDK diretamente — sempre funciona
+        uid = await criarUsuario(form.email, senha);
+        addToast("Login criado com sucesso!");
       }
       const payload = { ...form, uid, updatedAt: new Date().toISOString() };
       if (!isNovo) payload.createdAt = func.createdAt;
@@ -51,7 +48,11 @@ function FuncionarioModal({ func, obras, onClose, addToast }) {
       await setDoc(doc(db,"usuarios",uid), payload);
       addToast(isNovo?"Funcionário cadastrado!":"Funcionário atualizado!");
       onClose();
-    } catch(err) { addToast(err.message,"error"); }
+    } catch(err) {
+      if (err.code==="auth/email-already-in-use") addToast("Este e-mail já está cadastrado no sistema.","error");
+      else if (err.code==="auth/weak-password") addToast("Senha muito fraca. Use pelo menos 6 caracteres.","error");
+      else addToast("Erro: "+err.message,"error");
+    }
     setSaving(false);
   }
 
@@ -79,7 +80,8 @@ function FuncionarioModal({ func, obras, onClose, addToast }) {
         <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>Acesso ao sistema</div>
         <div className="form-grid">
           <div className="form-group"><label className="required">E-mail (login)</label>
-            <input type="email" value={form.email} onChange={e=>set("email",e.target.value)} disabled={!isNovo} style={{opacity:!isNovo?.6:1}}/>
+            <input type="email" value={form.email} onChange={e=>set("email",e.target.value)}
+              disabled={!isNovo} style={{opacity:!isNovo?.6:1}}/>
             {!isNovo&&<span style={{fontSize:11,color:"#7A7A7A"}}>E-mail não pode ser alterado</span>}
           </div>
           {isNovo && (
@@ -117,7 +119,8 @@ function FuncionarioModal({ func, obras, onClose, addToast }) {
           <div style={{display:"flex",flexDirection:"column",gap:4,maxHeight:160,overflowY:"auto"}}>
             {obras.length===0&&<span style={{fontSize:12,color:"#7A7A7A"}}>Nenhuma obra cadastrada ainda</span>}
             {obras.map(o=>(
-              <label key={o.id} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,cursor:"pointer",padding:"4px 8px",borderRadius:6,background:form.obras.includes(o.id)?"var(--afine-yellow-lt)":"transparent"}}>
+              <label key={o.id} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,cursor:"pointer",padding:"4px 8px",borderRadius:6,
+                background:form.obras.includes(o.id)?"var(--afine-yellow-lt)":"transparent"}}>
                 <input type="checkbox" checked={form.obras.includes(o.id)} onChange={()=>toggleObra(o.id)} style={{width:15,height:15}}/>
                 <span style={{flex:1}}>{o.nome}</span>
                 <span style={{fontSize:11,color:"#7A7A7A"}}>{o.cliente}</span>
@@ -140,7 +143,6 @@ export default function Funcionarios() {
   const [filtro,  setFiltro]  = useState("ATIVO");
   const [modal,   setModal]   = useState(null);
   const isGestor = userProfile?.perfil==="gestor";
-
 
   useEffect(() => {
     const u1 = onSnapshot(collection(db,"usuarios"), snap=>{
@@ -174,7 +176,7 @@ export default function Funcionarios() {
       </div>
 
       <div className="alert alert-info" style={{marginBottom:16,fontSize:12}}>
-        💡 Ao criar um funcionário aqui, o login é criado automaticamente no sistema. O funcionário acessa com e-mail e senha cadastrados.
+        💡 Ao criar um funcionário aqui, o login é criado automaticamente. O funcionário acessa com e-mail e senha cadastrados.
       </div>
 
       <div className="chip-row">
