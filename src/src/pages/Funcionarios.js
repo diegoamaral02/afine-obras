@@ -1,6 +1,7 @@
 // src/pages/Funcionarios.js — cadastro com criação de login, perfis, obras
 import React, { useEffect, useState } from "react";
 import { collection, onSnapshot, doc, setDoc, updateDoc } from "firebase/firestore";
+import { firebaseApiKey } from "../firebase";
 import { db } from "../firebase";
 import { statusBadge, fmtDate, initials } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -141,7 +142,7 @@ export default function Funcionarios() {
   const isGestor = userProfile?.perfil==="gestor";
 
   useEffect(() => {
-    try { const {getApp}=require("firebase/app"); setApiKey(getApp().options.apiKey||""); } catch {}
+    setApiKey(firebaseApiKey || "");
   },[]);
 
   useEffect(() => {
