@@ -1,18 +1,28 @@
 // src/pages/Funcionarios.js
 import React, { useEffect, useState } from "react";
 import { collection, onSnapshot, doc, setDoc } from "firebase/firestore";
-import { auth } from "../firebase";
 import { db } from "../firebase";
 import { statusBadge, fmtDate, initials } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { initializeApp, getApps } from "firebase/app";
+import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 
-// Cria usuário usando o próprio SDK do Firebase Auth (sem REST API)
+// Cria usuário em app secundário para NÃO fazer logout do gestor atual
 async function criarUsuario(email, senha) {
-  // Usa createUserWithEmailAndPassword do SDK — não precisa de apiKey separada
-  const cred = await createUserWithEmailAndPassword(auth, email, senha);
+  // Busca config do app principal
+  const mainApp = getApps()[0];
+  const config = mainApp.options;
+  
+  // Inicializa app secundário isolado (ou reutiliza se já existir)
+  const secondaryApp = getApps().find(a => a.name === "afine-secondary") 
+    || initializeApp(config, "afine-secondary");
+  const secondaryAuth = getAuth(secondaryApp);
+  
+  const cred = await createUserWithEmailAndPassword(secondaryAuth, email, senha);
+  // Faz logout do app secundário imediatamente (não afeta o gestor)
+  await secondaryAuth.signOut();
   return cred.user.uid;
 }
 
