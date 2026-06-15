@@ -123,11 +123,11 @@ export function exportarRDOParaPDF(rdos, obraInfo) {
         </div>
         <div class="autor">por ${r.autorNome||"–"}</div>
       </div>
-      ${r.atividades?.length?"<div class='section'><strong>Atividades:</strong><ul>${r.atividades.map(a=>`<li>${a}</li>`).join("")}</ul></div>":""}
+      ${r.atividades?.length?("<div class='section'><strong>Atividades:</strong><ul>"+r.atividades.map(a=>"<li>"+a+"</li>").join("")+"</ul></div>"):""}
       ${r.atividadeExtra?`<div class='section'><strong>Detalhe:</strong> ${r.atividadeExtra}</div>`:""}
       ${r.equipePresente?.length?`<div class='section'><strong>Equipe:</strong> ${r.equipePresente.join(", ")}</div>`:""}
       ${r.materiais?`<div class='section'><strong>Materiais recebidos:</strong> ${r.materiais}</div>`:""}
-      ${(r.ocorrencias?.length||r.ocorrenciaExtra)?`<div class='section ocorr'><strong>⚠ Ocorrências:</strong><ul>${(r.ocorrencias||[]).map(o=>`<li>${o}</li>`).join("")}</ul>${r.ocorrenciaExtra?`<p>${r.ocorrenciaExtra}</p>`:""}</div>`:""}
+      ${(r.ocorrencias?.length||r.ocorrenciaExtra)?("<div class='section ocorr'><strong>⚠ Ocorrências:</strong><ul>"+(r.ocorrencias||[]).map(o=>"<li>"+o+"</li>").join("")+"</ul>"+(r.ocorrenciaExtra?"<p>"+r.ocorrenciaExtra+"</p>":"")+"</div>"):""}
       ${r.obs?`<div class='section obs'><strong>Obs:</strong> ${r.obs}</div>`:""}
     </div>
   `).join("");
