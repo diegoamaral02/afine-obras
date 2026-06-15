@@ -1,9 +1,10 @@
-// src/App.js — v4 com todos os módulos
+// src/App.js — v6 com Calendário e AgendaContext unificado
 import React, { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate } from "react-router-dom";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "./firebase";
 import { useAuth } from "./contexts/AuthContext";
+import { AgendaProvider, useAgenda } from "./contexts/AgendaContext";
 import { initials } from "./utils/helpers";
 import { LOGO_BASE64 } from "./utils/assets";
 
@@ -16,6 +17,9 @@ import Funcionarios from "./pages/Funcionarios";
 import Fornecedores from "./pages/Fornecedores";
 import Compras      from "./pages/Compras";
 import Financeiro   from "./pages/Financeiro";
+import DRE          from "./pages/DRE";
+import Medicao      from "./pages/Medicao";
+import Calendario   from "./pages/Calendario";
 import MateriaisGlobal from "./pages/Materiais";
 import { Equipe, Ocorrencias } from "./pages/Equipe";
 
@@ -26,7 +30,7 @@ function Protected({ children }) {
   return currentUser ? children : <Navigate to="/login" replace />;
 }
 
-function Sidebar({ obraAtual, ocorrAbertas, manutAbertas, comprasPend, sideOpen, setSideOpen }) {
+function Sidebar({ obraAtual, ocorrAbertas, manutAbertas, comprasPend, agsHoje, sideOpen, setSideOpen }) {
   const { currentUser, userProfile, logout } = useAuth();
   const navigate = useNavigate();
   const perfil = userProfile?.perfil || "campo";
@@ -34,25 +38,28 @@ function Sidebar({ obraAtual, ocorrAbertas, manutAbertas, comprasPend, sideOpen,
 
   const navGroups = [
     { label:"Principal", items:[
-      { to:"/", icon:"🏠", label:"Home", roles:["gestor","encarregado","campo"] },
+      { to:"/",            icon:"🏠", label:"Home",           roles:["gestor","encarregado","campo"] },
+      { to:"/calendario",  icon:"📅", label:"Calendário",     roles:["gestor","encarregado","campo"], badge:agsHoje>0?agsHoje:null, badgeType:"yellow" },
     ]},
     { label:"Operação", items:[
       { to:"/obras",       icon:"🏗️", label:"Obras",          roles:["gestor","encarregado"] },
+      { to:"/medicao",     icon:"📐", label:"Medição & FVS",  roles:["gestor","encarregado"] },
       { to:"/manutencao",  icon:"🔧", label:"Manutenção",     roles:["gestor","encarregado","campo"], badge:manutAbertas>0?manutAbertas:null, badgeType:"red" },
       { to:"/diario",      icon:"📓", label:"Diário de obra", roles:["gestor","encarregado","campo"] },
       { to:"/ocorrencias", icon:"⚠️", label:"Ocorrências",   roles:["gestor","encarregado","campo"], badge:ocorrAbertas>0?ocorrAbertas:null, badgeType:"red" },
     ]},
     { label:"Suprimentos", items:[
-      { to:"/compras",      icon:"🛒", label:"Compras",        roles:["gestor","encarregado","campo"], badge:comprasPend>0?comprasPend:null, badgeType:"amber" },
-      { to:"/materiais",    icon:"📦", label:"Materiais",      roles:["gestor","encarregado"] },
-      { to:"/fornecedores", icon:"🏢", label:"Fornecedores",   roles:["gestor","encarregado"] },
+      { to:"/compras",      icon:"🛒", label:"Compras",       roles:["gestor","encarregado","campo"], badge:comprasPend>0?comprasPend:null, badgeType:"amber" },
+      { to:"/materiais",    icon:"📦", label:"Materiais",     roles:["gestor","encarregado"] },
+      { to:"/fornecedores", icon:"🏢", label:"Fornecedores",  roles:["gestor","encarregado"] },
     ]},
     { label:"Financeiro", items:[
-      { to:"/financeiro", icon:"💰", label:"Financeiro",       roles:["gestor"] },
+      { to:"/financeiro",   icon:"💰", label:"Lançamentos",   roles:["gestor"] },
+      { to:"/dre",          icon:"📊", label:"DRE & Indicadores", roles:["gestor"] },
     ]},
     { label:"Pessoas", items:[
-      { to:"/equipe",       icon:"👷", label:"Equipe",         roles:["gestor","encarregado"] },
-      { to:"/funcionarios", icon:"👤", label:"Funcionários",   roles:["gestor"] },
+      { to:"/equipe",       icon:"👷", label:"Equipe",        roles:["gestor","encarregado","campo"] },
+      { to:"/funcionarios", icon:"👤", label:"Funcionários",  roles:["gestor"] },
     ]},
   ];
 
@@ -62,7 +69,6 @@ function Sidebar({ obraAtual, ocorrAbertas, manutAbertas, comprasPend, sideOpen,
         <img src={LOGO_BASE64} alt="AFINE" style={{height:40,width:"auto",filter:"brightness(0) invert(1)",opacity:.95}}/>
         <div className="sidebar-logo-text"><h1>AFINE</h1><p>Gestão de Obras</p></div>
       </div>
-
       {obraAtual && (
         <div className="obra-active-banner">
           <div className="label">Obra ativa</div>
@@ -70,7 +76,6 @@ function Sidebar({ obraAtual, ocorrAbertas, manutAbertas, comprasPend, sideOpen,
           <div className="sub">{obraAtual.cliente}</div>
         </div>
       )}
-
       <nav style={{flex:1,overflowY:"auto"}}>
         {navGroups.map(group=>{
           const visible=group.items.filter(i=>i.roles.includes(perfil));
@@ -90,7 +95,6 @@ function Sidebar({ obraAtual, ocorrAbertas, manutAbertas, comprasPend, sideOpen,
           );
         })}
       </nav>
-
       <div className="sidebar-footer">
         <div className="user-chip">
           <div className="user-avatar">{initials(userProfile?.nome||currentUser?.email||"?")}</div>
@@ -111,6 +115,10 @@ function AppShell() {
   const [manutAbertas, setManutAbertas] = useState(0);
   const [comprasPend,  setComprasPend]  = useState(0);
   const [sideOpen,     setSideOpen]     = useState(false);
+  const { agendamentosDodia } = useAgenda();
+
+  const hoje = new Date().toISOString().split("T")[0];
+  const agsHoje = agendamentosDodia(hoje).length;
 
   useEffect(()=>{
     if(!obraAtual?.id) return;
@@ -125,8 +133,8 @@ function AppShell() {
 
   return (
     <div className="app-shell">
-      <Sidebar obraAtual={obraAtual} ocorrAbertas={ocorrAbertas} manutAbertas={manutAbertas} comprasPend={comprasPend} sideOpen={sideOpen} setSideOpen={setSideOpen}/>
-
+      <Sidebar obraAtual={obraAtual} ocorrAbertas={ocorrAbertas} manutAbertas={manutAbertas}
+        comprasPend={comprasPend} agsHoje={agsHoje} sideOpen={sideOpen} setSideOpen={setSideOpen}/>
       <div className="main-content">
         <div className="topbar">
           <div>
@@ -140,11 +148,12 @@ function AppShell() {
           </div>
           <button className="btn btn-sm" onClick={()=>setSideOpen(s=>!s)} style={{marginLeft:"auto"}}>☰</button>
         </div>
-
         <div className="page">
           <Routes>
             <Route path="/"             element={<Dashboard    obraAtual={obraAtual?.id}/>}/>
+            <Route path="/calendario"   element={<Calendario/>}/>
             <Route path="/obras"        element={<Obras         onObraSelect={setObraAtual}/>}/>
+            <Route path="/medicao"      element={<Medicao       obraAtual={obraAtual?.id}/>}/>
             <Route path="/manutencao"   element={<Manutencao    obraAtual={obraAtual?.id}/>}/>
             <Route path="/diario"       element={<Diario        obraAtual={obraAtual?.id}/>}/>
             <Route path="/equipe"       element={<Equipe        obraAtual={obraAtual?.id}/>}/>
@@ -152,26 +161,34 @@ function AppShell() {
             <Route path="/fornecedores" element={<Fornecedores/>}/>
             <Route path="/compras"      element={<Compras/>}/>
             <Route path="/financeiro"   element={<Financeiro/>}/>
+            <Route path="/dre"          element={<DRE/>}/>
             <Route path="/materiais"    element={<MateriaisGlobal/>}/>
             <Route path="/ocorrencias"  element={<Ocorrencias   obraAtual={obraAtual?.id}/>}/>
             <Route path="*"             element={<Navigate to="/" replace/>}/>
           </Routes>
         </div>
       </div>
-
       {sideOpen&&<div onClick={()=>setSideOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:99}}/>}
     </div>
   );
 }
 
-export default function App() {
+function AppRoot() {
   const { currentUser } = useAuth();
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={currentUser?<Navigate to="/" replace/>:<Login/>}/>
-        <Route path="/*"     element={<Protected><AppShell/></Protected>}/>
+        <Route path="/*" element={
+          <Protected>
+            <AgendaProvider>
+              <AppShell/>
+            </AgendaProvider>
+          </Protected>
+        }/>
       </Routes>
     </BrowserRouter>
   );
 }
+
+export default AppRoot;

@@ -108,3 +108,58 @@ ${descExtra ? `
 </body></html>`);
   w.document.close();
 }
+
+// Exportar RDO como PDF
+export function exportarRDOParaPDF(rdos, obraInfo) {
+  const w = window.open("", "_blank");
+  if (!w) { alert("Permita pop-ups para exportar."); return; }
+  const data = new Date().toLocaleString("pt-BR");
+  const rdoHTML = rdos.map(r => `
+    <div class="rdo">
+      <div class="rdo-header">
+        <div>
+          <span class="rdo-date">${new Date(r.data).toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"})}</span>
+          <span class="clima">${r.clima||""}</span>
+        </div>
+        <div class="autor">por ${r.autorNome||"–"}</div>
+      </div>
+      ${r.atividades?.length?"<div class='section'><strong>Atividades:</strong><ul>${r.atividades.map(a=>`<li>${a}</li>`).join("")}</ul></div>":""}
+      ${r.atividadeExtra?`<div class='section'><strong>Detalhe:</strong> ${r.atividadeExtra}</div>`:""}
+      ${r.equipePresente?.length?`<div class='section'><strong>Equipe:</strong> ${r.equipePresente.join(", ")}</div>`:""}
+      ${r.materiais?`<div class='section'><strong>Materiais recebidos:</strong> ${r.materiais}</div>`:""}
+      ${(r.ocorrencias?.length||r.ocorrenciaExtra)?`<div class='section ocorr'><strong>⚠ Ocorrências:</strong><ul>${(r.ocorrencias||[]).map(o=>`<li>${o}</li>`).join("")}</ul>${r.ocorrenciaExtra?`<p>${r.ocorrenciaExtra}</p>`:""}</div>`:""}
+      ${r.obs?`<div class='section obs'><strong>Obs:</strong> ${r.obs}</div>`:""}
+    </div>
+  `).join("");
+
+  w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+<title>Diário de Obra — ${obraInfo?.nome||""}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;font-size:13px;padding:20px;color:#1a1a1a}
+.header-doc{background:#1A1A1A;color:#fff;padding:14px 18px;border-radius:8px 8px 0 0}
+.header-doc h1{font-size:18px;font-weight:700}
+.header-doc p{font-size:11px;opacity:.6;margin-top:2px}
+.yellow-bar{background:#F5C800;height:4px;margin-bottom:16px;border-radius:0 0 4px 4px}
+.rdo{border:1px solid #e0e0e0;border-radius:8px;padding:14px;margin-bottom:12px}
+.rdo-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #f0f0f0}
+.rdo-date{font-size:14px;font-weight:700}
+.clima{font-size:12px;color:#888;margin-left:8px}
+.autor{font-size:11px;color:#888}
+.section{margin-top:6px;font-size:12px;line-height:1.6}
+.section ul{padding-left:18px;margin-top:4px}
+.ocorr{color:#B83232;background:#FFF5F5;padding:8px;border-radius:4px;border-left:3px solid #B83232;margin-top:8px}
+.obs{color:#666;font-style:italic}
+.footer{text-align:center;font-size:10px;color:#aaa;margin-top:20px;padding-top:12px;border-top:1px solid #eee}
+@media print{body{padding:10px}button{display:none!important}}
+</style></head><body>
+<div class="header-doc"><h1>Diário de Obra — ${obraInfo?.nome||"AFINE"}</h1><p>AFINE A.F. Nery Arquitetura e Construção · Emissão: ${data}</p></div>
+<div class="yellow-bar"></div>
+${rdoHTML}
+<div class="footer">AFINE — Documento gerado automaticamente · ${data}</div>
+<br><div style="text-align:center">
+<button onclick="window.print()" style="background:#1A1A1A;color:#F5C800;border:none;padding:10px 28px;border-radius:6px;font-size:14px;cursor:pointer;margin-right:10px">🖨️ Imprimir / PDF</button>
+<button onclick="window.close()" style="background:#eee;border:none;padding:10px 20px;border-radius:6px;font-size:14px;cursor:pointer">Fechar</button>
+</div></body></html>`);
+  w.document.close();
+}

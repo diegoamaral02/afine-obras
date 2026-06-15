@@ -4,6 +4,7 @@ import { collection, onSnapshot, query, where, addDoc, doc, getDoc, updateDoc } 
 import { db } from "../firebase";
 import { fmtDate, initials } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
+import { useAgenda } from "../contexts/AgendaContext";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 
@@ -32,6 +33,8 @@ const OCORRENCIAS_PRONTAS = [
 
 function RDOModal({ obraId, tipoObra, equipeObra, permissoes, onClose, addToast }) {
   const { currentUser, userProfile } = useAuth();
+  const { equipeHoje } = useAgenda();
+  const equipeAutomatica = equipeHoje(obraId);
   const [form, setForm] = useState({
     data: new Date().toISOString().split("T")[0],
     clima: "Ensolarado",
