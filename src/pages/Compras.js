@@ -6,7 +6,17 @@ import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
+import KanbanBoard from "../components/KanbanBoard";
 
+
+const COLS_COMPRAS = [
+  { id:"SOLICITAÇÃO",      titulo:"Solicitação",      cor:"#4A4A4A", icone:"📝" },
+  { id:"COTAÇÃO",          titulo:"Em cotação",        cor:"#185FA5", icone:"💬" },
+  { id:"APROVADA",         titulo:"Aprovada",          cor:"#C9A200", icone:"✅" },
+  { id:"ORDEM DE COMPRA",  titulo:"Ordem de Compra",   cor:"#7B4F00", icone:"📋" },
+  { id:"RECEBIDO",         titulo:"Recebido",          cor:"#2D6A1F", icone:"📦" },
+  { id:"NF VINCULADA",     titulo:"NF Vinculada",      cor:"#1A5A10", icone:"🧾" },
+];
 const STATUS_JORNADA = ["SOLICITAÇÃO","COTAÇÃO","APROVADA","ORDEM DE COMPRA","RECEBIDO","NF VINCULADA"];
 const STATUS_COLOR   = {"SOLICITAÇÃO":"badge-gray","COTAÇÃO":"badge-blue","APROVADA":"badge-yellow","ORDEM DE COMPRA":"badge-purple","RECEBIDO":"badge-green","NF VINCULADA":"badge-green"};
 
@@ -178,6 +188,7 @@ export default function Compras() {
   const [search,       setSearch]       = useState("");
   const [filtro,       setFiltro]       = useState("todas");
   const [modal,        setModal]        = useState(null);
+  const [vista,        setVista]        = useState("lista"); // "lista" | "kanban"
 
   useEffect(()=>{
     const u1=onSnapshot(collection(db,"compras"),snap=>{const d=snap.docs.map(x=>({id:x.id,...x.data()}));d.sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));setCompras(d);setLoading(false);});
@@ -205,7 +216,13 @@ export default function Compras() {
       <div className="toast-container">{toasts.map(t=><div key={t.id} className={`toast toast-${t.type}`}>{t.msg}</div>)}</div>
       <div className="panel-header">
         <div><div className="panel-title">Painel de Compras</div><div style={{fontSize:12,color:"#7A7A7A"}}>{compras.length} solicitações</div></div>
-        <button className="btn btn-primary" onClick={()=>setModal({compra:null})}>+ Nova solicitação</button>
+        <div style={{display:"flex",gap:8}}>
+          <div style={{display:"flex",border:"1px solid var(--border)",borderRadius:6,overflow:"hidden"}}>
+            <button className="btn btn-sm" style={{borderRadius:0,border:"none",background:vista==="lista"?"#1A1A1A":"",color:vista==="lista"?"#F5C800":""}} onClick={()=>setVista("lista")}>Lista</button>
+            <button className="btn btn-sm" style={{borderRadius:0,border:"none",background:vista==="kanban"?"#1A1A1A":"",color:vista==="kanban"?"#F5C800":""}} onClick={()=>setVista("kanban")}>Kanban</button>
+          </div>
+          <button className="btn btn-primary" onClick={()=>setModal({compra:null})}>+ Nova solicitação</button>
+        </div>
       </div>
 
       <div className="metrics-grid">
