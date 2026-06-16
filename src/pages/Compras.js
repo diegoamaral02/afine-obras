@@ -1,4 +1,4 @@
-// src/pages/Compras.js — v3: por etapa filtrada + permissões granulares + UX fluida
+// src/pages/Compras.js — v4: etapas isoladas, campos específicos por etapa, botões de avanço
 import React, { useEffect, useState, useMemo } from "react";
 import { collection, onSnapshot, addDoc, updateDoc, doc } from "firebase/firestore";
 import { db } from "../firebase";
@@ -6,82 +6,17 @@ import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
-import { ACESSO, getAcesso } from "../constants/departamentos";
+import { getAcesso } from "../constants/departamentos";
 
-// ── Perfis e permissões por etapa ─────────────────────────────────────────────
-// Perfis disponíveis: gestor | encarregado | campo | adm | financeiro | compras | fiscal
-// No sistema atual mapeamos:
-//   adm       → perfil "gestor" com flag adm: true  (ou seta em usuarios)
-//   financeiro → perfil "encarregado" + departamento "financeiro"
-//   compras    → perfil "encarregado" + departamento "compras"
-//   fiscal     → perfil "campo"
-//   campo      → perfil "campo"
-
+// ── Definição das etapas ──────────────────────────────────────────────────────
 const ETAPAS = [
-  {
-    id: "SOLICITAÇÃO",
-    label: "Solicitação",
-    icone: "📝",
-    cor: "#4A4A4A",
-    desc: "Pedido de material aberto pela equipe",
-    // Quem VÊ esta aba
-    podeVer: () => true, // todos
-    // Quem pode EDITAR (criar / avançar status) nesta etapa
-    podeEditar: (p) => true, // todos
-    // Campos visíveis nesta etapa
-    campos: ["titulo","demandaTipo","demandaId","urgencia","obs","itens"],
-  },
-  {
-    id: "COTAÇÃO",
-    label: "Cotação",
-    icone: "💬",
-    cor: "#185FA5",
-    desc: "Buscando preços com fornecedores",
-    podeVer: (p) => ["gestor","encarregado"].includes(p.perfil) || p.adm,
-    podeEditar: (p) => ["gestor","encarregado"].includes(p.perfil) || p.adm,
-    campos: ["fornecedorId","valorCotado","prazoEntrega","obs"],
-  },
-  {
-    id: "APROVADA",
-    label: "Aprovada",
-    icone: "✅",
-    cor: "#C9A200",
-    desc: "Compra aprovada para emissão de OC",
-    podeVer: (p) => p.adm || (p.perfil==="gestor" && p.podeAprovar),
-    podeEditar: (p) => p.adm || (p.perfil==="gestor" && p.podeAprovar),
-    campos: ["valorAprovado","formaPagamento","obs"],
-    alertaAprovacao: true,
-  },
-  {
-    id: "ORDEM DE COMPRA",
-    label: "Ordem de Compra",
-    icone: "📋",
-    cor: "#7B4F00",
-    desc: "OC emitida ao fornecedor",
-    podeVer: (p) => p.adm || p.departamento==="financeiro" || p.departamento==="compras" || p.perfil==="gestor",
-    podeEditar: (p) => p.adm || p.departamento==="financeiro" || p.departamento==="compras",
-    campos: ["numeroPedido","prazoEntrega","obs"],
-  },
-  {
-    id: "RECEBIDO",
-    label: "Recebido",
-    icone: "📦",
-    cor: "#2D6A1F",
-    desc: "Material entregue e conferido",
-    podeVer: (p) => p.departamento==="compras" || p.adm || p.perfil==="gestor",
-    podeEditar: (p) => p.departamento==="compras" || p.adm,
-    campos: ["dataRecebimento","obs"],
-  },
-  {
-    id: "NF VINCULADA",
-    label: "NF Vinculada",
-    icone: "🧾",
-    cor: "#1A5A10",
-    desc: "Nota fiscal recebida e vinculada",
-    podeVer: (p) => p.adm || p.departamento==="financeiro" || p.departamento==="compras",
-    podeEditar: (p) => p.adm || p.departamento==="financeiro" || p.departamento==="compras",
-    campos: ["numeroNF","valorNF","dataRecebimento","obs"],
-  },
+  { id:"SOLICITAÇÃO",     label:"Solicitação",      icone:"📝", cor:"#4A4A4A", proximaLabel:"Enviar para Cotação",       proxima:"COTAÇÃO" },
+  { id:"COTAÇÃO",         label:"Cotação",           icone:"💬", cor:"#185FA5", proximaLabel:"Enviar para Aprovação",     proxima:"APROVADA" },
+  { id:"APROVADA",        label:"Aprovada",          icone:"✅", cor:"#C9A200", proximaLabel:"Gerar Ordem de Compra",     proxima:"ORDEM DE COMPRA" },
+  { id:"ORDEM DE COMPRA", label:"Ordem de Compra",   icone:"📋", cor:"#7B4F00", proximaLabel:"Confirmar Recebimento",    proxima:"RECEBIDO" },
+  { id:"RECEBIDO",        label:"Recebido",          icone:"📦", cor:"#2D6A1F", proximaLabel:"Enviar para Aguard. NF",   proxima:"AGUARD. NF" },
+  { id:"AGUARD. NF",      label:"Aguard. NF",        icone:"🧾", cor:"#1A5A10", proximaLabel:"Concluir",                proxima:"NF VINCULADA" },
+  { id:"NF VINCULADA",    label:"NF Vinculada",      icone:"✔️", cor:"#0F3D0A", proximaLabel:null,                      proxima:null },
 ];
 
 const STATUS_COR = {
@@ -90,344 +25,433 @@ const STATUS_COR = {
   "APROVADA":       "badge-yellow",
   "ORDEM DE COMPRA":"badge-purple",
   "RECEBIDO":       "badge-green",
+  "AGUARD. NF":     "badge-amber",
   "NF VINCULADA":   "badge-green",
 };
 
-// Extrai perfil enriquecido do userProfile
-function getPerfilEnriquecido(userProfile) {
-  if (!userProfile) return { perfil:"campo", adm:false, departamento:"", podeAprovar:false };
-  return {
-    perfil:      userProfile.perfil || "campo",
-    adm:         userProfile.adm === true,
-    departamento:userProfile.departamento || "",
-    podeAprovar: userProfile.podeAprovar === true || userProfile.adm === true,
-  };
-}
-
-// ── Modal de compra com campos dinâmicos por etapa ───────────────────────────
-function CompraModal({ compra, etapaAtual, obras, manutencoes, fornecedores, onClose, addToast }) {
+// ── MODAL POR ETAPA ───────────────────────────────────────────────────────────
+function CompraModal({ compra, etapaForcar, obras, manutencoes, fornecedores, onClose, addToast }) {
   const { userProfile, currentUser } = useAuth();
-  const p = getPerfilEnriquecido(userProfile);
-
-  const etapa = ETAPAS.find(e => e.id === (etapaAtual || compra?.status || "SOLICITAÇÃO"));
+  const ac = getAcesso(userProfile);
   const isNova = !compra?.id;
+  const etapaAtual = isNova ? "SOLICITAÇÃO" : (etapaForcar || compra?.status || "SOLICITAÇÃO");
+  const etapaInfo = ETAPAS.find(e => e.id === etapaAtual);
 
-  const [form, setForm] = useState({
-    titulo:          compra?.titulo          || "",
-    demandaTipo:     compra?.demandaTipo     || "obra",
-    demandaId:       compra?.demandaId       || "",
-    urgencia:        compra?.urgencia        || "normal",
-    status:          compra?.status          || "SOLICITAÇÃO",
-    fornecedorId:    compra?.fornecedorId    || "",
-    valorCotado:     compra?.valorCotado     || "",
-    valorAprovado:   compra?.valorAprovado   || "",
-    formaPagamento:  compra?.formaPagamento  || "",
-    prazoEntrega:    compra?.prazoEntrega    || "",
-    numeroPedido:    compra?.numeroPedido    || "",
-    numeroNF:        compra?.numeroNF        || "",
-    valorNF:         compra?.valorNF         || "",
-    dataRecebimento: compra?.dataRecebimento || "",
-    obs:             compra?.obs             || "",
-  });
-  const [itens,    setItens]    = useState(compra?.itens || []);
+  // Estado do formulário — só os campos necessários
+  const [titulo,          setTitulo]          = useState(compra?.titulo          || "");
+  const [demandaTipo,     setDemandaTipo]      = useState(compra?.demandaTipo     || "obra");
+  const [demandaId,       setDemandaId]        = useState(compra?.demandaId       || "");
+  const [urgencia,        setUrgencia]         = useState(compra?.urgencia        || "normal");
+  const [obs,             setObs]              = useState(compra?.obs             || "");
+  const [itens,           setItens]            = useState(compra?.itens           || []);
+  // Cotação
+  const [fornecedorId,    setFornecedorId]     = useState(compra?.fornecedorId    || "");
+  const [valorCotado,     setValorCotado]      = useState(compra?.valorCotado     || "");
+  const [prazoEntrega,    setPrazoEntrega]      = useState(compra?.prazoEntrega    || "");
+  const [obsCotacao,      setObsCotacao]       = useState(compra?.obsCotacao      || "");
+  // Aprovação
+  const [valorAprovado,   setValorAprovado]    = useState(compra?.valorAprovado   || "");
+  const [formaPagamento,  setFormaPagamento]   = useState(compra?.formaPagamento  || "");
+  const [obsAprovacao,    setObsAprovacao]     = useState(compra?.obsAprovacao    || "");
+  // OC
+  const [numeroPedido,    setNumeroPedido]     = useState(compra?.numeroPedido    || "");
+  const [prazoOC,         setPrazoOC]          = useState(compra?.prazoOC         || "");
+  const [obsOC,           setObsOC]            = useState(compra?.obsOC           || "");
+  // Recebimento
+  const [tipoReceb,       setTipoReceb]        = useState(compra?.tipoReceb       || "conforme");
+  const [dataRecebimento, setDataRecebimento]  = useState(compra?.dataRecebimento || new Date().toISOString().split("T")[0]);
+  const [obsReceb,        setObsReceb]         = useState(compra?.obsReceb        || "");
+  // NF
+  const [numeroNF,        setNumeroNF]         = useState(compra?.numeroNF        || "");
+  const [valorNF,         setValorNF]          = useState(compra?.valorNF         || "");
+  const [dataNF,          setDataNF]           = useState(compra?.dataNF          || "");
+  const [obsNF,           setObsNF]            = useState(compra?.obsNF           || "");
+  // Itens add
   const [itemNome, setItemNome] = useState("");
   const [itemQtd,  setItemQtd]  = useState("");
   const [itemUn,   setItemUn]   = useState("un");
   const [saving,   setSaving]   = useState(false);
 
-  function set(f, v) { setForm(p => ({...p, [f]: v})); }
+  const demandas = demandaTipo === "obra" ? obras : manutencoes;
+  const fornSel  = fornecedores.find(f => f.id === fornecedorId);
 
   function addItem() {
-    if (!itemNome || !itemQtd) { alert("Informe o item e a quantidade."); return; }
-    setItens(p => [...p, { nome:itemNome, qtd:Number(itemQtd), un:itemUn }]);
+    if (!itemNome||!itemQtd) { alert("Informe o item e a quantidade."); return; }
+    setItens(p=>[...p,{nome:itemNome,qtd:Number(itemQtd),un:itemUn}]);
     setItemNome(""); setItemQtd("");
   }
 
-  // Status possíveis para avançar com base no perfil
-  function statusPermitidos() {
-    const idx = ETAPAS.findIndex(e => e.id === form.status);
-    const permitidos = [form.status];
-    // Pode avançar para próxima etapa se tiver permissão
-    if (idx < ETAPAS.length - 1) {
-      const proxEtapa = ETAPAS[idx + 1];
-      if (proxEtapa.podeEditar(p)) permitidos.push(proxEtapa.id);
-    }
-    // Adm pode mover para qualquer etapa
-    if (p.adm) return ETAPAS.map(e => e.id);
-    return permitidos;
+  function payload(novoStatus) {
+    return {
+      titulo, demandaTipo, demandaId, urgencia, obs, itens,
+      demandaNome: demandas.find(d=>d.id===demandaId)?.nome||demandas.find(d=>d.id===demandaId)?.titulo||"",
+      fornecedorId, fornecedorNome: fornSel?.razaoSocial||"",
+      valorCotado: Number(valorCotado)||0, prazoEntrega, obsCotacao,
+      valorAprovado: Number(valorAprovado)||0, formaPagamento, obsAprovacao,
+      numeroPedido, prazoOC, obsOC,
+      tipoReceb, dataRecebimento, obsReceb,
+      numeroNF, valorNF: Number(valorNF)||0, dataNF, obsNF,
+      status: novoStatus,
+      autorNome: userProfile?.nome||currentUser?.email,
+      updatedAt: new Date().toISOString(),
+    };
   }
 
-  const demandas = form.demandaTipo === "obra" ? obras : manutencoes;
-  const fornSel  = fornecedores.find(f => f.id === form.fornecedorId);
-  const campos   = etapa?.campos || ETAPAS[0].campos;
-
-  async function save() {
-    if (!form.titulo || (!itens.length && isNova)) {
-      alert("Informe o título e ao menos 1 item."); return;
-    }
+  async function salvar(novoStatus) {
+    if (!titulo) { alert("Informe o título."); return; }
+    if (isNova && !itens.length) { alert("Adicione pelo menos 1 item."); return; }
     setSaving(true);
-    const agora = new Date().toISOString();
-    const demanda = demandas.find(d => d.id === form.demandaId);
-    const payload = {
-      ...form, itens,
-      demandaNome:     demanda?.nome || demanda?.titulo || "",
-      fornecedorNome:  fornSel?.razaoSocial || "",
-      autorNome:       userProfile?.nome || currentUser?.email,
-      updatedAt:       agora,
-    };
     try {
+      const data = payload(novoStatus || etapaAtual);
       if (compra?.id) {
-        await updateDoc(doc(db,"compras",compra.id), payload);
-        addToast("Compra atualizada!");
+        await updateDoc(doc(db,"compras",compra.id), data);
+        addToast(novoStatus && novoStatus !== etapaAtual ? `✓ Avançado para: ${novoStatus}` : "Salvo!");
       } else {
-        payload.createdAt = agora;
-        await addDoc(collection(db,"compras"), payload);
+        data.createdAt = new Date().toISOString();
+        await addDoc(collection(db,"compras"), data);
         addToast("Solicitação criada!");
       }
       onClose();
-    } catch(err) { addToast("Erro: " + err.message, "error"); }
+    } catch(err) { addToast("Erro: "+err.message,"error"); }
     setSaving(false);
   }
 
-  const campoVisivel = (nome) => campos.includes(nome) || isNova;
+  const podeAvancar = ac.compras_etapas?.includes(etapaAtual) || ac.isAdm;
+  const fmt = v => v ? `R$ ${Number(v).toLocaleString("pt-BR",{minimumFractionDigits:2})}` : "–";
 
   return (
     <Modal
-      title={isNova ? "Nova solicitação de compra" : `Editar — ${compra?.titulo}`}
+      title={isNova ? "Nova solicitação de compra" : compra.titulo}
       onClose={onClose}
       footer={
-        <>
-          <button className="btn" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={save} disabled={saving}>
-            {saving ? "Salvando..." : "Salvar"}
-          </button>
-        </>
-      }>
-      <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+        <div style={{display:"flex",gap:8,width:"100%",justifyContent:"space-between"}}>
+          <button className="btn" onClick={onClose}>Fechar</button>
+          <div style={{display:"flex",gap:8}}>
+            {/* Salvar sem avançar (exceto na criação nova) */}
+            {!isNova && (
+              <button className="btn" onClick={()=>salvar(etapaAtual)} disabled={saving}>
+                {saving?"Salvando...":"Salvar rascunho"}
+              </button>
+            )}
+            {/* Botão principal: avançar ou criar */}
+            {isNova ? (
+              <button className="btn btn-primary" onClick={()=>salvar("SOLICITAÇÃO")} disabled={saving}>
+                {saving?"Criando...":"✓ Criar solicitação"}
+              </button>
+            ) : etapaInfo?.proxima && podeAvancar ? (
+              <button className="btn btn-primary" onClick={()=>salvar(etapaInfo.proxima)} disabled={saving}
+                style={{gap:6}}>
+                {saving?"Salvando...":etapaInfo.proximaLabel+" →"}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      }
+    >
+      <div style={{display:"flex",flexDirection:"column",gap:16}}>
 
-        {/* Indicador da etapa atual */}
+        {/* Badge da etapa atual */}
         {!isNova && (
-          <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px", background:"#1A1A1A", borderRadius:8 }}>
-            <span style={{ fontSize:18 }}>{etapa?.icone}</span>
+          <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",
+            background:etapaInfo?.cor||"#4A4A4A",borderRadius:8,color:"#fff"}}>
+            <span style={{fontSize:18}}>{etapaInfo?.icone}</span>
             <div>
-              <div style={{ fontSize:12, fontWeight:700, color:"#F5C800" }}>{etapa?.label}</div>
-              <div style={{ fontSize:11, color:"rgba(255,255,255,.5)" }}>{etapa?.desc}</div>
+              <div style={{fontSize:12,fontWeight:700}}>{etapaInfo?.label}</div>
+              {etapaInfo?.proxima && podeAvancar && (
+                <div style={{fontSize:10,opacity:.7}}>Próximo: {etapaInfo.proxima}</div>
+              )}
             </div>
+            {!podeAvancar && <span style={{marginLeft:"auto",fontSize:10,opacity:.6}}>🔒 sem permissão para avançar</span>}
           </div>
         )}
 
-        {/* DADOS DA SOLICITAÇÃO — sempre visíveis */}
-        <div className="form-grid">
-          <div className="form-group span-2">
-            <label className="required">Título da compra</label>
-            <input value={form.titulo} onChange={e=>set("titulo",e.target.value)}
-              placeholder="Ex: Cabos elétricos — AG 0442"
-              disabled={!isNova && !p.adm}
-              style={{ opacity:!isNova && !p.adm ? .6 : 1 }}/>
-          </div>
-          {(isNova || campoVisivel("demandaTipo")) && (
-            <>
+        {/* ── ETAPA: SOLICITAÇÃO ─────────────────────────────── */}
+        {(isNova || etapaAtual === "SOLICITAÇÃO") && (
+          <>
+            <div className="form-group">
+              <label className="required">Título da compra</label>
+              <input value={titulo} onChange={e=>setTitulo(e.target.value)} placeholder="Ex: Cabos elétricos — AG 0442"/>
+            </div>
+            <div className="form-grid">
               <div className="form-group">
                 <label>Vinculado a</label>
-                <select value={form.demandaTipo} onChange={e=>{set("demandaTipo",e.target.value);set("demandaId","");}} disabled={!isNova}>
+                <select value={demandaTipo} onChange={e=>{setDemandaTipo(e.target.value);setDemandaId("");}}>
                   <option value="obra">Obra</option>
                   <option value="manutencao">Manutenção</option>
                   <option value="geral">Estoque geral</option>
                 </select>
               </div>
-              {form.demandaTipo !== "geral" && (
+              {demandaTipo !== "geral" && (
                 <div className="form-group">
-                  <label>Qual {form.demandaTipo==="obra"?"obra":"manutenção"}?</label>
-                  <select value={form.demandaId} onChange={e=>set("demandaId",e.target.value)} disabled={!isNova}>
+                  <label>Qual {demandaTipo==="obra"?"obra":"manutenção"}?</label>
+                  <select value={demandaId} onChange={e=>setDemandaId(e.target.value)}>
                     <option value="">Selecione...</option>
                     {demandas.map(d=><option key={d.id} value={d.id}>{d.nome||d.titulo}</option>)}
                   </select>
                 </div>
               )}
-            </>
-          )}
-          <div className="form-group">
-            <label>Urgência</label>
-            <select value={form.urgencia} onChange={e=>set("urgencia",e.target.value)}>
-              {["baixa","normal","alta","urgente"].map(u=><option key={u}>{u}</option>)}
-            </select>
-          </div>
-          {/* Status — só mostra opções permitidas */}
-          {!isNova && (
-            <div className="form-group">
-              <label>Avançar para</label>
-              <select value={form.status} onChange={e=>set("status",e.target.value)}>
-                {statusPermitidos().map(s=><option key={s} value={s}>{s}</option>)}
-              </select>
-              {!p.adm && statusPermitidos().length === 1 && (
-                <span style={{ fontSize:11, color:"#7A7A7A" }}>Sem permissão para avançar esta etapa</span>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ITENS — só na solicitação ou se adm */}
-        {(isNova || p.adm) && (
-          <>
-            <div style={{ fontSize:11, fontWeight:700, color:"#7A7A7A", textTransform:"uppercase", letterSpacing:".06em" }}>
-              Itens solicitados
-            </div>
-            <div style={{ display:"flex", gap:6, alignItems:"flex-end" }}>
-              <div className="form-group" style={{ flex:2 }}><label>Item</label><input value={itemNome} onChange={e=>setItemNome(e.target.value)} placeholder="Ex: Cabo 10mm²"/></div>
-              <div className="form-group" style={{ width:80 }}><label>Qtd.</label><input type="number" min="1" value={itemQtd} onChange={e=>setItemQtd(e.target.value)}/></div>
-              <div className="form-group" style={{ width:80 }}><label>Un.</label>
-                <select value={itemUn} onChange={e=>setItemUn(e.target.value)}>
-                  {["un","m","m²","kg","saco","cx","rolo"].map(u=><option key={u}>{u}</option>)}
+              <div className="form-group">
+                <label>Urgência</label>
+                <select value={urgencia} onChange={e=>setUrgencia(e.target.value)}>
+                  {["baixa","normal","alta","urgente"].map(u=><option key={u}>{u}</option>)}
                 </select>
               </div>
-              <button className="btn btn-primary btn-sm" onClick={addItem} style={{ marginBottom:1 }}>+ Add</button>
+            </div>
+
+            {/* Itens */}
+            <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>Itens solicitados</div>
+            <div style={{display:"flex",gap:6,alignItems:"flex-end"}}>
+              <div className="form-group" style={{flex:2}}><label>Item</label><input value={itemNome} onChange={e=>setItemNome(e.target.value)} placeholder="Ex: Cabo 10mm²"/></div>
+              <div className="form-group" style={{width:80}}><label>Qtd.</label><input type="number" min="1" value={itemQtd} onChange={e=>setItemQtd(e.target.value)}/></div>
+              <div className="form-group" style={{width:80}}><label>Un.</label>
+                <select value={itemUn} onChange={e=>setItemUn(e.target.value)}>
+                  {["un","m","m²","kg","saco","cx","rolo","litro"].map(u=><option key={u}>{u}</option>)}
+                </select>
+              </div>
+              <button className="btn btn-primary btn-sm" onClick={addItem} style={{marginBottom:1}}>+ Add</button>
             </div>
             {itens.length > 0 && (
               <div className="table-wrap">
-                <table>
-                  <thead><tr><th>Item</th><th>Qtd.</th><th>Un.</th><th></th></tr></thead>
-                  <tbody>
-                    {itens.map((it,i)=>(
-                      <tr key={i}>
-                        <td style={{ fontWeight:500 }}>{it.nome}</td>
-                        <td>{it.qtd}</td>
-                        <td>{it.un}</td>
-                        <td><button className="btn btn-sm" style={{ color:"var(--vermelho)" }} onClick={()=>setItens(p=>p.filter((_,j)=>j!==i))}>✕</button></td>
-                      </tr>
-                    ))}
-                  </tbody>
+                <table><thead><tr><th>Item</th><th>Qtd.</th><th>Un.</th><th></th></tr></thead>
+                  <tbody>{itens.map((it,i)=>(
+                    <tr key={i}>
+                      <td style={{fontWeight:500}}>{it.nome}</td><td>{it.qtd}</td><td>{it.un}</td>
+                      <td><button className="btn btn-sm" style={{color:"var(--vermelho)"}} onClick={()=>setItens(p=>p.filter((_,j)=>j!==i))}>✕</button></td>
+                    </tr>
+                  ))}</tbody>
                 </table>
               </div>
             )}
+            <div className="form-group"><label>Observações</label><textarea value={obs} onChange={e=>setObs(e.target.value)} rows={2}/></div>
           </>
         )}
-        {/* Visualização de itens (somente leitura) para quem não pode editar */}
-        {!isNova && !p.adm && itens.length > 0 && (
-          <div>
-            <div style={{ fontSize:11, fontWeight:700, color:"#7A7A7A", textTransform:"uppercase", letterSpacing:".06em", marginBottom:6 }}>Itens do pedido</div>
-            <div style={{ background:"var(--cinza-lt)", borderRadius:8, padding:10 }}>
-              {itens.map((it,i)=>(
-                <div key={i} style={{ display:"flex", gap:8, fontSize:12, padding:"3px 0", borderBottom:"1px solid var(--border)" }}>
-                  <span style={{ flex:1, fontWeight:500 }}>{it.nome}</span>
-                  <span>{it.qtd} {it.un}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {/* COTAÇÃO */}
-        {campoVisivel("fornecedorId") && etapa?.podeEditar(p) && (
+        {/* ── ETAPA: COTAÇÃO ──────────────────────────────────── */}
+        {!isNova && etapaAtual === "COTAÇÃO" && (
           <>
-            <div style={{ fontSize:11, fontWeight:700, color:"#185FA5", textTransform:"uppercase", letterSpacing:".06em" }}>Cotação</div>
+            {/* Resumo do pedido */}
+            <ResumoItens itens={compra.itens} titulo={compra.titulo} demandaNome={compra.demandaNome}/>
+            <div style={{fontSize:11,fontWeight:700,color:"#185FA5",textTransform:"uppercase",letterSpacing:".06em"}}>Dados da cotação</div>
             <div className="form-grid">
-              <div className="form-group">
-                <label>Fornecedor</label>
-                <select value={form.fornecedorId} onChange={e=>set("fornecedorId",e.target.value)}>
-                  <option value="">Selecione...</option>
-                  {fornecedores.filter(f=>f.status==="ATIVO").map(f=><option key={f.id} value={f.id}>{f.razaoSocial}</option>)}
+              <div className="form-group span-2">
+                <label className="required">Fornecedor</label>
+                <select value={fornecedorId} onChange={e=>setFornecedorId(e.target.value)}>
+                  <option value="">Selecione o fornecedor...</option>
+                  {fornecedores.filter(f=>f.status!=="BLOQUEADO").map(f=><option key={f.id} value={f.id}>{f.razaoSocial}</option>)}
                 </select>
               </div>
               <div className="form-group">
-                <label>Valor cotado (R$)</label>
-                <input type="number" value={form.valorCotado} onChange={e=>set("valorCotado",e.target.value)}/>
+                <label className="required">Valor cotado (R$)</label>
+                <input type="number" value={valorCotado} onChange={e=>setValorCotado(e.target.value)} placeholder="0,00"/>
               </div>
               <div className="form-group">
                 <label>Prazo de entrega</label>
-                <input type="date" value={form.prazoEntrega} onChange={e=>set("prazoEntrega",e.target.value)}/>
+                <input type="date" value={prazoEntrega} onChange={e=>setPrazoEntrega(e.target.value)}/>
               </div>
             </div>
+            <div className="form-group"><label>Observações da cotação</label><textarea value={obsCotacao} onChange={e=>setObsCotacao(e.target.value)} rows={2} placeholder="Condições negociadas, validade da cotação..."/></div>
           </>
         )}
 
-        {/* APROVAÇÃO */}
-        {campoVisivel("valorAprovado") && etapa?.podeEditar(p) && (
+        {/* ── ETAPA: APROVADA ─────────────────────────────────── */}
+        {!isNova && etapaAtual === "APROVADA" && (
           <>
-            <div style={{ fontSize:11, fontWeight:700, color:"#C9A200", textTransform:"uppercase", letterSpacing:".06em" }}>Aprovação</div>
-            {etapa?.alertaAprovacao && (
-              <div className="alert alert-warning" style={{ fontSize:12 }}>
-                ⚠️ Ao salvar como <strong>APROVADA</strong>, o valor será comprometido no financeiro e a OC poderá ser emitida.
-              </div>
-            )}
+            <ResumoItens itens={compra.itens} titulo={compra.titulo} demandaNome={compra.demandaNome}/>
+            <ResumoCotacao valorCotado={compra.valorCotado} fornecedorNome={compra.fornecedorNome} prazoEntrega={compra.prazoEntrega}/>
+            <div className="alert alert-warning" style={{fontSize:12}}>
+              ⚠️ Ao avançar para Ordem de Compra, o valor comprometido será registrado no financeiro.
+            </div>
+            <div style={{fontSize:11,fontWeight:700,color:"#C9A200",textTransform:"uppercase",letterSpacing:".06em"}}>Dados da aprovação</div>
             <div className="form-grid">
               <div className="form-group">
-                <label>Valor aprovado (R$)</label>
-                <input type="number" value={form.valorAprovado} onChange={e=>set("valorAprovado",e.target.value)}/>
+                <label className="required">Valor aprovado (R$)</label>
+                <input type="number" value={valorAprovado} onChange={e=>setValorAprovado(e.target.value)} placeholder={valorCotado||"0,00"}/>
+                {valorCotado && valorAprovado && Number(valorAprovado) !== Number(valorCotado) && (
+                  <span style={{fontSize:11,color:Number(valorAprovado)<Number(valorCotado)?"var(--verde)":"var(--vermelho)",fontWeight:600}}>
+                    {Number(valorAprovado)<Number(valorCotado)?"▼ Economia:":"▲ Acréscimo:"} R$ {Math.abs(Number(valorAprovado)-Number(valorCotado)).toLocaleString("pt-BR",{minimumFractionDigits:2})}
+                  </span>
+                )}
               </div>
               <div className="form-group">
                 <label>Forma de pagamento</label>
-                <select value={form.formaPagamento} onChange={e=>set("formaPagamento",e.target.value)}>
+                <select value={formaPagamento} onChange={e=>setFormaPagamento(e.target.value)}>
                   <option value="">Selecione...</option>
                   {["À vista","30 dias","30/60","30/60/90","Boleto","PIX"].map(f=><option key={f}>{f}</option>)}
                 </select>
               </div>
             </div>
+            <div className="form-group"><label>Observações da aprovação</label><textarea value={obsAprovacao} onChange={e=>setObsAprovacao(e.target.value)} rows={2}/></div>
           </>
         )}
 
-        {/* ORDEM DE COMPRA */}
-        {campoVisivel("numeroPedido") && etapa?.podeEditar(p) && (
+        {/* ── ETAPA: ORDEM DE COMPRA ─────────────────────────── */}
+        {!isNova && etapaAtual === "ORDEM DE COMPRA" && (
           <>
-            <div style={{ fontSize:11, fontWeight:700, color:"#7B4F00", textTransform:"uppercase", letterSpacing:".06em" }}>Ordem de Compra</div>
+            <ResumoItens itens={compra.itens} titulo={compra.titulo} demandaNome={compra.demandaNome}/>
+            <ResumoCotacao valorCotado={compra.valorCotado} fornecedorNome={compra.fornecedorNome} prazoEntrega={compra.prazoEntrega}/>
+            {compra.valorAprovado && (
+              <div style={{background:"var(--verde-lt)",borderRadius:8,padding:10,fontSize:12}}>
+                ✅ Valor aprovado: <strong style={{color:"var(--verde)"}}>R$ {Number(compra.valorAprovado).toLocaleString("pt-BR",{minimumFractionDigits:2})}</strong>
+                {compra.formaPagamento && <> · {compra.formaPagamento}</>}
+              </div>
+            )}
+            <div style={{fontSize:11,fontWeight:700,color:"#7B4F00",textTransform:"uppercase",letterSpacing:".06em"}}>Ordem de Compra</div>
             <div className="form-grid">
               <div className="form-group">
-                <label>Nº do pedido / OC</label>
-                <input value={form.numeroPedido} onChange={e=>set("numeroPedido",e.target.value)} placeholder="OC-2025-001"/>
+                <label>Número do pedido / OC</label>
+                <input value={numeroPedido} onChange={e=>setNumeroPedido(e.target.value)} placeholder="OC-2025-001"/>
               </div>
               <div className="form-group">
-                <label>Prazo de entrega</label>
-                <input type="date" value={form.prazoEntrega} onChange={e=>set("prazoEntrega",e.target.value)}/>
+                <label>Prazo de entrega confirmado</label>
+                <input type="date" value={prazoOC} onChange={e=>setPrazoOC(e.target.value)}/>
               </div>
             </div>
+            <div className="form-group"><label>Observações</label><textarea value={obsOC} onChange={e=>setObsOC(e.target.value)} rows={2}/></div>
           </>
         )}
 
-        {/* RECEBIMENTO */}
-        {campoVisivel("dataRecebimento") && etapa?.podeEditar(p) && (
+        {/* ── ETAPA: RECEBIDO ─────────────────────────────────── */}
+        {!isNova && etapaAtual === "RECEBIDO" && (
           <>
-            <div style={{ fontSize:11, fontWeight:700, color:"#2D6A1F", textTransform:"uppercase", letterSpacing:".06em" }}>Recebimento</div>
+            <ResumoItens itens={compra.itens} titulo={compra.titulo} demandaNome={compra.demandaNome}/>
+            {compra.numeroPedido && (
+              <div style={{background:"var(--cinza-lt)",borderRadius:8,padding:10,fontSize:12}}>
+                📋 OC: <strong>{compra.numeroPedido}</strong>
+                {compra.prazoOC && <> · Prazo: {fmtDate(compra.prazoOC)}</>}
+                {compra.fornecedorNome && <> · {compra.fornecedorNome}</>}
+              </div>
+            )}
+            <div style={{fontSize:11,fontWeight:700,color:"#2D6A1F",textTransform:"uppercase",letterSpacing:".06em"}}>Conferência do recebimento</div>
             <div className="form-group">
-              <label>Data de recebimento</label>
-              <input type="date" value={form.dataRecebimento} onChange={e=>set("dataRecebimento",e.target.value)}/>
+              <label className="required">Resultado da conferência</label>
+              <select value={tipoReceb} onChange={e=>setTipoReceb(e.target.value)}
+                style={{fontWeight:600,
+                  background:tipoReceb==="conforme"?"var(--verde-lt)":tipoReceb==="troca"?"var(--afine-yellow-lt)":"var(--vermelho-lt)",
+                  color:tipoReceb==="conforme"?"var(--verde)":tipoReceb==="troca"?"var(--afine-yellow-dk)":"var(--vermelho)"}}>
+                <option value="conforme">✅ Concluído — tudo conforme</option>
+                <option value="troca">🔄 Troca — material incorreto ou com defeito</option>
+                <option value="devolucao">↩️ Devolução — material não aceito</option>
+              </select>
             </div>
+            <div className="form-group">
+              <label className="required">Data de recebimento</label>
+              <input type="date" value={dataRecebimento} onChange={e=>setDataRecebimento(e.target.value)}/>
+            </div>
+            {/* Campos condicionais */}
+            {tipoReceb === "troca" && (
+              <div className="form-group">
+                <label className="required" style={{color:"var(--afine-yellow-dk)"}}>Motivo da troca</label>
+                <textarea value={obsReceb} onChange={e=>setObsReceb(e.target.value)} rows={3}
+                  placeholder="Descreva o motivo da troca, o problema identificado e o que foi solicitado ao fornecedor..."
+                  style={{borderColor:"var(--afine-yellow-dk)"}}/>
+              </div>
+            )}
+            {tipoReceb === "devolucao" && (
+              <div className="form-group">
+                <label className="required" style={{color:"var(--vermelho)"}}>Motivo da devolução</label>
+                <textarea value={obsReceb} onChange={e=>setObsReceb(e.target.value)} rows={3}
+                  placeholder="Descreva o motivo da devolução, não conformidade identificada e próximos passos..."
+                  style={{borderColor:"var(--vermelho)"}}/>
+              </div>
+            )}
+            {tipoReceb === "conforme" && (
+              <div className="form-group"><label>Observações (opcional)</label><textarea value={obsReceb} onChange={e=>setObsReceb(e.target.value)} rows={2} placeholder="Registre qualquer observação sobre o recebimento..."/></div>
+            )}
+            {tipoReceb !== "conforme" && (
+              <div className="alert alert-warning" style={{fontSize:12}}>
+                {tipoReceb==="troca"?"🔄 O pedido voltará ao fornecedor para troca. Registre os detalhes acima.":"↩️ O material será devolvido. Registre o motivo e os próximos passos."}
+              </div>
+            )}
           </>
         )}
 
-        {/* NOTA FISCAL */}
-        {campoVisivel("numeroNF") && etapa?.podeEditar(p) && (
+        {/* ── ETAPA: AGUARD. NF ───────────────────────────────── */}
+        {!isNova && etapaAtual === "AGUARD. NF" && (
           <>
-            <div style={{ fontSize:11, fontWeight:700, color:"#1A5A10", textTransform:"uppercase", letterSpacing:".06em" }}>Nota Fiscal</div>
+            <ResumoItens itens={compra.itens} titulo={compra.titulo} demandaNome={compra.demandaNome}/>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:12,marginBottom:4}}>
+              {compra.fornecedorNome&&<div><span style={{color:"#7A7A7A"}}>Fornecedor:</span> <strong>{compra.fornecedorNome}</strong></div>}
+              {compra.valorAprovado&&<div><span style={{color:"#7A7A7A"}}>Valor aprovado:</span> <strong style={{color:"var(--verde)"}}>R$ {Number(compra.valorAprovado).toLocaleString("pt-BR",{minimumFractionDigits:2})}</strong></div>}
+              {compra.numeroPedido&&<div><span style={{color:"#7A7A7A"}}>OC:</span> <strong>{compra.numeroPedido}</strong></div>}
+              {compra.dataRecebimento&&<div><span style={{color:"#7A7A7A"}}>Recebido em:</span> <strong>{fmtDate(compra.dataRecebimento)}</strong></div>}
+            </div>
+            <div style={{fontSize:11,fontWeight:700,color:"#1A5A10",textTransform:"uppercase",letterSpacing:".06em"}}>Nota Fiscal</div>
             <div className="form-grid">
               <div className="form-group">
-                <label>Número da NF</label>
-                <input value={form.numeroNF} onChange={e=>set("numeroNF",e.target.value)} placeholder="NF-4521"/>
+                <label className="required">Número da NF</label>
+                <input value={numeroNF} onChange={e=>setNumeroNF(e.target.value)} placeholder="NF-4521"/>
               </div>
               <div className="form-group">
-                <label>Valor da NF (R$)</label>
-                <input type="number" value={form.valorNF} onChange={e=>set("valorNF",e.target.value)}/>
+                <label className="required">Valor da NF (R$)</label>
+                <input type="number" value={valorNF} onChange={e=>setValorNF(e.target.value)} placeholder="0,00"/>
+                {compra.valorAprovado && valorNF && Math.abs(Number(valorNF)-Number(compra.valorAprovado)) > 0.01 && (
+                  <span style={{fontSize:11,color:Number(valorNF)>Number(compra.valorAprovado)?"var(--vermelho)":"var(--verde)",fontWeight:600}}>
+                    {Number(valorNF)>Number(compra.valorAprovado)?"⚠ Acima do aprovado":"✓ Abaixo do aprovado"}
+                  </span>
+                )}
               </div>
               <div className="form-group">
-                <label>Data de recebimento</label>
-                <input type="date" value={form.dataRecebimento} onChange={e=>set("dataRecebimento",e.target.value)}/>
+                <label>Data de emissão da NF</label>
+                <input type="date" value={dataNF} onChange={e=>setDataNF(e.target.value)}/>
               </div>
             </div>
+            <div className="form-group"><label>Observações</label><textarea value={obsNF} onChange={e=>setObsNF(e.target.value)} rows={2}/></div>
           </>
         )}
 
-        <div className="form-group">
-          <label>Observações</label>
-          <textarea value={form.obs} onChange={e=>set("obs",e.target.value)} rows={2}/>
-        </div>
+        {/* ── ETAPA: NF VINCULADA (concluído) ─────────────────── */}
+        {!isNova && etapaAtual === "NF VINCULADA" && (
+          <div style={{textAlign:"center",padding:"20px 0"}}>
+            <div style={{fontSize:48,marginBottom:12}}>✅</div>
+            <div style={{fontSize:18,fontWeight:700,color:"var(--verde)",marginBottom:8}}>Compra concluída!</div>
+            <div style={{fontSize:13,color:"#7A7A7A",marginBottom:20}}>Esta compra está finalizada e arquivada.</div>
+            <div style={{background:"var(--cinza-lt)",borderRadius:10,padding:16,textAlign:"left",fontSize:12}}>
+              {compra.fornecedorNome&&<div style={{marginBottom:6}}><span style={{color:"#7A7A7A"}}>Fornecedor:</span> <strong>{compra.fornecedorNome}</strong></div>}
+              {compra.valorNF&&<div style={{marginBottom:6}}><span style={{color:"#7A7A7A"}}>Valor NF:</span> <strong>R$ {Number(compra.valorNF).toLocaleString("pt-BR",{minimumFractionDigits:2})}</strong></div>}
+              {compra.numeroNF&&<div style={{marginBottom:6}}><span style={{color:"#7A7A7A"}}>NF:</span> <strong>{compra.numeroNF}</strong></div>}
+              {compra.dataRecebimento&&<div><span style={{color:"#7A7A7A"}}>Recebido:</span> <strong>{fmtDate(compra.dataRecebimento)}</strong></div>}
+            </div>
+          </div>
+        )}
+
       </div>
     </Modal>
   );
 }
 
-// ── Página principal ──────────────────────────────────────────────────────────
+// ── Sub-componentes de resumo ─────────────────────────────────────────────────
+function ResumoItens({ itens, titulo, demandaNome }) {
+  if (!itens?.length) return null;
+  return (
+    <div style={{background:"var(--cinza-lt)",borderRadius:8,padding:10,marginBottom:4}}>
+      <div style={{fontSize:11,color:"#7A7A7A",marginBottom:4}}>{demandaNome||"Pedido"}</div>
+      {itens.slice(0,4).map((it,i)=>(
+        <div key={i} style={{display:"flex",gap:8,fontSize:12,padding:"2px 0"}}>
+          <span style={{flex:1,fontWeight:500}}>{it.nome}</span>
+          <span style={{color:"#7A7A7A"}}>{it.qtd} {it.un}</span>
+        </div>
+      ))}
+      {itens.length>4&&<div style={{fontSize:11,color:"#7A7A7A",marginTop:2}}>+{itens.length-4} itens</div>}
+    </div>
+  );
+}
+
+function ResumoCotacao({ valorCotado, fornecedorNome, prazoEntrega }) {
+  if (!valorCotado && !fornecedorNome) return null;
+  return (
+    <div style={{background:"rgba(24,95,165,.06)",border:"1px solid rgba(24,95,165,.2)",borderRadius:8,padding:10,fontSize:12,display:"flex",gap:16,flexWrap:"wrap"}}>
+      {fornecedorNome&&<span>🤝 <strong>{fornecedorNome}</strong></span>}
+      {valorCotado&&<span>💬 Cotado: <strong>R$ {Number(valorCotado).toLocaleString("pt-BR",{minimumFractionDigits:2})}</strong></span>}
+      {prazoEntrega&&<span>📅 Prazo: <strong>{fmtDate(prazoEntrega)}</strong></span>}
+    </div>
+  );
+}
+
+// ── Página Principal ──────────────────────────────────────────────────────────
 export default function Compras() {
   const { userProfile } = useAuth();
   const { toasts, addToast } = useToast();
-  const p = getPerfilEnriquecido(userProfile);
+  const ac = getAcesso(userProfile);
 
   const [compras,      setCompras]      = useState([]);
   const [obras,        setObras]        = useState([]);
@@ -438,7 +462,7 @@ export default function Compras() {
   const [search,       setSearch]       = useState("");
   const [modal,        setModal]        = useState(null);
 
-  useEffect(() => {
+  useEffect(()=>{
     const u1=onSnapshot(collection(db,"compras"),snap=>{
       const d=snap.docs.map(x=>({id:x.id,...x.data()}));
       d.sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
@@ -450,221 +474,137 @@ export default function Compras() {
     return()=>{u1();u2();u3();u4();};
   },[]);
 
-  // Etapas visíveis para este perfil
-  const etapasVisiveis = useMemo(() =>
-    ETAPAS.filter(e => e.podeVer(p)),
-    [p]
-  );
+  const etapasVisiveis = useMemo(()=> ETAPAS,[]);
 
-  // Compras filtradas pela etapa ativa + busca
-  const comprasFiltradas = useMemo(() => {
-    const q = search.toLowerCase();
-    return compras.filter(c => {
-      const naEtapa = c.status === etapaAtiva;
-      const buscaOk = !q ||
-        c.titulo?.toLowerCase().includes(q) ||
-        c.demandaNome?.toLowerCase().includes(q) ||
-        c.fornecedorNome?.toLowerCase().includes(q) ||
-        c.numeroPedido?.toLowerCase().includes(q) ||
-        c.numeroNF?.toLowerCase().includes(q);
-      return naEtapa && buscaOk;
+  const comprasFiltradas = useMemo(()=>{
+    const q=search.toLowerCase();
+    return compras.filter(c=>{
+      const naEtapa=c.status===etapaAtiva;
+      const ok=!q||c.titulo?.toLowerCase().includes(q)||c.demandaNome?.toLowerCase().includes(q)||c.fornecedorNome?.toLowerCase().includes(q);
+      return naEtapa&&ok;
     });
-  }, [compras, etapaAtiva, search]);
+  },[compras,etapaAtiva,search]);
 
-  // KPIs globais
-  const kpis = useMemo(() => ({
+  const kpis = useMemo(()=>({
     solicit:      compras.filter(c=>c.status==="SOLICITAÇÃO").length,
     cotacao:      compras.filter(c=>c.status==="COTAÇÃO").length,
     aprovadas:    compras.filter(c=>c.status==="APROVADA").length,
-    comprometido: compras.filter(c=>["APROVADA","ORDEM DE COMPRA"].includes(c.status)).reduce((s,c)=>s+(Number(c.valorAprovado)||0),0),
-    pendNF:       compras.filter(c=>c.status==="RECEBIDO").length,
-  }), [compras]);
+    oc:           compras.filter(c=>c.status==="ORDEM DE COMPRA").length,
+    aguardNF:     compras.filter(c=>c.status==="AGUARD. NF").length,
+    comprometido: compras.filter(c=>["APROVADA","ORDEM DE COMPRA"].includes(c.status)).reduce((s,c)=>s+(c.valorAprovado||0),0),
+  }),[compras]);
 
-  const etapaInfo = ETAPAS.find(e => e.id === etapaAtiva);
-  const podeEditarEtapa = etapaInfo?.podeEditar(p);
-  const podeNovaCompra  = ETAPAS[0].podeEditar(p); // criar = permissão de Solicitação
-
-  const fmt = v => `R$ ${Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:0})}`;
+  const etapaInfo = ETAPAS.find(e=>e.id===etapaAtiva);
+  const fmt = v=>`R$ ${Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:0})}`;
 
   return (
     <div>
       <div className="toast-container">{toasts.map(t=><div key={t.id} className={`toast toast-${t.type}`}>{t.msg}</div>)}</div>
 
-      {/* Header */}
       <div className="panel-header">
         <div>
           <div className="panel-title">Compras</div>
-          <div style={{ fontSize:12, color:"#7A7A7A" }}>
-            {compras.length} pedidos · {etapaInfo?.label}: <strong>{comprasFiltradas.length}</strong>
-          </div>
+          <div style={{fontSize:12,color:"#7A7A7A"}}>{compras.length} pedidos totais</div>
         </div>
-        {podeNovaCompra && (
-          <button className="btn btn-primary" onClick={()=>setModal({compra:null, etapa:"SOLICITAÇÃO"})}>
-            + Nova solicitação
-          </button>
-        )}
+        <button className="btn btn-primary" onClick={()=>setModal({compra:null})}>+ Nova solicitação</button>
       </div>
 
       {/* KPIs */}
-      <div className="metrics-grid" style={{ marginBottom:16 }}>
-        <div className="metric"><div className="metric-label">Solicitações abertas</div><div className="metric-value amber">{kpis.solicit}</div></div>
+      <div className="metrics-grid" style={{marginBottom:16}}>
+        <div className="metric"><div className="metric-label">Solicitações</div><div className="metric-value amber">{kpis.solicit}</div></div>
         <div className="metric"><div className="metric-label">Em cotação</div><div className="metric-value" style={{color:"#185FA5"}}>{kpis.cotacao}</div></div>
         <div className="metric"><div className="metric-label">Aguard. aprovação</div><div className="metric-value yellow">{kpis.aprovadas}</div></div>
-        <div className="metric"><div className="metric-label">Valor comprometido</div><div className="metric-value red" style={{fontSize:16}}>{fmt(kpis.comprometido)}</div></div>
-        <div className="metric"><div className="metric-label">Aguard. NF</div><div className="metric-value amber">{kpis.pendNF}</div></div>
+        <div className="metric"><div className="metric-label">Em OC</div><div className="metric-value" style={{color:"#7B4F00"}}>{kpis.oc}</div></div>
+        <div className="metric"><div className="metric-label">Aguard. NF</div><div className="metric-value amber">{kpis.aguardNF}</div></div>
+        <div className="metric"><div className="metric-label">Comprometido</div><div className="metric-value red" style={{fontSize:15}}>{fmt(kpis.comprometido)}</div></div>
       </div>
 
-      {/* Barra de etapas — só mostra as que o perfil pode ver */}
-      <div style={{ display:"flex", gap:0, marginBottom:20, borderRadius:10, overflow:"hidden", border:"1px solid var(--border)" }}>
-        {etapasVisiveis.map((etapa, i) => {
-          const count   = compras.filter(c=>c.status===etapa.id).length;
-          const ativa   = etapaAtiva === etapa.id;
-          const anterior = etapasVisiveis.slice(0, i).every(e => compras.filter(c=>c.status===e.id).length === 0);
+      {/* Barra de etapas */}
+      <div style={{display:"flex",gap:0,marginBottom:16,borderRadius:10,overflow:"hidden",border:"1px solid var(--border)"}}>
+        {etapasVisiveis.map((e,i)=>{
+          const count=compras.filter(c=>c.status===e.id).length;
+          const ativa=etapaAtiva===e.id;
           return (
-            <button key={etapa.id} onClick={() => setEtapaAtiva(etapa.id)}
-              style={{
-                flex: 1, padding:"10px 8px", border:"none", cursor:"pointer",
-                background: ativa ? etapa.cor : "var(--cinza-lt)",
-                color: ativa ? "#fff" : "#4A4A4A",
-                borderRight: i < etapasVisiveis.length-1 ? "1px solid var(--border)" : "none",
-                transition:"all .15s", position:"relative",
-              }}>
-              <div style={{ fontSize:14, marginBottom:2 }}>{etapa.icone}</div>
-              <div style={{ fontSize:10, fontWeight:700, lineHeight:1.2 }}>{etapa.label}</div>
-              {count > 0 && (
-                <div style={{
-                  position:"absolute", top:6, right:6,
-                  background: ativa ? "rgba(255,255,255,.3)" : etapa.cor,
-                  color: ativa ? "#fff" : "#fff",
-                  fontSize:9, fontWeight:700, borderRadius:10,
-                  padding:"1px 5px", minWidth:16, textAlign:"center",
-                }}>
+            <button key={e.id} onClick={()=>setEtapaAtiva(e.id)}
+              style={{flex:1,padding:"10px 6px",border:"none",cursor:"pointer",
+                background:ativa?e.cor:"var(--cinza-lt)",color:ativa?"#fff":"#4A4A4A",
+                borderRight:i<etapasVisiveis.length-1?"1px solid var(--border)":"none",
+                transition:"all .15s",position:"relative"}}>
+              <div style={{fontSize:14,marginBottom:2}}>{e.icone}</div>
+              <div style={{fontSize:9,fontWeight:700,lineHeight:1.2}}>{e.label}</div>
+              {count>0&&(
+                <div style={{position:"absolute",top:5,right:5,
+                  background:ativa?"rgba(255,255,255,.3)":e.cor,color:"#fff",
+                  fontSize:9,fontWeight:700,borderRadius:10,padding:"1px 5px"}}>
                   {count}
                 </div>
-              )}
-              {/* Indicador de permissão */}
-              {!etapa.podeEditar(p) && (
-                <div style={{ fontSize:8, color:ativa?"rgba(255,255,255,.6)":"#aaa", marginTop:2 }}>🔒 somente leitura</div>
               )}
             </button>
           );
         })}
       </div>
 
-      {/* Descrição da etapa ativa */}
-      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14, padding:"10px 14px", background:"var(--cinza-lt)", borderRadius:8 }}>
-        <span style={{ fontSize:20 }}>{etapaInfo?.icone}</span>
-        <div style={{ flex:1 }}>
-          <div style={{ fontWeight:600, fontSize:13 }}>{etapaInfo?.label}</div>
-          <div style={{ fontSize:12, color:"#7A7A7A" }}>{etapaInfo?.desc}</div>
-        </div>
-        {!podeEditarEtapa && (
-          <span style={{ fontSize:11, background:"var(--cinza-lt)", border:"1px solid var(--border)", padding:"3px 10px", borderRadius:20, color:"#7A7A7A" }}>
-            🔒 Somente leitura nesta etapa
-          </span>
-        )}
-        {podeEditarEtapa && (
-          <span style={{ fontSize:11, background:"var(--verde-lt)", border:"1px solid rgba(45,106,31,.2)", padding:"3px 10px", borderRadius:20, color:"var(--verde)", fontWeight:600 }}>
-            ✓ Você pode editar
-          </span>
-        )}
-      </div>
-
       {/* Busca */}
       <div className="search-bar">
         🔍<input placeholder={`Buscar em ${etapaInfo?.label}...`} value={search} onChange={e=>setSearch(e.target.value)}/>
-        {search && <button onClick={()=>setSearch("")} style={{ background:"none", border:"none", cursor:"pointer", color:"#7A7A7A" }}>✕</button>}
+        {search&&<button onClick={()=>setSearch("")} style={{background:"none",border:"none",cursor:"pointer",color:"#7A7A7A"}}>✕</button>}
       </div>
 
-      {/* Lista de compras da etapa */}
-      {loading && <div className="spinner"/>}
-      {!loading && comprasFiltradas.length === 0 && (
+      {loading&&<div className="spinner"/>}
+      {!loading&&comprasFiltradas.length===0&&(
         <div className="empty-state">
           <div className="empty-icon">{etapaInfo?.icone}</div>
           <p>Nenhuma compra em <strong>{etapaInfo?.label}</strong></p>
-          {etapaAtiva === "SOLICITAÇÃO" && podeNovaCompra && (
-            <button className="btn btn-primary" style={{ marginTop:12 }} onClick={()=>setModal({compra:null,etapa:"SOLICITAÇÃO"})}>
-              + Criar primeira solicitação
-            </button>
-          )}
+          {etapaAtiva==="SOLICITAÇÃO"&&<button className="btn btn-primary" style={{marginTop:12}} onClick={()=>setModal({compra:null})}>+ Criar primeira solicitação</button>}
         </div>
       )}
 
-      {!loading && comprasFiltradas.length > 0 && (
-        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-          {comprasFiltradas.map(c => (
-            <div key={c.id} className="rdo-card" style={{ borderLeft:`4px solid ${ETAPAS.find(e=>e.id===c.status)?.cor||"#ccc"}` }}>
-              <div className="rdo-header">
-                <div style={{ flex:1 }}>
-                  <div style={{ fontWeight:600, fontSize:14 }}>{c.titulo}</div>
-                  <div style={{ fontSize:12, color:"#7A7A7A", marginTop:2 }}>
-                    {c.demandaNome||c.demandaTipo}
-                    {c.fornecedorNome && <> · <strong>{c.fornecedorNome}</strong></>}
-                    {c.autorNome && <> · por {c.autorNome}</>}
-                  </div>
-                  {/* Info específica por etapa */}
-                  <div style={{ display:"flex", gap:12, marginTop:6, flexWrap:"wrap" }}>
-                    {c.urgencia && c.urgencia !== "normal" && (
-                      <span className={`badge ${c.urgencia==="urgente"?"badge-red":c.urgencia==="alta"?"badge-amber":"badge-gray"}`} style={{ fontSize:10 }}>
-                        {c.urgencia}
-                      </span>
-                    )}
-                    {c.valorCotado && (
-                      <span style={{ fontSize:12 }}>💬 Cotado: <strong style={{ color:"var(--afine-yellow-dk)" }}>{fmt(c.valorCotado)}</strong></span>
-                    )}
-                    {c.valorAprovado && (
-                      <span style={{ fontSize:12 }}>✅ Aprovado: <strong style={{ color:"var(--verde)" }}>{fmt(c.valorAprovado)}</strong></span>
-                    )}
-                    {c.numeroPedido && (
-                      <span style={{ fontSize:12 }}>📋 OC: <strong>{c.numeroPedido}</strong></span>
-                    )}
-                    {c.prazoEntrega && (
-                      <span style={{ fontSize:12 }}>📅 Entrega: {fmtDate(c.prazoEntrega)}</span>
-                    )}
-                    {c.numeroNF && (
-                      <span style={{ fontSize:12 }}>🧾 NF: <strong>{c.numeroNF}</strong> · {fmt(c.valorNF)}</span>
-                    )}
-                    {c.dataRecebimento && (
-                      <span style={{ fontSize:12 }}>📦 Recebido: {fmtDate(c.dataRecebimento)}</span>
-                    )}
-                  </div>
-                  {/* Itens */}
-                  {c.itens?.length > 0 && (
-                    <div style={{ marginTop:6, fontSize:11, color:"#7A7A7A" }}>
-                      {c.itens.slice(0,3).map((it,i)=>`${it.nome} (${it.qtd}${it.un})`).join(" · ")}
-                      {c.itens.length > 3 && ` +${c.itens.length-3} itens`}
+      {!loading&&comprasFiltradas.length>0&&(
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {comprasFiltradas.map(c=>{
+            const ei=ETAPAS.find(e=>e.id===c.status);
+            return (
+              <div key={c.id} className="rdo-card" style={{borderLeft:`4px solid ${ei?.cor||"#ccc"}`}}>
+                <div className="rdo-header">
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:600,fontSize:14}}>{c.titulo}</div>
+                    <div style={{fontSize:12,color:"#7A7A7A",marginTop:2}}>
+                      {c.demandaNome||c.demandaTipo}
+                      {c.fornecedorNome&&<> · <strong>{c.fornecedorNome}</strong></>}
+                      {c.autorNome&&<> · {c.autorNome}</>}
                     </div>
-                  )}
-                </div>
-                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6 }}>
-                  {/* Botão editar — só se tiver permissão */}
-                  {podeEditarEtapa ? (
-                    <button className="btn btn-sm btn-primary" onClick={()=>setModal({compra:c, etapa:c.status})}>
-                      ✏️ Editar
+                    {/* Info resumida por etapa */}
+                    <div style={{display:"flex",gap:12,marginTop:5,flexWrap:"wrap",fontSize:12}}>
+                      {c.urgencia&&c.urgencia!=="normal"&&<span className={`badge ${c.urgencia==="urgente"?"badge-red":c.urgencia==="alta"?"badge-amber":"badge-gray"}`} style={{fontSize:10}}>{c.urgencia}</span>}
+                      {c.valorCotado>0&&<span>💬 {fmt(c.valorCotado)}</span>}
+                      {c.valorAprovado>0&&<span style={{color:"var(--verde)"}}>✅ {fmt(c.valorAprovado)}</span>}
+                      {c.numeroPedido&&<span>📋 {c.numeroPedido}</span>}
+                      {c.prazoOC&&<span style={{color:c.prazoOC<new Date().toISOString().split("T")[0]?"var(--vermelho)":"inherit"}}>📅 {fmtDate(c.prazoOC)}</span>}
+                      {c.tipoReceb&&c.tipoReceb!=="conforme"&&<span className="badge badge-amber" style={{fontSize:10}}>⚠ {c.tipoReceb}</span>}
+                      {c.numeroNF&&<span>🧾 NF {c.numeroNF}</span>}
+                    </div>
+                    {/* Itens resumidos */}
+                    {c.itens?.length>0&&<div style={{marginTop:5,fontSize:11,color:"#7A7A7A"}}>{c.itens.slice(0,3).map(it=>`${it.nome} (${it.qtd}${it.un})`).join(" · ")}{c.itens.length>3&&` +${c.itens.length-3}`}</div>}
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
+                    <button className="btn btn-sm btn-primary" onClick={()=>setModal({compra:c})}>
+                      {c.status==="NF VINCULADA"?"👁️ Ver":"✏️ Abrir"}
                     </button>
-                  ) : (
-                    <button className="btn btn-sm" onClick={()=>setModal({compra:c, etapa:c.status})} style={{ opacity:.7 }}>
-                      👁️ Ver
-                    </button>
-                  )}
-                  <span style={{ fontSize:10, color:"#7A7A7A" }}>{fmtDate(c.updatedAt||c.createdAt)}</span>
+                    <span style={{fontSize:10,color:"#7A7A7A"}}>{fmtDate(c.updatedAt||c.createdAt)}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {/* Modal */}
-      {modal && (
+      {modal&&(
         <CompraModal
           compra={modal.compra}
-          etapaAtual={modal.etapa}
-          obras={obras}
-          manutencoes={manutencoes}
-          fornecedores={fornecedores}
-          onClose={()=>setModal(null)}
-          addToast={addToast}
+          etapaForcar={modal.compra?.status}
+          obras={obras} manutencoes={manutencoes} fornecedores={fornecedores}
+          onClose={()=>setModal(null)} addToast={addToast}
         />
       )}
     </div>
