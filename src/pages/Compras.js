@@ -6,6 +6,7 @@ import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
+import { ACESSO, getAcesso } from "../constants/departamentos";
 
 // ── Perfis e permissões por etapa ─────────────────────────────────────────────
 // Perfis disponíveis: gestor | encarregado | campo | adm | financeiro | compras | fiscal
