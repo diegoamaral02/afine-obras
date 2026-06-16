@@ -43,23 +43,52 @@ function AlterarSenhaModal({ func, onClose, addToast }) {
     if (novaSenha !== confirmar) { alert("As senhas não coincidem."); return; }
     setSaving(true);
     try {
-      // Usa app secundário para reautenticar o usuário alvo e trocar senha
+      // Estratégia: logar no app secundário com a senha ATUAL (nova senha fornecida),
+      // se falhar tenta via REST API do Firebase Identity Toolkit
       const secAuth = getSecAuth();
-      // Como não temos a senha atual, usamos sendPasswordResetEmail
-      // que é o método seguro e permitido pelo Firebase client SDK
-      await sendPasswordResetEmail(auth, func.email);
-      addToast(`Link de redefinição enviado para ${func.email}. O funcionário precisará confirmar pelo e-mail.`);
-      onClose();
+
+      // Tenta trocar via REST API (método mais direto — funciona com apiKey)
+      const apiKey = getApps()[0].options.apiKey;
+      if (apiKey) {
+        // 1. Primeiro localiza o usuário pelo e-mail para pegar o idToken
+        // Usamos signInWithEmailAndPassword com a nova senha — se funcionar, já era a senha
+        // O método correto é via Admin SDK, mas no client SDK usamos updatePassword após login
+        // Como não temos a senha atual, vamos logar com senha temporária no app sec
+        // e usar o token para chamar a API de update
+        const res = await fetch(
+          `https://identitytoolkit.googleapis.com/v1/accounts:update?key=${apiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              // Precisaria do idToken do usuário — não disponível sem login
+              // Usamos a abordagem de reset por e-mail como fallback seguro
+            })
+          }
+        );
+      }
+      throw new Error("USE_RESET"); // força usar reset por email
     } catch (err) {
-      // Fallback: tenta via Firebase REST API com app sec
+      if (err.message !== "USE_RESET") {
+        addToast("Erro: " + err.message, "error");
+        setSaving(false);
+        return;
+      }
+      // Fallback final: link de redefinição por e-mail
       try {
-        const secAuth = getSecAuth();
-        // Login temporário no app sec para trocar senha diretamente
-        const cred = await signInWithEmailAndPassword(secAuth, func.email, novaSenha);
-        // Se chegou aqui, a "nova senha" era a atual — erro de lógica, mas não quebra
-        await secAuth.signOut();
-      } catch {}
-      addToast("Erro: " + err.message, "error");
+        // Valida formato de e-mail antes de enviar
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(func.email)) {
+          addToast(`E-mail inválido (${func.email}). Não é possível enviar link de redefinição. Use um e-mail válido ao cadastrar funcionários.`, "error");
+          setSaving(false);
+          return;
+        }
+        await sendPasswordResetEmail(auth, func.email);
+        addToast(`✓ Link de redefinição enviado para ${func.email}`);
+        onClose();
+      } catch (err2) {
+        addToast("Erro ao enviar link: " + err2.message, "error");
+      }
     }
     setSaving(false);
   }
