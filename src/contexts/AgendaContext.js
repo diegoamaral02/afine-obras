@@ -1,84 +1,85 @@
-// src/contexts/AgendaContext.js
-// Estado unificado: agendamentos refletem em Equipe, Diário, Funcionários e Financeiro
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, doc, query, where } from "firebase/firestore";
+// src/contexts/AgendaContext.js — v2: filtrado por perfil + memoizado
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
+import { collection, onSnapshot, addDoc, updateDoc, doc, query, where, limit, orderBy } from "firebase/firestore";
 import { db } from "../firebase";
+import { useAuth } from "./AuthContext";
 
 const AgendaContext = createContext();
 export function useAgenda() { return useContext(AgendaContext); }
 
 export function AgendaProvider({ children }) {
+  const { currentUser, userProfile } = useAuth();
   const [agendamentos, setAgendamentos] = useState([]);
   const [obras,        setObras]        = useState([]);
   const [manutencoes,  setManutencoes]  = useState([]);
   const [funcionarios, setFuncionarios] = useState([]);
   const [loading,      setLoading]      = useState(true);
 
+  const perfil = userProfile?.perfil || "campo";
+  const isGestor = perfil === "gestor" || perfil === "encarregado";
+
   useEffect(() => {
-    const u1 = onSnapshot(collection(db,"agendamentos"), snap => {
-      const data = snap.docs.map(d=>({id:d.id,...d.data()}));
-      data.sort((a,b)=>(a.dataInicio||"").localeCompare(b.dataInicio||""));
-      setAgendamentos(data);
+    if (!currentUser) return;
+
+    // Agendamentos: campo vê só os seus, gestor/encarregado vê todos
+    const qAg = isGestor
+      ? query(collection(db,"agendamentos"), orderBy("dataInicio","desc"), limit(200))
+      : query(collection(db,"agendamentos"),
+          where("funcionarios","array-contains", currentUser.uid),
+          orderBy("dataInicio","desc"), limit(50));
+
+    const u1 = onSnapshot(qAg, snap => {
+      setAgendamentos(snap.docs.map(d=>({id:d.id,...d.data()})));
       setLoading(false);
     });
-    const u2 = onSnapshot(collection(db,"obras"), snap =>
-      setObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u3 = onSnapshot(collection(db,"manutencoes"), snap =>
-      setManutencoes(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u4 = onSnapshot(collection(db,"usuarios"), snap =>
-      setFuncionarios(snap.docs.map(d=>({id:d.id,...d.data()})).filter(f=>f.status==="ATIVO"||!f.status)));
-    return ()=>{u1();u2();u3();u4();};
-  },[]);
 
-  // Retorna agendamentos de uma data específica
-  function agendamentosDodia(dataISO) {
-    return agendamentos.filter(a =>
-      a.dataInicio <= dataISO && a.dataFim >= dataISO
+    // Obras: campo vê só as permitidas
+    const qObras = isGestor
+      ? collection(db,"obras")
+      : query(collection(db,"obras"), where("__name__","in",
+          userProfile?.obras?.length > 0 ? userProfile.obras.slice(0,10) : ["__none__"]));
+
+    const u2 = onSnapshot(qObras, snap => setObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
+
+    // Manutenções: todos autenticados podem ver (campo vê as que está alocado)
+    const u3 = onSnapshot(
+      query(collection(db,"manutencoes"), limit(100)),
+      snap => setManutencoes(snap.docs.map(d=>({id:d.id,...d.data()})))
     );
-  }
 
-  // Retorna agendamentos de um funcionário numa data
-  function agendaFuncionario(funcId, dataISO) {
-    return agendamentos.filter(a =>
+    // Funcionários: apenas gestor/encarregado precisa da lista completa
+    let u4 = ()=>{};
+    if (isGestor) {
+      u4 = onSnapshot(collection(db,"usuarios"), snap =>
+        setFuncionarios(snap.docs.map(d=>({id:d.id,...d.data()})).filter(f=>f.status==="ATIVO"||!f.status))
+      );
+    }
+
+    return ()=>{u1();u2();u3();u4();};
+  }, [currentUser, isGestor]);
+
+  // Memoizados para não recalcular a cada render
+  const agendamentosDodia = useCallback((dataISO) =>
+    agendamentos.filter(a => a.dataInicio <= dataISO && a.dataFim >= dataISO),
+    [agendamentos]
+  );
+
+  const agendaFuncionario = useCallback((funcId, dataISO) =>
+    agendamentos.filter(a =>
       a.dataInicio <= dataISO && a.dataFim >= dataISO &&
       (a.funcionarios||[]).includes(funcId)
-    );
-  }
+    ), [agendamentos]
+  );
 
-  // Verifica se funcionário está ocupado numa data
-  function funcOcupado(funcId, dataInicio, dataFim, ignorarId) {
-    return agendamentos.some(a =>
+  const funcOcupado = useCallback((funcId, dataInicio, dataFim, ignorarId) =>
+    agendamentos.some(a =>
       a.id !== ignorarId &&
       (a.funcionarios||[]).includes(funcId) &&
       a.dataInicio <= dataFim && a.dataFim >= dataInicio
-    );
-  }
+    ), [agendamentos]
+  );
 
-  // Criar agendamento
-  async function criarAgendamento(payload) {
-    const agora = new Date().toISOString();
-    const doc_ = await addDoc(collection(db,"agendamentos"), { ...payload, createdAt: agora, updatedAt: agora });
-    // Atualiza obra/manutenção com datas se informado
-    if (payload.demandaTipo === "obra" && payload.demandaId) {
-      await updateDoc(doc(db,"obras",payload.demandaId), {
-        inicio: payload.dataInicio, termino: payload.dataFim, updatedAt: agora
-      });
-    }
-    return doc_.id;
-  }
-
-  async function atualizarAgendamento(id, payload) {
-    const agora = new Date().toISOString();
-    await updateDoc(doc(db,"agendamentos",id), { ...payload, updatedAt: agora });
-    if (payload.demandaTipo === "obra" && payload.demandaId) {
-      await updateDoc(doc(db,"obras",payload.demandaId), {
-        inicio: payload.dataInicio, termino: payload.dataFim, updatedAt: agora
-      });
-    }
-  }
-
-  // Retorna equipe do dia (para RDO e Equipe)
-  function equipeHoje(obraId) {
+  const equipeHoje = useCallback((obraId) => {
     const hoje = new Date().toISOString().split("T")[0];
     const agsHoje = agendamentos.filter(a =>
       a.dataInicio <= hoje && a.dataFim >= hoje &&
@@ -86,15 +87,31 @@ export function AgendaProvider({ children }) {
     );
     const funcIds = [...new Set(agsHoje.flatMap(a=>a.funcionarios||[]))];
     return funcionarios.filter(f => funcIds.includes(f.id)||funcIds.includes(f.uid));
+  }, [agendamentos, funcionarios]);
+
+  async function criarAgendamento(payload) {
+    const agora = new Date().toISOString();
+    const docRef = await addDoc(collection(db,"agendamentos"), { ...payload, createdAt:agora, updatedAt:agora });
+    if (payload.demandaTipo==="obra" && payload.demandaId) {
+      await updateDoc(doc(db,"obras",payload.demandaId), { inicio:payload.dataInicio, termino:payload.dataFim, updatedAt:agora });
+    }
+    return docRef.id;
   }
 
-  return (
-    <AgendaContext.Provider value={{
-      agendamentos, obras, manutencoes, funcionarios, loading,
-      agendamentosDodia, agendaFuncionario, funcOcupado,
-      criarAgendamento, atualizarAgendamento, equipeHoje,
-    }}>
-      {children}
-    </AgendaContext.Provider>
-  );
+  async function atualizarAgendamento(id, payload) {
+    const agora = new Date().toISOString();
+    await updateDoc(doc(db,"agendamentos",id), { ...payload, updatedAt:agora });
+    if (payload.demandaTipo==="obra" && payload.demandaId) {
+      await updateDoc(doc(db,"obras",payload.demandaId), { inicio:payload.dataInicio, termino:payload.dataFim, updatedAt:agora });
+    }
+  }
+
+  const value = useMemo(() => ({
+    agendamentos, obras, manutencoes, funcionarios, loading,
+    agendamentosDodia, agendaFuncionario, funcOcupado,
+    criarAgendamento, atualizarAgendamento, equipeHoje,
+  }), [agendamentos, obras, manutencoes, funcionarios, loading,
+      agendamentosDodia, agendaFuncionario, funcOcupado, equipeHoje]);
+
+  return <AgendaContext.Provider value={value}>{children}</AgendaContext.Provider>;
 }

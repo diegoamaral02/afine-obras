@@ -6,6 +6,7 @@ import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
+import { useFinanceiroKPIs } from "../hooks/useFinanceiroKPIs";
 
 function LancamentoModal({ lanc, obras, onClose, addToast }) {
   const { userProfile } = useAuth();

@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
+import { useDRE } from "../hooks/useDRE";
 
 export default function DRE() {
   const [obras,  setObras]  = useState([]);

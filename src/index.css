@@ -309,3 +309,52 @@ textarea { resize: vertical; min-height: 80px; }
 /* ── Charts/KPI ─────────────────────────────────────── */
 .kpi-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
 .gauge-wrap { text-align:center; }
+
+/* ── Loading / Skeleton ─────────────────────────────────── */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .4; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--cinza-lt) 25%, #EEECEA 50%, var(--cinza-lt) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 6px;
+}
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Notificações ────────────────────────────────────────── */
+.notif-badge {
+  position: absolute; top: -2px; right: -2px;
+  background: var(--vermelho); color: #fff;
+  font-size: 9px; font-weight: 700;
+  width: 16px; height: 16px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ── Kanban mobile ───────────────────────────────────────── */
+.kanban-indicator {
+  display: flex; gap: 6px; justify-content: center;
+  margin-bottom: 10px;
+}
+.kanban-dot {
+  height: 8px; border-radius: 4px; border: none;
+  cursor: pointer; transition: all .2s; padding: 0;
+}
+
+/* ── Accordion sidebar ───────────────────────────────────── */
+.sidebar nav::-webkit-scrollbar { width: 3px; }
+.sidebar nav::-webkit-scrollbar-track { background: transparent; }
+.sidebar nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 3px; }
+
+/* ── Topbar notification bell ───────────────────────────── */
+.topbar .notif-btn {
+  position: relative; background: none; border: none;
+  cursor: pointer; font-size: 18px; padding: 6px;
+  border-radius: 8px; transition: background .15s;
+  line-height: 1;
+}
+.topbar .notif-btn:hover { background: var(--cinza-lt); }

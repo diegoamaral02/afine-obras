@@ -6,6 +6,7 @@ import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
+import { addComAuditoria } from "../services/auditoria";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
 
 // Checklist padrão FVS por tipo de serviço
@@ -211,6 +212,24 @@ function BoletiModal({ bm, obraId, escopos, onClose, addToast }) {
       </div>
     </Modal>
   );
+}
+
+
+// Integração BM → Financeiro: aprovação gera lançamento a receber
+async function aprovarBM(bm, obraInfo, uid, userName) {
+  if (bm.status === "APROVADO") return; // já aprovado
+  await updateDoc(doc(db,"boletins",bm.id),{
+    status:"APROVADO", aprovadoEm: new Date().toISOString(), aprovadoPor: userName
+  });
+  // Gera lançamento financeiro automático
+  await addComAuditoria("financeiro", {
+    tipo:"RECEBER", descricao:`BM ${bm.numero} — ${obraInfo?.nome||""}`,
+    categoria:"Medição", valor: bm.totalValor||0,
+    obraId: bm.obraId, obraNome: obraInfo?.nome||"",
+    vencimento: new Date(Date.now()+30*86400000).toISOString().split("T")[0],
+    status:"ABERTO", tipoValor:"realizado",
+    origem:"boletim", boletimId: bm.id,
+  }, uid, userName);
 }
 
 export default function Medicao({ obraAtual }) {

@@ -1,9 +1,6 @@
-// src/contexts/AuthContext.js — Fixed: single "usuarios" collection, no duplication
+// src/contexts/AuthContext.js — v2 sem credencial hardcoded
 import React, { createContext, useContext, useEffect, useState } from "react";
-import {
-  signInWithEmailAndPassword, signOut, onAuthStateChanged,
-  sendPasswordResetEmail,
-} from "firebase/auth";
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
 
@@ -12,8 +9,8 @@ export function useAuth() { return useContext(AuthContext); }
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
-  const [userProfile, setUserProfile]  = useState(null);
-  const [loading,     setLoading]      = useState(true);
+  const [userProfile,  setUserProfile]  = useState(null);
+  const [loading,      setLoading]      = useState(true);
 
   async function fetchProfile(uid) {
     try {
@@ -24,17 +21,10 @@ export function AuthProvider({ children }) {
   }
 
   async function login(email, password) {
-    // Login de teste local (sem Firebase configurado)
-    if (email === "teste@afine.com" && password === "123456") {
-      const fakeUser = { uid:"local-teste", email };
-      setCurrentUser(fakeUser);
-      setUserProfile({ nome:"Diego Nery (Teste)", perfil:"gestor", obras:[] });
-      setLoading(false);
-      return;
-    }
+    // SEGURANÇA: removido bypass de teste — toda autenticação passa pelo Firebase
     const cred = await signInWithEmailAndPassword(auth, email, password);
     const profile = await fetchProfile(cred.user.uid);
-    if (profile) setUserProfile(profile);
+    setUserProfile(profile || { nome: cred.user.email, perfil: "campo", obras: [] });
     return cred;
   }
 
@@ -43,30 +33,26 @@ export function AuthProvider({ children }) {
   }
 
   function logout() {
-    if (currentUser?.uid === "local-teste") {
-      setCurrentUser(null); setUserProfile(null);
-      return Promise.resolve();
-    }
+    setUserProfile(null);
     return signOut(auth);
   }
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
-      if (currentUser?.uid === "local-teste") { setLoading(false); return; }
       setCurrentUser(user);
       if (user) {
         const profile = await fetchProfile(user.uid);
-        setUserProfile(profile || { nome: user.email, perfil:"campo", obras:[] });
+        setUserProfile(profile || { nome: user.email, perfil: "campo", obras: [] });
       } else {
         setUserProfile(null);
       }
       setLoading(false);
     });
     return unsub;
-  }, []); // eslint-disable-line
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ currentUser, userProfile, login, logout, resetPassword }}>
+    <AuthContext.Provider value={{ currentUser, userProfile, login, logout, resetPassword, loading }}>
       {!loading && children}
     </AuthContext.Provider>
   );
