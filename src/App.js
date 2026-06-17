@@ -253,7 +253,6 @@ function Sidebar({ obraAtual, badges, sideOpen, setSideOpen }) {
 function AppShell() {
   const { currentUser, userProfile } = useAuth();
   const [obraAtual,    setObraAtual]    = useState(null);
-  const [ocorrAbertas, setOcorrAbertas] = useState(0);
   const [manutAbertas, setManutAbertas] = useState(0);
   const [comprasPend,  setComprasPend]  = useState(0);
   const [sideOpen,     setSideOpen]     = useState(false);
@@ -265,11 +264,6 @@ function AppShell() {
   const agsHoje = agendamentosDodia(hoje).length;
 
   useEffect(()=>{
-    if(!obraAtual?.id) return;
-    return onSnapshot(query(collection(db,"ocorrencias"),where("obraId","==",obraAtual.id),where("status","==","ABERTA")),snap=>setOcorrAbertas(snap.size));
-  },[obraAtual]);
-
-  useEffect(()=>{
     const u1=onSnapshot(query(collection(db,"manutencoes"),where("status","in",["ABERTA","EM ANDAMENTO"])),snap=>setManutAbertas(snap.size));
     const u2=onSnapshot(query(collection(db,"compras"),where("status","in",["SOLICITAÇÃO","COTAÇÃO"])),snap=>setComprasPend(snap.size));
     return()=>{u1();u2();};
@@ -277,7 +271,6 @@ function AppShell() {
 
   const badges = {
     "/manutencao":  manutAbertas>0  ? {count:manutAbertas,  type:"red"}    : 0,
-    "/ocorrencias": ocorrAbertas>0  ? {count:ocorrAbertas,  type:"red"}    : 0,
     "/compras":     comprasPend>0   ? {count:comprasPend,   type:"amber"}  : 0,
     "/calendario":  agsHoje>0       ? {count:agsHoje,       type:"yellow"} : 0,
   };
@@ -339,7 +332,6 @@ function AppShell() {
             <Route path="/financeiro"         element={<Financeiro/>}/>
             <Route path="/dre"                element={<DRE/>}/>
             <Route path="/materiais"          element={<MateriaisGlobal/>}/>
-            <Route path="/ocorrencias"        element={<Ocorrencias     obraAtual={obraAtual?.id}/>}/>
             <Route path="*"                   element={<Navigate to="/" replace/>}/>
           </Routes>
         </div>

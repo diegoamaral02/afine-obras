@@ -8,6 +8,7 @@ import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
 import PhotoUploader from "../components/PhotoUploader";
 import { useToast } from "../hooks/useToast";
+import { Ocorrencias } from "./Equipe";
 
 const TIPOS_OBRA = ["Reforma geral","Layout","Adequação","Retrofit","Manutenção preventiva","Manutenção corretiva","Instalação","Ampliação","Outro"];
 
@@ -185,6 +186,7 @@ export default function Obras({ onObraSelect }) {
   const [search,  setSearch]  = useState("");
   const [filtro,  setFiltro]  = useState("todos");
   const [modal,   setModal]   = useState(null);
+  const [obraAberta, setObraAberta] = useState(null); // obra selecionada para ver ocorrências
   const isGestor = userProfile?.perfil==="gestor";
 
   useEffect(() => {
@@ -259,6 +261,7 @@ export default function Obras({ onObraSelect }) {
                   <td style={{display:"flex",gap:4}}>
                     <button className="btn btn-sm" onClick={()=>onObraSelect(o)} title="Selecionar">🔀</button>
                     {isGestor && <button className="btn btn-sm btn-icon" onClick={()=>setModal({obra:o})}>✏️</button>}
+                    <button className="btn btn-sm btn-icon" title="Ocorrências" onClick={()=>setObraAberta(o)} style={{fontSize:12}}>⚠️</button>
                   </td>
                 </tr>
               )})}
@@ -267,6 +270,31 @@ export default function Obras({ onObraSelect }) {
         </div>
       )}
       {modal && <ObraModal obra={modal.obra} onClose={()=>setModal(null)} addToast={addToast}/>}
+
+      {/* Painel lateral de ocorrências por obra */}
+      {obraAberta && (
+        <div style={{
+          position:"fixed", top:0, right:0, bottom:0, width:480, maxWidth:"95vw",
+          background:"#fff", boxShadow:"-4px 0 30px rgba(0,0,0,.15)",
+          zIndex:200, display:"flex", flexDirection:"column", overflowY:"auto"
+        }}>
+          <div style={{background:"#1A1A1A", padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0}}>
+            <div>
+              <div style={{fontSize:12, color:"#F5C800", fontWeight:700}}>⚠️ Ocorrências</div>
+              <div style={{fontSize:14, fontWeight:600, color:"#fff", marginTop:2}}>{obraAberta.nome}</div>
+              <div style={{fontSize:11, color:"rgba(255,255,255,.4)"}}>{obraAberta.cliente}</div>
+            </div>
+            <button onClick={()=>setObraAberta(null)}
+              style={{background:"rgba(255,255,255,.1)", border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontSize:18, padding:"6px 10px"}}>
+              ✕
+            </button>
+          </div>
+          <div style={{padding:"16px", flex:1}}>
+            <Ocorrencias obraAtual={obraAberta.id}/>
+          </div>
+        </div>
+      )}
+      {obraAberta && <div onClick={()=>setObraAberta(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",zIndex:199}}/>}
     </div>
   );
 }
