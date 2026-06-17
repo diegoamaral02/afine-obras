@@ -58,7 +58,7 @@ const MENU = [
   ]},
   { id:"financeiro", label:"Financeiro", roles:["gestor"], items:[
     { to:"/financeiro", icon:"💰", label:"Lançamentos",      roles:["gestor"] },
-    { to:"/dre",        icon:"📊", label:"DRE & Indicadores", roles:["gestor"] },
+    { to:"/dre",        icon:"📈", label:"Resultados",         roles:["gestor"] },
   ]},
   { id:"pessoas", label:"Pessoas", roles:["gestor","encarregado","campo"], items:[
     { to:"/equipe",       icon:"👷", label:"Equipe",       roles:["gestor","encarregado","campo"] },
