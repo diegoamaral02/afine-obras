@@ -302,7 +302,6 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
   }
 
   function buildPayload(novoStatus) {
-    const tf  = traceField(novoStatus || etapaAtual);
     const base = {
       titulo, demandaTipo, demandaId,
       demandaNome: demandas.find(d=>d.id===demandaId)?.nome||demandas.find(d=>d.id===demandaId)?.titulo||compra?.demandaNome||"",
@@ -317,10 +316,13 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
       autorNome: compra?.autorNome || nomeUser,
       updatedAt: agora(),
     };
-    // Rastreio: preserva campos anteriores + adiciona novo ator
-    if (novoStatus && novoStatus !== etapaAtual && tf.ator) {
-      base[tf.ator] = nomeUser;
-      base[tf.em]   = agora();
+    // FIX: grava o ator da etapa ATUAL (quem executa esta etapa), não a próxima
+    if (novoStatus && novoStatus !== etapaAtual) {
+      const tfAtual = traceField(etapaAtual);
+      if (tfAtual.ator && !base[tfAtual.ator]) {
+        base[tfAtual.ator] = nomeUser;
+        base[tfAtual.em]   = agora();
+      }
     }
     // Preservar todos os atorXXX já gravados
     if (compra) {
