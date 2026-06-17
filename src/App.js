@@ -8,6 +8,7 @@ import { AgendaProvider, useAgenda } from "./contexts/AgendaContext";
 import { useNotificacoes } from "./hooks/useNotificacoes";
 import { initials } from "./utils/helpers";
 import { LOGO_BASE64 } from "./utils/assets";
+import { getAcesso, podeVer } from "./constants/departamentos";
 
 import Login           from "./pages/Login";
 import PainelGerencial from "./pages/PainelGerencial";
@@ -162,12 +163,45 @@ function NotificacoesPanel({ notifs, naoLidas, marcarLida, marcarTodasLidas, onC
   );
 }
 
+// Mapa de label e ícone por departamento (para exibir na sidebar)
+const DEP_LABEL = {
+  adm:       { label:"ADM Master",  icone:"🔐", cor:"#B83232" },
+  gestao:    { label:"Gestão",      icone:"👑", cor:"#1A1A1A" },
+  financeiro:{ label:"Financeiro",  icone:"💰", cor:"#2D6A1F" },
+  comercial: { label:"Comercial",   icone:"📈", cor:"#185FA5" },
+  compras:   { label:"Compras",     icone:"🛒", cor:"#7B4F00" },
+  fiscal:    { label:"Fiscal",      icone:"🔍", cor:"#C9A200" },
+  campo:     { label:"Campo",       icone:"🏗️", cor:"#4A4A4A" },
+  // fallbacks para perfis antigos sem departamento
+  gestor:    { label:"Gestor",      icone:"👑", cor:"#1A1A1A" },
+  encarregado:{ label:"Encarregado",icone:"🔍", cor:"#C9A200" },
+};
+
+// Resolve o perfil efetivo para controle de menu
+// ADM e Gestão → "gestor" (acesso total ao menu)
+// Financeiro, Comercial, Fiscal, Compras → "encarregado" (acesso intermediário)
+// Campo → "campo"
+function resolverPerfilMenu(userProfile) {
+  if (!userProfile) return "campo";
+  if (userProfile.adm === true) return "gestor";
+  const dep = userProfile.departamento || userProfile.perfil || "campo";
+  if (["adm","gestao"].includes(dep) || dep === "gestor") return "gestor";
+  if (["financeiro","comercial","fiscal","compras","encarregado"].includes(dep)) return "encarregado";
+  return "campo";
+}
+
 function Sidebar({ obraAtual, badges, sideOpen, setSideOpen }) {
   const { currentUser, userProfile, logout } = useAuth();
   const navigate = useNavigate();
-  const perfil = userProfile?.perfil || "campo";
   const onNavigate = useCallback(()=>setSideOpen(false),[setSideOpen]);
   async function handleLogout() { await logout(); navigate("/login"); }
+
+  // Perfil efetivo para exibição e controle de menu
+  const perfilMenu = resolverPerfilMenu(userProfile);
+
+  // Informações de exibição: prioriza departamento, depois perfil, depois fallback
+  const depKey = userProfile?.adm ? "adm" : (userProfile?.departamento || userProfile?.perfil || "campo");
+  const depInfo = DEP_LABEL[depKey] || DEP_LABEL.campo;
 
   return (
     <div className={`sidebar ${sideOpen?"open":""}`}>
@@ -184,15 +218,30 @@ function Sidebar({ obraAtual, badges, sideOpen, setSideOpen }) {
       )}
       <nav style={{flex:1,overflowY:"auto",paddingTop:4}}>
         {MENU.map(group=>(
-          <AccordionGroup key={group.id} group={group} perfil={perfil} badges={badges} onNavigate={onNavigate}/>
+          <AccordionGroup key={group.id} group={group} perfil={perfilMenu} badges={badges} onNavigate={onNavigate}/>
         ))}
       </nav>
       <div className="sidebar-footer">
         <div className="user-chip">
-          <div className="user-avatar">{initials(userProfile?.nome||currentUser?.email||"?")}</div>
-          <div>
-            <div className="user-name">{userProfile?.nome||currentUser?.email}</div>
-            <div className="user-role">{perfil==="gestor"?"Gestor":perfil==="encarregado"?"Encarregado":"Campo"}</div>
+          {/* Avatar com cor do departamento */}
+          <div className="user-avatar" style={{background: depInfo.cor, flexShrink:0}}>
+            {initials(userProfile?.nome||currentUser?.email||"?")}
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <div className="user-name" style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+              {userProfile?.nome||currentUser?.email}
+            </div>
+            {/* Exibe departamento real, não o perfil técnico */}
+            <div className="user-role" style={{display:"flex",alignItems:"center",gap:4}}>
+              {(() => {
+                const dep = userProfile?.departamento;
+                const adm = userProfile?.adm;
+                const ICONS = {adm:"🔐",gestao:"👑",financeiro:"💰",comercial:"📈",compras:"🛒",fiscal:"🔍",campo:"🏗️"};
+                const LABELS = {adm:"ADM (Master)",gestao:"Gestão",financeiro:"Financeiro",comercial:"Comercial",compras:"Compras",fiscal:"Fiscal",campo:"Campo"};
+                const key = adm ? "adm" : dep || (userProfile?.perfil==="gestor"?"gestao":"campo");
+                return <><span>{ICONS[key]||"👤"}</span><span>{LABELS[key]||userProfile?.perfil||"Campo"}</span></>;
+              })()}
+            </div>
           </div>
           <button className="btn-logout" onClick={handleLogout} title="Sair">↩</button>
         </div>
