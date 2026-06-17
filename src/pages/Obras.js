@@ -9,6 +9,8 @@ import Modal from "../components/Modal";
 import PhotoUploader from "../components/PhotoUploader";
 import { useToast } from "../hooks/useToast";
 import { Ocorrencias } from "./Equipe";
+import Medicao from "./Medicao";
+import Diario from "./Diario";
 
 const TIPOS_OBRA = ["Reforma geral","Layout","Adequação","Retrofit","Manutenção preventiva","Manutenção corretiva","Instalação","Ampliação","Outro"];
 
@@ -186,7 +188,8 @@ export default function Obras({ onObraSelect }) {
   const [search,  setSearch]  = useState("");
   const [filtro,  setFiltro]  = useState("todos");
   const [modal,   setModal]   = useState(null);
-  const [obraAberta, setObraAberta] = useState(null); // obra selecionada para ver ocorrências
+  const [obraAberta, setObraAberta] = useState(null);
+  const [abaDrawer, setAbaDrawer]   = useState("ocorrencias");
   const isGestor = userProfile?.perfil==="gestor";
 
   useEffect(() => {
@@ -261,7 +264,9 @@ export default function Obras({ onObraSelect }) {
                   <td style={{display:"flex",gap:4}}>
                     <button className="btn btn-sm" onClick={()=>onObraSelect(o)} title="Selecionar">🔀</button>
                     {isGestor && <button className="btn btn-sm btn-icon" onClick={()=>setModal({obra:o})}>✏️</button>}
-                    <button className="btn btn-sm btn-icon" title="Ocorrências" onClick={()=>setObraAberta(o)} style={{fontSize:12}}>⚠️</button>
+                    <button className="btn btn-sm btn-icon" title="Ocorrências" onClick={()=>{setObraAberta(o);setAbaDrawer("ocorrencias");}} style={{fontSize:12}}>⚠️</button>
+                    <button className="btn btn-sm btn-icon" title="Acompanhamento" onClick={()=>{setObraAberta(o);setAbaDrawer("acompanhamento");}} style={{fontSize:12}}>📐</button>
+                    <button className="btn btn-sm btn-icon" title="Diário de Obra"  onClick={()=>{setObraAberta(o);setAbaDrawer("diario");}} style={{fontSize:12}}>📓</button>
                   </td>
                 </tr>
               )})}
@@ -278,19 +283,40 @@ export default function Obras({ onObraSelect }) {
           background:"#fff", boxShadow:"-4px 0 30px rgba(0,0,0,.15)",
           zIndex:200, display:"flex", flexDirection:"column", overflowY:"auto"
         }}>
-          <div style={{background:"#1A1A1A", padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0}}>
-            <div>
-              <div style={{fontSize:12, color:"#F5C800", fontWeight:700}}>⚠️ Ocorrências</div>
-              <div style={{fontSize:14, fontWeight:600, color:"#fff", marginTop:2}}>{obraAberta.nome}</div>
-              <div style={{fontSize:11, color:"rgba(255,255,255,.4)"}}>{obraAberta.cliente}</div>
+          {/* Header */}
+          <div style={{background:"#1A1A1A", padding:"14px 18px", flexShrink:0}}>
+            <div style={{display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:12}}>
+              <div>
+                <div style={{fontSize:15, fontWeight:700, color:"#F5C800"}}>{obraAberta.nome}</div>
+                <div style={{fontSize:11, color:"rgba(255,255,255,.4)"}}>{obraAberta.cliente}</div>
+              </div>
+              <button onClick={()=>setObraAberta(null)}
+                style={{background:"rgba(255,255,255,.1)", border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontSize:18, padding:"4px 10px"}}>
+                ✕
+              </button>
             </div>
-            <button onClick={()=>setObraAberta(null)}
-              style={{background:"rgba(255,255,255,.1)", border:"none", borderRadius:8, color:"#fff", cursor:"pointer", fontSize:18, padding:"6px 10px"}}>
-              ✕
-            </button>
+            {/* Sub-abas do drawer */}
+            <div style={{display:"flex", gap:4}}>
+              {[
+                {id:"ocorrencias",     icon:"⚠️", label:"Ocorrências"},
+                {id:"acompanhamento",  icon:"📐", label:"Acompanhamento"},
+                {id:"diario",          icon:"📓", label:"Diário de obra"},
+              ].map(a=>(
+                <button key={a.id} onClick={()=>setAbaDrawer(a.id)}
+                  style={{flex:1, padding:"6px 4px", border:"none", cursor:"pointer", borderRadius:6,
+                    background:abaDrawer===a.id?"rgba(245,200,0,.2)":"rgba(255,255,255,.06)",
+                    color:abaDrawer===a.id?"#F5C800":"rgba(255,255,255,.5)",
+                    fontSize:10, fontWeight:abaDrawer===a.id?700:400, transition:".15s"}}>
+                  {a.icon} {a.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <div style={{padding:"16px", flex:1}}>
-            <Ocorrencias obraAtual={obraAberta.id}/>
+          {/* Conteúdo */}
+          <div style={{padding:"16px", flex:1, overflowY:"auto"}}>
+            {abaDrawer==="ocorrencias"    && <Ocorrencias obraAtual={obraAberta.id}/>}
+            {abaDrawer==="acompanhamento" && <Medicao     obraAtual={obraAberta.id}/>}
+            {abaDrawer==="diario"         && <Diario      obraAtual={obraAberta.id}/>}
           </div>
         </div>
       )}

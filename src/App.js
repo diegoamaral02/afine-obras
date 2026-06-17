@@ -47,9 +47,7 @@ const MENU = [
   ]},
   { id:"operacao", label:"Operação", roles:["gestor","encarregado","campo"], items:[
     { to:"/obras",       icon:"🏗️", label:"Obras",          roles:["gestor","encarregado"] },
-    { to:"/medicao",     icon:"📐", label:"Medição & FVS",  roles:["gestor","encarregado"] },
     { to:"/manutencao",  icon:"🔧", label:"Manutenção",     roles:["gestor","encarregado","campo"] },
-    { to:"/diario",      icon:"📓", label:"Diário de obra", roles:["gestor","encarregado","campo"] },
   ]},
   { id:"suprimentos", label:"Suprimentos", roles:["gestor","encarregado","campo"], items:[
     { to:"/compras",   icon:"🛒", label:"Compras",    roles:["gestor","encarregado","campo"] },
@@ -321,9 +319,7 @@ function AppShell() {
             <Route path="/comercial"          element={<Comercial subpagina="funil"/>}/>
             <Route path="/comercial/clientes" element={<Comercial subpagina="clientes"/>}/>
             <Route path="/obras"              element={<Obras           onObraSelect={setObraAtual}/>}/>
-            <Route path="/medicao"            element={<Medicao         obraAtual={obraAtual?.id}/>}/>
             <Route path="/manutencao"         element={<Manutencao      obraAtual={obraAtual?.id}/>}/>
-            <Route path="/diario"             element={<Diario          obraAtual={obraAtual?.id}/>}/>
             <Route path="/equipe"             element={<Equipe          obraAtual={obraAtual?.id}/>}/>
             <Route path="/funcionarios"       element={<Funcionarios/>}/>
             <Route path="/fornecedores"       element={<Fornecedores/>}/>
