@@ -50,7 +50,6 @@ const MENU = [
     { to:"/medicao",     icon:"📐", label:"Medição & FVS",  roles:["gestor","encarregado"] },
     { to:"/manutencao",  icon:"🔧", label:"Manutenção",     roles:["gestor","encarregado","campo"] },
     { to:"/diario",      icon:"📓", label:"Diário de obra", roles:["gestor","encarregado","campo"] },
-    { to:"/ocorrencias", icon:"⚠️", label:"Ocorrências",   roles:["gestor","encarregado","campo"] },
   ]},
   { id:"suprimentos", label:"Suprimentos", roles:["gestor","encarregado","campo"], items:[
     { to:"/compras",   icon:"🛒", label:"Compras",    roles:["gestor","encarregado","campo"] },
