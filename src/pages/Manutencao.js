@@ -70,6 +70,8 @@ function ManutencaoModal({ manut, obraId, funcionarios, criadoPor, onClose, addT
     obs:          manut?.obs          || "",
     camposCustom: manut?.camposCustom || {},
     materiais:    manut?.materiais    || [],
+    semMaterial:       manut?.semMaterial       || false,
+    motivoSemMaterial: manut?.motivoSemMaterial || "",
   });
   const [checklist,   setChecklist]   = useState(manut?.checklist || {});
   const [fotos,       setFotos]       = useState(manut?.fotos || []);
@@ -126,7 +128,7 @@ function ManutencaoModal({ manut, obraId, funcionarios, criadoPor, onClose, addT
   const fotosOk = fotos.length>=MIN_FOTOS;
   const osOk    = !!osDigital;
   const endOk   = form.logradouro&&form.numero&&form.cep;
-  const matOk   = form.materiais.length>0;
+  const matOk   = form.materiais.length>0 || (form.semMaterial && form.motivoSemMaterial?.trim());
   const podeConcluir = fotosOk&&osOk&&otOk&&endOk&&matOk;
 
   async function save() {
@@ -138,7 +140,7 @@ function ManutencaoModal({ manut, obraId, funcionarios, criadoPor, onClose, addT
       if(!osOk)    msgs.push("• OS digital assinada");
       if(!otOk)    msgs.push("• Número da OT ou S/OT");
       if(!endOk)   msgs.push("• Endereço completo");
-      if(!matOk)   msgs.push("• Materiais utilizados");
+      if(!matOk)   msgs.push("• Materiais utilizados (ou justificar ausência)");
       alert("Para concluir:\n"+msgs.join("\n"));return;
     }
     setSaving(true);
@@ -343,7 +345,41 @@ function ManutencaoModal({ manut, obraId, funcionarios, criadoPor, onClose, addT
             </div>
             <button className="btn btn-primary btn-sm" onClick={adicionarMaterial} style={{marginBottom:1}}>+ Add</button>
           </div>
-          {form.materiais.length===0&&<div className="alert alert-warning" style={{fontSize:12}}>Adicione pelo menos 1 material para concluir a OS.</div>}
+          {/* Opção sem materiais */}
+          <label style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",borderRadius:8,cursor:"pointer",
+            background:form.semMaterial?"rgba(245,200,0,.08)":"var(--cinza-lt)",
+            border:`1px solid ${form.semMaterial?"var(--afine-yellow-dk)":"var(--border)"}`,transition:".15s"}}>
+            <input type="checkbox" checked={!!form.semMaterial} onChange={e=>set("semMaterial",e.target.checked)}
+              style={{width:17,height:17,marginTop:1,flexShrink:0}}/>
+            <div>
+              <div style={{fontSize:13,fontWeight:600,color:form.semMaterial?"var(--afine-yellow-dk)":"#4A4A4A"}}>
+                Não foi necessário utilizar materiais
+              </div>
+              <div style={{fontSize:11,color:"#7A7A7A",marginTop:2}}>
+                Marque esta opção e justifique o motivo para liberar a conclusão sem materiais
+              </div>
+            </div>
+          </label>
+
+          {form.semMaterial && (
+            <div className="form-group">
+              <label className="required" style={{color:"var(--afine-yellow-dk)"}}>
+                Justificativa obrigatória — por que não houve uso de materiais?
+              </label>
+              <textarea
+                value={form.motivoSemMaterial}
+                onChange={e=>set("motivoSemMaterial",e.target.value)}
+                rows={3}
+                placeholder="Ex: Serviço de limpeza sem substituição de peças / Regulagem de equipamento existente / Sem necessidade de reposição..."
+                style={{borderColor:!form.motivoSemMaterial?.trim()?"var(--afine-yellow-dk)":"var(--verde)"}}
+              />
+              {form.motivoSemMaterial?.trim() && (
+                <span style={{fontSize:11,color:"var(--verde)",fontWeight:600}}>✓ Justificativa registrada</span>
+              )}
+            </div>
+          )}
+
+          {!form.semMaterial && form.materiais.length===0&&<div className="alert alert-warning" style={{fontSize:12}}>Adicione pelo menos 1 material ou marque "Não foi necessário utilizar materiais".</div>}
           {form.materiais.length>0&&(
             <div className="table-wrap"><table><thead><tr><th>Material</th><th>Qtd.</th><th>Un.</th><th></th></tr></thead>
               <tbody>{form.materiais.map((m,i)=>(
