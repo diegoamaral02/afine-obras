@@ -16,12 +16,13 @@ const TIPOS_OBRA = ["Reforma geral","Layout","Adequação","Retrofit","Manutenç
 
 
 
-function ObraModal({ obra, onClose, addToast }) {
+function ObraModal({ obra, funcionarios, onClose, addToast }) {
   const [aba, setAba] = useState("dados");
   const [form, setForm] = useState({
     nome: obra?.nome||"", tipo: obra?.tipo||"", cliente: obra?.cliente||"",
     gerenciadora: obra?.gerenciadora||"", responsavel: obra?.responsavel||"",
     contrato: obra?.contrato||"", area: obra?.area||"",
+    equipeIds: obra?.equipeIds||[],
     // Endereço
     cep: obra?.cep||"", logradouro: obra?.logradouro||"", numero: obra?.numero||"",
     bairro: obra?.bairro||"", cidade: obra?.cidade||"", uf: obra?.uf||"",
@@ -117,6 +118,31 @@ function ObraModal({ obra, onClose, addToast }) {
             <div className="form-group"><label>Progresso (%)</label><input type="number" min="0" max="100" value={form.progresso} onChange={e=>set("progresso",e.target.value)}/></div>
           </div>
           <div className="form-group"><label>Subcontratados / empresas envolvidas</label><input value={form.subcontratados} onChange={e=>set("subcontratados",e.target.value)} placeholder="Ex: Elétrica Total, Sub. Souza Drywall..."/></div>
+
+          {/* Equipe alocada na obra */}
+          <div style={{background:"var(--afine-yellow-lt)",borderRadius:8,padding:12,border:"1px solid rgba(245,200,0,.3)"}}>
+            <div style={{fontSize:12,fontWeight:700,color:"var(--afine-yellow-dk)",marginBottom:8}}>👷 Equipe alocada nesta obra</div>
+            <div style={{fontSize:11,color:"#8A6000",marginBottom:10}}>
+              Selecione os colaboradores responsáveis por esta obra. Eles aparecerão vinculados a ela na aba Equipe.
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:4,maxHeight:160,overflowY:"auto",background:"#fff",borderRadius:6,padding:8}}>
+              {(funcionarios||[]).length===0&&<span style={{fontSize:12,color:"#7A7A7A"}}>Nenhum funcionário cadastrado</span>}
+              {(funcionarios||[]).map(f=>{
+                const checked=form.equipeIds.includes(f.id);
+                return (
+                  <label key={f.id} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,cursor:"pointer",padding:"4px 8px",borderRadius:6,background:checked?"var(--afine-yellow-lt)":"transparent"}}>
+                    <input type="checkbox" checked={checked} onChange={()=>{
+                      setForm(p=>({...p,equipeIds:checked?p.equipeIds.filter(id=>id!==f.id):[...p.equipeIds,f.id]}));
+                    }} style={{width:15,height:15}}/>
+                    <span style={{flex:1}}>{f.nome}</span>
+                    <span style={{fontSize:11,color:"#7A7A7A"}}>{f.funcao||f.departamento}</span>
+                  </label>
+                );
+              })}
+            </div>
+            {form.equipeIds.length>0&&<div style={{marginTop:6,fontSize:11,color:"var(--afine-yellow-dk)",fontWeight:600}}>✓ {form.equipeIds.length} colaborador(es) alocado(s)</div>}
+          </div>
+
           <div className="form-group"><label>Observações</label><textarea value={form.obs} onChange={e=>set("obs",e.target.value)} rows={3}/></div>
         </div>
       )}
@@ -184,6 +210,7 @@ export default function Obras({ onObraSelect }) {
   const { userProfile } = useAuth();
   const { toasts, addToast } = useToast();
   const [obras,   setObras]   = useState([]);
+  const [funcionarios, setFuncionarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState("");
   const [filtro,  setFiltro]  = useState("todos");
@@ -196,6 +223,12 @@ export default function Obras({ onObraSelect }) {
     return onSnapshot(collection(db,"obras"), snap => {
       setObras(snap.docs.map(d=>({id:d.id,...d.data()})));
       setLoading(false);
+    });
+  },[]);
+
+  useEffect(() => {
+    return onSnapshot(collection(db,"usuarios"), snap => {
+      setFuncionarios(snap.docs.map(d=>({id:d.id,...d.data()})).filter(f=>f.status==="ATIVO"||!f.status));
     });
   },[]);
 
@@ -274,7 +307,7 @@ export default function Obras({ onObraSelect }) {
           </table>
         </div>
       )}
-      {modal && <ObraModal obra={modal.obra} onClose={()=>setModal(null)} addToast={addToast}/>}
+      {modal && <ObraModal obra={modal.obra} funcionarios={funcionarios} onClose={()=>setModal(null)} addToast={addToast}/>}
 
       {/* Painel lateral de ocorrências por obra */}
       {obraAberta && (
