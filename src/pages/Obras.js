@@ -20,7 +20,8 @@ function ObraModal({ obra, funcionarios, onClose, addToast }) {
   const [aba, setAba] = useState("dados");
   const [form, setForm] = useState({
     nome: obra?.nome||"", tipo: obra?.tipo||"", cliente: obra?.cliente||"",
-    gerenciadora: obra?.gerenciadora||"", responsavel: obra?.responsavel||"",
+    gerenciadora: obra?.gerenciadora||"",
+    responsavelId: obra?.responsavelId||"", responsavelNome: obra?.responsavelNome||obra?.responsavel||"",
     contrato: obra?.contrato||"", area: obra?.area||"",
     equipeIds: obra?.equipeIds||[],
     // Endereço
@@ -44,6 +45,11 @@ function ObraModal({ obra, funcionarios, onClose, addToast }) {
   const [saving, setSaving] = useState(false);
 
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
+  function handleFunc(field, idField, e) {
+    const id=e.target.value;
+    const f=(funcionarios||[]).find(x=>x.id===id||x.uid===id);
+    set(field,f?.nome||""); set(idField,id);
+  }
 
   async function handleCEP(cep) {
     set("cep",cep);
@@ -101,7 +107,17 @@ function ObraModal({ obra, funcionarios, onClose, addToast }) {
               </select>
             </div>
             <div className="form-group"><label>Gerenciadora</label><input value={form.gerenciadora} onChange={e=>set("gerenciadora",e.target.value)}/></div>
-            <div className="form-group"><label>👤 Responsável técnico (fiscal da obra)</label><input value={form.responsavel} onChange={e=>set("responsavel",e.target.value)} placeholder="Nome do engenheiro/fiscal responsável"/></div>
+            <div className="form-group">
+              <label>👤 Responsável técnico (Gestor)</label>
+              <select value={form.responsavelId} onChange={e=>handleFunc("responsavelNome","responsavelId",e)}
+                style={{background:form.responsavelNome?"rgba(24,95,165,.06)":""}}>
+                <option value="">Selecione o gestor responsável...</option>
+                {(funcionarios||[])
+                  .filter(f=>f.adm===true || ["gestao","adm"].includes(f.departamento) || f.perfil==="gestor")
+                  .map(f=><option key={f.id} value={f.id}>{f.nome}</option>)}
+              </select>
+              {form.responsavelNome&&<span style={{fontSize:11,color:"#185FA5",fontWeight:600}}>✓ {form.responsavelNome}</span>}
+            </div>
             <div className="form-group"><label>Contrato Nº</label><input value={form.contrato} onChange={e=>set("contrato",e.target.value)}/></div>
             <div className="form-group"><label>Área (m²)</label><input type="number" value={form.area} onChange={e=>set("area",e.target.value)}/></div>
           </div>
@@ -277,12 +293,12 @@ export default function Obras({ onObraSelect }) {
                   <td><span className="badge badge-gray" style={{fontSize:10}}>{o.tipo||"–"}</span></td>
                   <td style={{fontSize:12}}>{o.cliente}</td>
                   <td style={{fontSize:12}}>
-                    {o.responsavel ? (
+                    {o.responsavelNome ? (
                       <span style={{display:"inline-flex",alignItems:"center",gap:5}}>
                         <span style={{width:20,height:20,borderRadius:"50%",background:"#185FA5",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                          {o.responsavel.split(" ").map(p=>p[0]).join("").slice(0,2).toUpperCase()}
+                          {o.responsavelNome.split(" ").map(p=>p[0]).join("").slice(0,2).toUpperCase()}
                         </span>
-                        {o.responsavel}
+                        {o.responsavelNome}
                       </span>
                     ) : <span style={{color:"#aaa"}}>–</span>}
                   </td>
