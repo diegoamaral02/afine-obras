@@ -101,7 +101,7 @@ function ObraModal({ obra, funcionarios, onClose, addToast }) {
               </select>
             </div>
             <div className="form-group"><label>Gerenciadora</label><input value={form.gerenciadora} onChange={e=>set("gerenciadora",e.target.value)}/></div>
-            <div className="form-group"><label>Responsável técnico</label><input value={form.responsavel} onChange={e=>set("responsavel",e.target.value)}/></div>
+            <div className="form-group"><label>👤 Responsável técnico (fiscal da obra)</label><input value={form.responsavel} onChange={e=>set("responsavel",e.target.value)} placeholder="Nome do engenheiro/fiscal responsável"/></div>
             <div className="form-group"><label>Contrato Nº</label><input value={form.contrato} onChange={e=>set("contrato",e.target.value)}/></div>
             <div className="form-group"><label>Área (m²)</label><input type="number" value={form.area} onChange={e=>set("area",e.target.value)}/></div>
           </div>
@@ -266,15 +266,33 @@ export default function Obras({ onObraSelect }) {
       {!loading && filtered.length>0 && (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Obra</th><th>Tipo</th><th>Cliente</th><th>Endereço</th><th>Vistoria</th><th>Término</th><th>Orçamento</th><th>Relatório</th><th>Progresso</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Obra</th><th>Tipo</th><th>Cliente</th><th>Responsável</th><th>Equipe</th><th>Endereço</th><th>Vistoria</th><th>Término</th><th>Orçamento</th><th>Relatório</th><th>Progresso</th><th>Status</th><th></th></tr></thead>
             <tbody>
               {filtered.map(o=>{
                 const temEndereco = o.logradouro&&o.numero;
+                const qtdEquipe = (o.equipeIds||[]).length;
                 return (
                 <tr key={o.id}>
                   <td><div style={{fontWeight:600}}>{o.nome}</div><div style={{fontSize:11,color:"#7A7A7A"}}>{o.contrato}</div></td>
                   <td><span className="badge badge-gray" style={{fontSize:10}}>{o.tipo||"–"}</span></td>
                   <td style={{fontSize:12}}>{o.cliente}</td>
+                  <td style={{fontSize:12}}>
+                    {o.responsavel ? (
+                      <span style={{display:"inline-flex",alignItems:"center",gap:5}}>
+                        <span style={{width:20,height:20,borderRadius:"50%",background:"#185FA5",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                          {o.responsavel.split(" ").map(p=>p[0]).join("").slice(0,2).toUpperCase()}
+                        </span>
+                        {o.responsavel}
+                      </span>
+                    ) : <span style={{color:"#aaa"}}>–</span>}
+                  </td>
+                  <td style={{fontSize:11}}>
+                    {qtdEquipe>0 ? (
+                      <span style={{fontSize:11,background:"var(--afine-yellow-lt)",color:"var(--afine-yellow-dk)",padding:"2px 8px",borderRadius:10,fontWeight:600,whiteSpace:"nowrap"}}>
+                        👷 {qtdEquipe} alocado{qtdEquipe>1?"s":""}
+                      </span>
+                    ) : <span style={{color:"#aaa"}}>Sem equipe</span>}
+                  </td>
                   <td style={{fontSize:11}}>
                     {temEndereco ? (
                       <button onClick={()=>{

@@ -48,7 +48,10 @@ function ManutencaoModal({ manut, obraId, funcionarios, criadoPor, onClose, addT
     prioridade:   manut?.prioridade   || "normal",
     numeroOT:     manut?.numeroOT     || "",
     semOT:        manut?.semOT        || false,
-    // Alocação de campo
+    // Responsável / Fiscal da demanda (acompanhamento)
+    responsavelId:   manut?.responsavelId   || "",
+    responsavelNome: manut?.responsavelNome || "",
+    // Alocação de campo (quem executa)
     alocadoId:    manut?.alocadoId    || "",
     alocadoNome:  manut?.alocadoNome  || "",
     // Endereço
@@ -225,9 +228,29 @@ function ManutencaoModal({ manut, obraId, funcionarios, criadoPor, onClose, addT
               </select></div>
           </div>
 
+          {/* Responsável / Fiscal — acompanha a demanda */}
+          <div style={{background:"rgba(24,95,165,.06)",borderRadius:8,padding:12,border:"1px solid rgba(24,95,165,.2)"}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#185FA5",marginBottom:8}}>👤 Responsável (fiscal) pela demanda</div>
+            <div style={{fontSize:11,color:"#185FA5",marginBottom:10}}>
+              Quem acompanha e responde por esta manutenção perante o cliente. Diferente de quem executa em campo.
+            </div>
+            <select value={form.responsavelId} onChange={e=>handleFunc("responsavelNome","responsavelId",e)}
+              style={{width:"100%",padding:"8px 12px",borderRadius:6,border:"1px solid var(--border)",fontSize:13}}>
+              <option value="">Sem responsável definido</option>
+              {funcionarios.filter(f=>f.status==="ATIVO"||!f.status).map(f=>(
+                <option key={f.id} value={f.id}>{f.nome} — {f.funcao||f.departamento||"campo"}</option>
+              ))}
+            </select>
+            {form.responsavelNome&&(
+              <div style={{marginTop:6,fontSize:12,color:"#185FA5",fontWeight:600}}>
+                ✓ Responsável: {form.responsavelNome}
+              </div>
+            )}
+          </div>
+
           {/* Alocação de funcionário de campo */}
           <div style={{background:"var(--afine-yellow-lt)",borderRadius:8,padding:12,border:"1px solid rgba(245,200,0,.3)"}}>
-            <div style={{fontSize:12,fontWeight:700,color:"var(--afine-yellow-dk)",marginBottom:8}}>👷 Alocar funcionário de campo</div>
+            <div style={{fontSize:12,fontWeight:700,color:"var(--afine-yellow-dk)",marginBottom:8}}>👷 Alocar equipe de campo (quem executa)</div>
             <div style={{fontSize:11,color:"#8A6000",marginBottom:10}}>
               O funcionário selecionado verá esta demanda na aba "Minhas demandas". Ao finalizar, sai automaticamente da visão dele.
             </div>
@@ -240,7 +263,7 @@ function ManutencaoModal({ manut, obraId, funcionarios, criadoPor, onClose, addT
             </select>
             {form.alocadoNome&&(
               <div style={{marginTop:6,fontSize:12,color:"var(--afine-yellow-dk)",fontWeight:600}}>
-                ✓ Alocado para: {form.alocadoNome}
+                ✓ Executa em campo: {form.alocadoNome}
               </div>
             )}
           </div>
@@ -562,7 +585,7 @@ export default function Manutencao({ obraAtual }) {
   const excelCols=[
     {key:"titulo",header:"Título"},{key:"cliente",header:"Cliente"},{key:"agencia",header:"Agência"},
     {key:"tipo",header:"Tipo"},{key:"prioridade",header:"Prioridade"},{key:"status",header:"Status"},
-    {key:"numeroOT",header:"OT"},{key:"responsavel",header:"Responsável"},{key:"alocadoNome",header:"Alocado para"},
+    {key:"numeroOT",header:"OT"},{key:"responsavelNome",header:"Responsável"},{key:"alocadoNome",header:"Alocado para"},
     {key:"criadoPorNome",header:"Criado por"},{key:"dataAbertura",header:"Abertura"},{key:"dataConclusao",header:"Conclusão"},
   ];
 
@@ -686,13 +709,18 @@ export default function Manutencao({ obraAtual }) {
           {!loading&&filtered.length>0&&(
             <div className="table-wrap">
               <table>
-                <thead><tr><th>Título</th><th>Cliente</th><th>Agência</th><th>Criado por</th><th>Alocado para</th><th>OT</th><th>Prior.</th><th>OS</th><th>Status</th><th></th></tr></thead>
+                <thead><tr><th>Título</th><th>Cliente</th><th>Agência</th><th>Responsável</th><th>Criado por</th><th>Alocado para</th><th>OT</th><th>Prior.</th><th>OS</th><th>Status</th><th></th></tr></thead>
                 <tbody>
                   {filtered.map(m=>(
                     <tr key={m.id} style={{background:m.prioridade==="urgente"?"rgba(184,50,50,.03)":""}}>
                       <td style={{fontWeight:600,fontSize:13}}>{m.titulo}</td>
                       <td style={{fontSize:12}}>{m.cliente}</td>
                       <td style={{fontSize:12}}>{m.agencia||"–"}</td>
+                      <td>
+                        {m.responsavelNome?(
+                          <span style={{fontSize:11,color:"#185FA5",fontWeight:600}}>👤 {m.responsavelNome}</span>
+                        ):<span style={{color:"#aaa",fontSize:11}}>–</span>}
+                      </td>
                       <td>
                         {m.criadoPorNome?(
                           <div style={{display:"flex",alignItems:"center",gap:6}}>
