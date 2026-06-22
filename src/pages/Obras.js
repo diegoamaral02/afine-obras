@@ -286,7 +286,8 @@ export default function Obras({ onObraSelect }) {
             <tbody>
               {filtered.map(o=>{
                 const temEndereco = o.logradouro&&o.numero;
-                const qtdEquipe = (o.equipeIds||[]).length;
+                const equipeIds = o.equipeIds||[];
+                const nomesEquipe = equipeIds.map(id=>funcionarios.find(f=>f.id===id)?.nome).filter(Boolean);
                 return (
                 <tr key={o.id}>
                   <td><div style={{fontWeight:600}}>{o.nome}</div><div style={{fontSize:11,color:"#7A7A7A"}}>{o.contrato}</div></td>
@@ -302,10 +303,10 @@ export default function Obras({ onObraSelect }) {
                       </span>
                     ) : <span style={{color:"#aaa"}}>–</span>}
                   </td>
-                  <td style={{fontSize:11}}>
-                    {qtdEquipe>0 ? (
-                      <span style={{fontSize:11,background:"var(--afine-yellow-lt)",color:"var(--afine-yellow-dk)",padding:"2px 8px",borderRadius:10,fontWeight:600,whiteSpace:"nowrap"}}>
-                        👷 {qtdEquipe} alocado{qtdEquipe>1?"s":""}
+                  <td style={{fontSize:11,maxWidth:160}}>
+                    {nomesEquipe.length>0 ? (
+                      <span title={nomesEquipe.join(", ")} style={{fontSize:11,background:"var(--afine-yellow-lt)",color:"var(--afine-yellow-dk)",padding:"2px 8px",borderRadius:10,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"inline-block",maxWidth:"100%"}}>
+                        👷 {nomesEquipe.join(", ")}
                       </span>
                     ) : <span style={{color:"#aaa"}}>Sem equipe</span>}
                   </td>

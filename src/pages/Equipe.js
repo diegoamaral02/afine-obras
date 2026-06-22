@@ -46,23 +46,35 @@ function ReatribuirModal({ colaborador, demandasAbertas, onClose, addToast }) {
   const [demandaSelecionada, setDemandaSelecionada] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Onde ele está alocado agora (manutenções com alocadoId === colaborador.id)
+  // Onde ele está alocado agora (manutenções cujo array alocadoIds contém o colaborador)
   const alocacoesAtuais = demandasAbertas.filter(d=>
-    d.tipo==="manutencao" && d.alocadoId===colaborador.id
+    d.tipo==="manutencao" && (d.alocadoIds||[]).includes(colaborador.id)
   );
 
-  async function reatribuir(manutId) {
+  function semColaborador(manut) {
+    const ids   = (manut.alocadoIds||[]).filter(id=>id!==colaborador.id);
+    const nomes = (manut.alocadoNomes||[]).filter(n=>n!==colaborador.nome);
+    return { alocadoIds: ids, alocadoNomes: nomes };
+  }
+  function comColaborador(manut) {
+    const ids   = [...new Set([...(manut.alocadoIds||[]), colaborador.id])];
+    const nomes = [...new Set([...(manut.alocadoNomes||[]), colaborador.nome])];
+    return { alocadoIds: ids, alocadoNomes: nomes };
+  }
+
+  async function reatribuir(manutOrigemId) {
     if(!demandaSelecionada){alert("Selecione a nova manutenção.");return;}
     setSaving(true);
     try {
-      const nova = demandasAbertas.find(d=>d.id===demandaSelecionada);
-      await updateDoc(doc(db,"manutencoes",manutId),{
-        alocadoId:"", alocadoNome:"", updatedAt:new Date().toISOString()
+      const origem = demandasAbertas.find(d=>d.id===manutOrigemId);
+      const destino = demandasAbertas.find(d=>d.id===demandaSelecionada);
+      await updateDoc(doc(db,"manutencoes",manutOrigemId),{
+        ...semColaborador(origem), updatedAt:new Date().toISOString()
       });
       await updateDoc(doc(db,"manutencoes",demandaSelecionada),{
-        alocadoId:colaborador.id, alocadoNome:colaborador.nome, updatedAt:new Date().toISOString()
+        ...comColaborador(destino), updatedAt:new Date().toISOString()
       });
-      addToast(`✓ ${colaborador.nome} reatribuído para "${nova?.titulo}"`);
+      addToast(`✓ ${colaborador.nome} reatribuído para "${destino?.titulo}"`);
       onClose();
     } catch(err){addToast("Erro: "+err.message,"error");}
     setSaving(false);
@@ -72,11 +84,11 @@ function ReatribuirModal({ colaborador, demandasAbertas, onClose, addToast }) {
     if(!demandaSelecionada){alert("Selecione a manutenção.");return;}
     setSaving(true);
     try {
+      const destino = demandasAbertas.find(d=>d.id===demandaSelecionada);
       await updateDoc(doc(db,"manutencoes",demandaSelecionada),{
-        alocadoId:colaborador.id, alocadoNome:colaborador.nome, updatedAt:new Date().toISOString()
+        ...comColaborador(destino), updatedAt:new Date().toISOString()
       });
-      const nova=demandasAbertas.find(d=>d.id===demandaSelecionada);
-      addToast(`✓ ${colaborador.nome} alocado em "${nova?.titulo}"`);
+      addToast(`✓ ${colaborador.nome} alocado em "${destino?.titulo}"`);
       onClose();
     } catch(err){addToast("Erro: "+err.message,"error");}
     setSaving(false);
@@ -85,14 +97,15 @@ function ReatribuirModal({ colaborador, demandasAbertas, onClose, addToast }) {
   async function desalocar(manutId) {
     setSaving(true);
     try {
-      await updateDoc(doc(db,"manutencoes",manutId),{alocadoId:"",alocadoNome:"",updatedAt:new Date().toISOString()});
+      const manut = demandasAbertas.find(d=>d.id===manutId);
+      await updateDoc(doc(db,"manutencoes",manutId),{...semColaborador(manut),updatedAt:new Date().toISOString()});
       addToast("✓ Desalocado");
       onClose();
     } catch(err){addToast("Erro: "+err.message,"error");}
     setSaving(false);
   }
 
-  const manutDisponiveis = demandasAbertas.filter(d=>d.tipo==="manutencao"&&d.alocadoId!==colaborador.id);
+  const manutDisponiveis = demandasAbertas.filter(d=>d.tipo==="manutencao"&&!(d.alocadoIds||[]).includes(colaborador.id));
 
   return (
     <Modal title={`Realocar — ${colaborador.nome}`} onClose={onClose}
@@ -108,6 +121,7 @@ function ReatribuirModal({ colaborador, demandasAbertas, onClose, addToast }) {
               <div>
                 <div style={{fontWeight:600,fontSize:13}}>{m.titulo}</div>
                 <div style={{fontSize:11,color:"#7A7A7A"}}>{m.cliente}{m.agencia&&` · ${m.agencia}`}</div>
+                {m.alocadoNomes?.length>1&&<div style={{fontSize:10,color:"#8A6000",marginTop:2}}>Junto com: {m.alocadoNomes.filter(n=>n!==colaborador.nome).join(", ")}</div>}
               </div>
               <button className="btn btn-sm" onClick={()=>desalocar(m.id)} disabled={saving} style={{background:"var(--vermelho-lt)",borderColor:"rgba(184,50,50,.3)",color:"var(--vermelho)",fontSize:11}}>
                 ✕ Desalocar
@@ -125,7 +139,7 @@ function ReatribuirModal({ colaborador, demandasAbertas, onClose, addToast }) {
             style={{width:"100%",padding:"9px 12px",borderRadius:8,border:"1px solid var(--border)",fontSize:13,marginBottom:10}}>
             <option value="">Selecione a manutenção destino...</option>
             {manutDisponiveis.map(m=>(
-              <option key={m.id} value={m.id}>{m.titulo} — {m.cliente}{m.alocadoNome?` (atual: ${m.alocadoNome})`:""}</option>
+              <option key={m.id} value={m.id}>{m.titulo} — {m.cliente}{m.alocadoNomes?.length>0?` (atual: ${m.alocadoNomes.join(", ")})`:""}</option>
             ))}
           </select>
           {alocacoesAtuais.length>0 ? (
@@ -224,13 +238,13 @@ export function Equipe() {
 
   // Cruzamento: para cada funcionário, onde ele está alocado
   // 1) Obras: colaborador.id está em obra.equipeIds[]
-  // 2) Manutenções: manutencao.alocadoId === colaborador.id (não concluída)
+  // 2) Manutenções: colaboradorId presente no array alocadoIds[] (não concluída)
   function alocacoesDe(colaboradorId) {
     const emObras = obras
       .filter(o=>(o.equipeIds||[]).includes(colaboradorId) && o.status!=="CONCLUÍDA")
       .map(o=>({tipo:"obra",titulo:o.nome,cliente:o.cliente,status:o.status,id:o.id}));
     const emManuts = manutencoes
-      .filter(m=>m.alocadoId===colaboradorId && !["CONCLUÍDA","CANCELADA"].includes(m.status))
+      .filter(m=>(m.alocadoIds||[]).includes(colaboradorId) && !["CONCLUÍDA","CANCELADA"].includes(m.status))
       .map(m=>({tipo:"manutencao",titulo:m.titulo,cliente:m.cliente,status:m.status,id:m.id}));
     return [...emObras, ...emManuts];
   }
@@ -268,7 +282,7 @@ export function Equipe() {
         <div className="metric" style={{borderLeft:"3px solid var(--afine-yellow-dk)"}}><div className="metric-label">Alocados</div><div className="metric-value yellow">{totalAlocados}</div></div>
         <div className="metric" style={{borderLeft:"3px solid var(--verde)"}}><div className="metric-label">Livres</div><div className="metric-value green">{totalLivres}</div></div>
         <div className="metric" style={{borderLeft:"3px solid #185FA5"}}><div className="metric-label">Em obras</div><div className="metric-value" style={{color:"#185FA5"}}>{obras.filter(o=>(o.equipeIds||[]).length>0&&o.status!=="CONCLUÍDA").length}</div></div>
-        <div className="metric" style={{borderLeft:"3px solid var(--vermelho)"}}><div className="metric-label">Em manutenção</div><div className="metric-value red">{manutencoes.filter(m=>m.alocadoId&&!["CONCLUÍDA","CANCELADA"].includes(m.status)).length}</div></div>
+        <div className="metric" style={{borderLeft:"3px solid var(--vermelho)"}}><div className="metric-label">Em manutenção</div><div className="metric-value red">{manutencoes.filter(m=>(m.alocadoIds||[]).length>0&&!["CONCLUÍDA","CANCELADA"].includes(m.status)).length}</div></div>
       </div>
 
       {/* Filtro departamento */}

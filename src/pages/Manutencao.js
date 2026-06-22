@@ -52,8 +52,8 @@ function ManutencaoModal({ manut, obraId, funcionarios, criadoPor, onClose, addT
     responsavelId:   manut?.responsavelId   || "",
     responsavelNome: manut?.responsavelNome || "",
     // Alocação de campo (quem executa)
-    alocadoId:    manut?.alocadoId    || "",
-    alocadoNome:  manut?.alocadoNome  || "",
+    alocadoIds:   manut?.alocadoIds   || (manut?.alocadoId ? [manut.alocadoId] : []),
+    alocadoNomes: manut?.alocadoNomes || (manut?.alocadoNome ? [manut.alocadoNome] : []),
     // Endereço
     cep:          manut?.cep          || "",
     logradouro:   manut?.logradouro   || "",
@@ -252,18 +252,34 @@ function ManutencaoModal({ manut, obraId, funcionarios, criadoPor, onClose, addT
           <div style={{background:"var(--afine-yellow-lt)",borderRadius:8,padding:12,border:"1px solid rgba(245,200,0,.3)"}}>
             <div style={{fontSize:12,fontWeight:700,color:"var(--afine-yellow-dk)",marginBottom:8}}>👷 Alocar equipe de campo (quem executa)</div>
             <div style={{fontSize:11,color:"#8A6000",marginBottom:10}}>
-              O funcionário selecionado verá esta demanda na aba "Minhas demandas". Ao finalizar, sai automaticamente da visão dele.
+              Os funcionários selecionados verão esta demanda na aba "Minhas demandas". Ao finalizar, sai automaticamente da visão deles.
             </div>
-            <select value={form.alocadoId} onChange={e=>handleFunc("alocadoNome","alocadoId",e)}
-              style={{width:"100%",padding:"8px 12px",borderRadius:6,border:"1px solid var(--border)",fontSize:13}}>
-              <option value="">Sem alocação — visível para todos os gestores</option>
-              {funcionarios.filter(f=>f.status==="ATIVO"||!f.status).map(f=>(
-                <option key={f.id} value={f.id}>{f.nome} — {f.funcao||f.departamento||"campo"}</option>
-              ))}
-            </select>
-            {form.alocadoNome&&(
+            <div style={{display:"flex",flexDirection:"column",gap:4,maxHeight:180,overflowY:"auto",background:"#fff",borderRadius:6,padding:8}}>
+              {funcionarios.filter(f=>f.status==="ATIVO"||!f.status).length===0&&<span style={{fontSize:12,color:"#7A7A7A"}}>Nenhum funcionário cadastrado</span>}
+              {funcionarios.filter(f=>f.status==="ATIVO"||!f.status).map(f=>{
+                const fid = f.id||f.uid;
+                const checked = form.alocadoIds.includes(fid);
+                return (
+                  <label key={fid} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,cursor:"pointer",padding:"4px 8px",borderRadius:6,background:checked?"var(--afine-yellow-lt)":"transparent"}}>
+                    <input type="checkbox" checked={checked} onChange={()=>{
+                      setForm(p=>{
+                        const jaTem = p.alocadoIds.includes(fid);
+                        return {
+                          ...p,
+                          alocadoIds:   jaTem ? p.alocadoIds.filter(id=>id!==fid)       : [...p.alocadoIds, fid],
+                          alocadoNomes: jaTem ? p.alocadoNomes.filter(n=>n!==f.nome)    : [...p.alocadoNomes, f.nome],
+                        };
+                      });
+                    }} style={{width:15,height:15}}/>
+                    <span style={{flex:1}}>{f.nome}</span>
+                    <span style={{fontSize:11,color:"#7A7A7A"}}>{f.funcao||f.departamento||"campo"}</span>
+                  </label>
+                );
+              })}
+            </div>
+            {form.alocadoNomes.length>0&&(
               <div style={{marginTop:6,fontSize:12,color:"var(--afine-yellow-dk)",fontWeight:600}}>
-                ✓ Executa em campo: {form.alocadoNome}
+                ✓ Executa em campo: {form.alocadoNomes.join(", ")}
               </div>
             )}
           </div>
@@ -502,7 +518,7 @@ function HistoricoCard({ manut, onEdit }) {
           <div style={{fontSize:11,color:"#7A7A7A",marginTop:2}}>
             {manut.tipo} · {manut.prioridade}
             {manut.criadoPorNome&&<> · criado por <strong>{manut.criadoPorNome}</strong></>}
-            {manut.alocadoNome&&<> · alocado para <strong style={{color:"var(--afine-yellow-dk)"}}>{manut.alocadoNome}</strong></>}
+            {manut.alocadoNomes?.length>0&&<> · alocado para <strong style={{color:"var(--afine-yellow-dk)"}}>{manut.alocadoNomes.join(", ")}</strong></>}
           </div>
           <div style={{fontSize:11,color:"#7A7A7A",marginTop:2}}>{fmtDate(manut.dataAbertura)} → {fmtDate(manut.dataConclusao)||"Em aberto"}</div>
         </div>
@@ -553,7 +569,7 @@ export default function Manutencao({ obraAtual }) {
   const minhasDemandas = useMemo(()=>{
     if(!uid) return [];
     return manuts.filter(m=>
-      (m.alocadoId===uid||m.criadoPorId===uid) &&
+      ((m.alocadoIds||[]).includes(uid)||m.criadoPorId===uid) &&
       !["CONCLUÍDA","CANCELADA"].includes(m.status)
     );
   },[manuts,uid]);
@@ -585,7 +601,7 @@ export default function Manutencao({ obraAtual }) {
   const excelCols=[
     {key:"titulo",header:"Título"},{key:"cliente",header:"Cliente"},{key:"agencia",header:"Agência"},
     {key:"tipo",header:"Tipo"},{key:"prioridade",header:"Prioridade"},{key:"status",header:"Status"},
-    {key:"numeroOT",header:"OT"},{key:"responsavelNome",header:"Responsável"},{key:"alocadoNome",header:"Alocado para"},
+    {key:"numeroOT",header:"OT"},{key:"responsavelNome",header:"Responsável"},{key:"alocadoNomes",header:"Alocado para",format:v=>(v||[]).join(", ")},
     {key:"criadoPorNome",header:"Criado por"},{key:"dataAbertura",header:"Abertura"},{key:"dataConclusao",header:"Conclusão"},
   ];
 
@@ -730,9 +746,9 @@ export default function Manutencao({ obraAtual }) {
                         ):<span style={{color:"#aaa",fontSize:11}}>–</span>}
                       </td>
                       <td>
-                        {m.alocadoNome?(
+                        {m.alocadoNomes?.length>0?(
                           <span style={{fontSize:11,background:"var(--afine-yellow-lt)",color:"var(--afine-yellow-dk)",padding:"2px 8px",borderRadius:10,fontWeight:600}}>
-                            👷 {m.alocadoNome}
+                            👷 {m.alocadoNomes.join(", ")}
                           </span>
                         ):<span style={{color:"#aaa",fontSize:11}}>Sem alocação</span>}
                       </td>
