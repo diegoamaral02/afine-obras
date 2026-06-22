@@ -8,6 +8,9 @@ import KanbanBoard from "../components/KanbanBoard";
 import { useToast } from "../hooks/useToast";
 import { fmtDate } from "../utils/helpers";
 
+// Gera ID simples para agências (não depende do Firestore autoId pois ficam embutidas em array)
+function gerarIdAgencia() { return "ag_"+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+
 const COLUNAS_FUNIL = [
   { id:"PROSPECTO",       titulo:"Prospecto",       cor:"#4A4A4A", icone:"👁️" },
   { id:"NEGOCIACAO",      titulo:"Negociação",      cor:"#185FA5", icone:"🤝" },
@@ -174,9 +177,20 @@ function ClienteModal({ cliente, onClose, addToast }) {
     segmento:     cliente?.segmento     || "",
     status:       cliente?.status       || "ATIVO",
     obs:          cliente?.obs          || "",
+    agencias:     cliente?.agencias     || [],
   });
   const [saving, setSaving] = useState(false);
+  const [novaAgencia, setNovaAgencia] = useState({ nome:"", endereco:"", cidade:"", uf:"" });
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
+
+  function addAgencia() {
+    if(!novaAgencia.nome.trim()){ alert("Informe o nome/número da agência, loja ou filial."); return; }
+    set("agencias",[...form.agencias,{ id:gerarIdAgencia(), ...novaAgencia, nome:novaAgencia.nome.trim() }]);
+    setNovaAgencia({ nome:"", endereco:"", cidade:"", uf:"" });
+  }
+  function removerAgencia(id) {
+    set("agencias", form.agencias.filter(a=>a.id!==id));
+  }
 
   async function save() {
     if(!form.razaoSocial){ alert("Informe a razão social / nome do cliente."); return; }
@@ -223,8 +237,41 @@ function ClienteModal({ cliente, onClose, addToast }) {
               <option value="INATIVO">INATIVO</option>
             </select>
           </div>
-          <div className="form-group span-2"><label>Endereço</label>
+          <div className="form-group span-2"><label>Endereço (sede)</label>
             <input value={form.endereco} onChange={e=>set("endereco",e.target.value)}/>
+          </div>
+        </div>
+
+        {/* ── Agências / Lojas / Filiais ──────────────────────────────────── */}
+        <div style={{background:"var(--cinza-lt)",borderRadius:8,padding:12,border:"1px solid var(--border)"}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#4A4A4A",marginBottom:4}}>🏢 Agências / Lojas / Filiais</div>
+          <div style={{fontSize:11,color:"#7A7A7A",marginBottom:10}}>
+            Cadastre quantas forem necessárias. Elas ficam disponíveis para seleção ao criar Obras ou Manutenções deste cliente.
+          </div>
+
+          {form.agencias.length>0 && (
+            <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
+              {form.agencias.map(a=>(
+                <div key={a.id} style={{display:"flex",alignItems:"center",gap:8,background:"#fff",borderRadius:6,padding:"6px 10px",border:"1px solid var(--border)"}}>
+                  <span style={{fontWeight:600,fontSize:13,flex:1}}>{a.nome}</span>
+                  {a.cidade&&<span style={{fontSize:11,color:"#7A7A7A"}}>{a.cidade}{a.uf?`/${a.uf}`:""}</span>}
+                  {a.endereco&&<span style={{fontSize:11,color:"#7A7A7A",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.endereco}</span>}
+                  <button onClick={()=>removerAgencia(a.id)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--vermelho)",fontSize:14,padding:"0 4px"}}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            <input value={novaAgencia.nome} onChange={e=>setNovaAgencia(p=>({...p,nome:e.target.value}))}
+              placeholder="Nome / nº (ex: Agência 0442)" style={{flex:"2 1 160px"}}/>
+            <input value={novaAgencia.endereco} onChange={e=>setNovaAgencia(p=>({...p,endereco:e.target.value}))}
+              placeholder="Endereço" style={{flex:"2 1 160px"}}/>
+            <input value={novaAgencia.cidade} onChange={e=>setNovaAgencia(p=>({...p,cidade:e.target.value}))}
+              placeholder="Cidade" style={{flex:"1 1 90px"}}/>
+            <input value={novaAgencia.uf} onChange={e=>setNovaAgencia(p=>({...p,uf:e.target.value.toUpperCase()}))}
+              placeholder="UF" maxLength={2} style={{flex:"0 1 50px"}}/>
+            <button className="btn btn-primary btn-sm" onClick={addAgencia}>+ Add</button>
           </div>
         </div>
         <div className="form-group"><label>Observações</label>
@@ -277,7 +324,7 @@ function ClientesPage({ addToast, toasts }) {
       {!loading && filtered.length>0 && (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Cliente</th><th>CNPJ</th><th>Contato</th><th>Telefone</th><th>Segmento</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Cliente</th><th>CNPJ</th><th>Contato</th><th>Telefone</th><th>Segmento</th><th>Agências</th><th>Status</th><th></th></tr></thead>
             <tbody>
               {filtered.map(c=>(
                 <tr key={c.id}>
@@ -286,6 +333,13 @@ function ClientesPage({ addToast, toasts }) {
                   <td style={{fontSize:12}}>{c.contato||"–"}</td>
                   <td style={{fontSize:12}}>{c.telefone||"–"}</td>
                   <td style={{fontSize:12}}>{c.segmento||"–"}</td>
+                  <td>
+                    {(c.agencias||[]).length>0 ? (
+                      <span style={{fontSize:11,background:"var(--afine-yellow-lt)",color:"var(--afine-yellow-dk)",padding:"2px 8px",borderRadius:10,fontWeight:600}}>
+                        🏢 {c.agencias.length}
+                      </span>
+                    ) : <span style={{color:"#aaa",fontSize:11}}>–</span>}
+                  </td>
                   <td><span className={`badge ${c.status==="ATIVO"?"badge-green":"badge-gray"}`}>{c.status}</span></td>
                   <td><button className="btn btn-sm btn-icon" onClick={()=>setModal({cliente:c})}>✏️</button></td>
                 </tr>

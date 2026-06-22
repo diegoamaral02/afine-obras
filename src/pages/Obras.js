@@ -16,10 +16,12 @@ const TIPOS_OBRA = ["Reforma geral","Layout","Adequação","Retrofit","Manutenç
 
 
 
-function ObraModal({ obra, funcionarios, onClose, addToast }) {
+function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   const [aba, setAba] = useState("dados");
   const [form, setForm] = useState({
     nome: obra?.nome||"", tipo: obra?.tipo||"", cliente: obra?.cliente||"",
+    clienteId: obra?.clienteId||"",
+    agenciaId: obra?.agenciaId||"", agenciaNome: obra?.agenciaNome||"",
     gerenciadora: obra?.gerenciadora||"",
     responsavelId: obra?.responsavelId||"", responsavelNome: obra?.responsavelNome||obra?.responsavel||"",
     contrato: obra?.contrato||"", area: obra?.area||"",
@@ -99,7 +101,41 @@ function ObraModal({ obra, funcionarios, onClose, addToast }) {
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
           <div className="form-grid">
             <div className="form-group span-2"><label className="required">Nome da obra</label><input value={form.nome} onChange={e=>set("nome",e.target.value)} placeholder="AG-0500 · São Paulo Centro"/></div>
-            <div className="form-group"><label className="required">Cliente</label><input value={form.cliente} onChange={e=>set("cliente",e.target.value)}/></div>
+            <div className="form-group">
+              <label className="required">Cliente</label>
+              <select value={form.clienteId} onChange={e=>{
+                const id=e.target.value;
+                const c=(clientes||[]).find(x=>x.id===id);
+                set("clienteId",id);
+                set("cliente",c?.razaoSocial||"");
+                set("agenciaId",""); set("agenciaNome","");
+              }}>
+                <option value="">Selecione o cliente...</option>
+                {(clientes||[]).map(c=><option key={c.id} value={c.id}>{c.razaoSocial}</option>)}
+              </select>
+              {!form.clienteId && (
+                <input value={form.cliente} onChange={e=>set("cliente",e.target.value)} placeholder="Ou digite o nome (cliente não cadastrado)" style={{marginTop:6}}/>
+              )}
+            </div>
+            {/* Agência / Loja / Filial — só aparece se o cliente selecionado tiver agências cadastradas */}
+            {(() => {
+              const clienteSel = (clientes||[]).find(c=>c.id===form.clienteId);
+              const agencias = clienteSel?.agencias||[];
+              if (agencias.length===0) return null;
+              return (
+                <div className="form-group">
+                  <label>🏢 Agência / Loja / Filial</label>
+                  <select value={form.agenciaId} onChange={e=>{
+                    const id=e.target.value;
+                    const a=agencias.find(x=>x.id===id);
+                    set("agenciaId",id); set("agenciaNome",a?.nome||"");
+                  }}>
+                    <option value="">Selecione...</option>
+                    {agencias.map(a=><option key={a.id} value={a.id}>{a.nome}{a.cidade?` — ${a.cidade}`:""}</option>)}
+                  </select>
+                </div>
+              );
+            })()}
             <div className="form-group"><label className="required">Tipo de obra</label>
               <select value={form.tipo} onChange={e=>set("tipo",e.target.value)}>
                 <option value="">Selecione...</option>
@@ -227,6 +263,7 @@ export default function Obras({ onObraSelect }) {
   const { toasts, addToast } = useToast();
   const [obras,   setObras]   = useState([]);
   const [funcionarios, setFuncionarios] = useState([]);
+  const [clientes, setClientes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState("");
   const [filtro,  setFiltro]  = useState("todos");
@@ -245,6 +282,12 @@ export default function Obras({ onObraSelect }) {
   useEffect(() => {
     return onSnapshot(collection(db,"usuarios"), snap => {
       setFuncionarios(snap.docs.map(d=>({id:d.id,...d.data()})).filter(f=>f.status==="ATIVO"||!f.status));
+    });
+  },[]);
+
+  useEffect(() => {
+    return onSnapshot(collection(db,"clientes"), snap => {
+      setClientes(snap.docs.map(d=>({id:d.id,...d.data()})));
     });
   },[]);
 
@@ -292,7 +335,7 @@ export default function Obras({ onObraSelect }) {
                 <tr key={o.id}>
                   <td><div style={{fontWeight:600}}>{o.nome}</div><div style={{fontSize:11,color:"#7A7A7A"}}>{o.contrato}</div></td>
                   <td><span className="badge badge-gray" style={{fontSize:10}}>{o.tipo||"–"}</span></td>
-                  <td style={{fontSize:12}}>{o.cliente}</td>
+                  <td style={{fontSize:12}}>{o.cliente}{o.agenciaNome&&<div style={{fontSize:10,color:"var(--afine-yellow-dk)",fontWeight:600}}>🏢 {o.agenciaNome}</div>}</td>
                   <td style={{fontSize:12}}>
                     {o.responsavelNome ? (
                       <span style={{display:"inline-flex",alignItems:"center",gap:5}}>
@@ -342,7 +385,7 @@ export default function Obras({ onObraSelect }) {
           </table>
         </div>
       )}
-      {modal && <ObraModal obra={modal.obra} funcionarios={funcionarios} onClose={()=>setModal(null)} addToast={addToast}/>}
+      {modal && <ObraModal obra={modal.obra} funcionarios={funcionarios} clientes={clientes} onClose={()=>setModal(null)} addToast={addToast}/>}
 
       {/* Painel lateral de ocorrências por obra */}
       {obraAberta && (

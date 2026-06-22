@@ -32,7 +32,7 @@ const DESCRITIVOS_PRONTOS = [
 ];
 
 // ── Modal da manutenção ───────────────────────────────────────────────────────
-function ManutencaoModal({ manut, obraId, funcionarios, criadoPor, onClose, addToast }) {
+function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onClose, addToast }) {
   const { userProfile, currentUser } = useAuth();
   const isCampo = userProfile?.departamento==="campo" || (userProfile?.perfil==="campo"&&!userProfile?.departamento);
   const uid     = currentUser?.uid;
@@ -43,7 +43,9 @@ function ManutencaoModal({ manut, obraId, funcionarios, criadoPor, onClose, addT
   const [form, setForm] = useState({
     titulo:       manut?.titulo       || "",
     cliente:      manut?.cliente      || "",
+    clienteId:    manut?.clienteId    || "",
     agencia:      manut?.agencia      || "",
+    agenciaId:    manut?.agenciaId    || "",
     tipo:         manut?.tipo         || "corretiva",
     prioridade:   manut?.prioridade   || "normal",
     numeroOT:     manut?.numeroOT     || "",
@@ -210,9 +212,39 @@ function ManutencaoModal({ manut, obraId, funcionarios, criadoPor, onClose, addT
             <div className="form-group span-2"><label className="required">Título</label>
               <input value={form.titulo} onChange={e=>set("titulo",e.target.value)}/></div>
             <div className="form-group"><label className="required">Cliente</label>
-              <input value={form.cliente} onChange={e=>set("cliente",e.target.value)}/></div>
-            <div className="form-group"><label>Agência / local</label>
-              <input value={form.agencia} onChange={e=>set("agencia",e.target.value)}/></div>
+              <select value={form.clienteId} onChange={e=>{
+                const id=e.target.value;
+                const c=(clientes||[]).find(x=>x.id===id);
+                set("clienteId",id);
+                set("cliente",c?.razaoSocial||"");
+                set("agenciaId",""); set("agencia","");
+              }}>
+                <option value="">Selecione o cliente...</option>
+                {(clientes||[]).map(c=><option key={c.id} value={c.id}>{c.razaoSocial}</option>)}
+              </select>
+              {!form.clienteId && (
+                <input value={form.cliente} onChange={e=>set("cliente",e.target.value)} placeholder="Ou digite (cliente não cadastrado)" style={{marginTop:6}}/>
+              )}
+            </div>
+            <div className="form-group"><label>🏢 Agência / Loja / Filial</label>
+              {(() => {
+                const clienteSel = (clientes||[]).find(c=>c.id===form.clienteId);
+                const agencias = clienteSel?.agencias||[];
+                if (agencias.length>0) {
+                  return (
+                    <select value={form.agenciaId} onChange={e=>{
+                      const id=e.target.value;
+                      const a=agencias.find(x=>x.id===id);
+                      set("agenciaId",id); set("agencia",a?.nome||"");
+                    }}>
+                      <option value="">Selecione...</option>
+                      {agencias.map(a=><option key={a.id} value={a.id}>{a.nome}{a.cidade?` — ${a.cidade}`:""}</option>)}
+                    </select>
+                  );
+                }
+                return <input value={form.agencia} onChange={e=>set("agencia",e.target.value)} placeholder={form.clienteId?"Cliente sem agências cadastradas — digite aqui":"Selecione um cliente primeiro"}/>;
+              })()}
+            </div>
             <div className="form-group"><label>Tipo</label>
               <select value={form.tipo} onChange={e=>set("tipo",e.target.value)}>
                 {["corretiva","preventiva","preditiva","emergencial"].map(t=><option key={t}>{t}</option>)}
@@ -537,6 +569,7 @@ export default function Manutencao({ obraAtual }) {
   const { toasts, addToast } = useToast();
   const [manuts,       setManuts]       = useState([]);
   const [funcionarios, setFuncionarios] = useState([]);
+  const [clientes,     setClientes]     = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [aba,          setAba]          = useState("minhas");
   const [filtro,       setFiltro]       = useState("todas");
@@ -562,6 +595,12 @@ export default function Manutencao({ obraAtual }) {
   useEffect(()=>{
     return onSnapshot(collection(db,"usuarios"),snap=>{
       setFuncionarios(snap.docs.map(d=>({id:d.id,...d.data()})).filter(f=>f.status==="ATIVO"||!f.status));
+    });
+  },[]);
+
+  useEffect(()=>{
+    return onSnapshot(collection(db,"clientes"),snap=>{
+      setClientes(snap.docs.map(d=>({id:d.id,...d.data()})));
     });
   },[]);
 
@@ -850,6 +889,7 @@ export default function Manutencao({ obraAtual }) {
           manut={modal.manut}
           obraId={obraAtual}
           funcionarios={funcionarios}
+          clientes={clientes}
           criadoPor={{ nome:userProfile?.nome||currentUser?.email, uid:currentUser?.uid }}
           onClose={()=>setModal(null)}
           addToast={addToast}
