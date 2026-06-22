@@ -161,18 +161,141 @@ export default function Comercial({ subpagina = "funil" }) {
   );
 }
 
-// Sub-página clientes (placeholder expansível)
+// ── Modal de cliente ───────────────────────────────────────────────────────────
+function ClienteModal({ cliente, onClose, addToast }) {
+  const [form, setForm] = useState({
+    razaoSocial:  cliente?.razaoSocial  || "",
+    nomeFantasia: cliente?.nomeFantasia || "",
+    cnpj:         cliente?.cnpj         || "",
+    contato:      cliente?.contato      || "",
+    telefone:     cliente?.telefone     || "",
+    email:        cliente?.email        || "",
+    endereco:     cliente?.endereco     || "",
+    segmento:     cliente?.segmento     || "",
+    status:       cliente?.status       || "ATIVO",
+    obs:          cliente?.obs          || "",
+  });
+  const [saving, setSaving] = useState(false);
+  function set(f,v) { setForm(p=>({...p,[f]:v})); }
+
+  async function save() {
+    if(!form.razaoSocial){ alert("Informe a razão social / nome do cliente."); return; }
+    setSaving(true);
+    const agora = new Date().toISOString();
+    const payload = { ...form, updatedAt: agora };
+    try {
+      if(cliente?.id){ await updateDoc(doc(db,"clientes",cliente.id),payload); addToast("✓ Cliente atualizado!"); }
+      else { payload.createdAt=agora; await addDoc(collection(db,"clientes"),payload); addToast("✓ Cliente cadastrado!"); }
+      onClose();
+    } catch(err){ addToast("Erro: "+err.message,"error"); }
+    setSaving(false);
+  }
+
+  return (
+    <Modal title={cliente?.id?"Editar cliente":"Novo cliente"} onClose={onClose}
+      footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving?"Salvando...":"Salvar"}</button></>}>
+      <div style={{display:"flex",flexDirection:"column",gap:14}}>
+        <div className="form-grid">
+          <div className="form-group span-2"><label className="required">Razão social / Nome</label>
+            <input value={form.razaoSocial} onChange={e=>set("razaoSocial",e.target.value)} placeholder="Ex: Bradesco S.A."/>
+          </div>
+          <div className="form-group"><label>Nome fantasia</label>
+            <input value={form.nomeFantasia} onChange={e=>set("nomeFantasia",e.target.value)}/>
+          </div>
+          <div className="form-group"><label>CNPJ</label>
+            <input value={form.cnpj} onChange={e=>set("cnpj",e.target.value)} placeholder="00.000.000/0001-00"/>
+          </div>
+          <div className="form-group"><label>Contato (nome)</label>
+            <input value={form.contato} onChange={e=>set("contato",e.target.value)}/>
+          </div>
+          <div className="form-group"><label>Telefone</label>
+            <input value={form.telefone} onChange={e=>set("telefone",e.target.value)} placeholder="(11) 9xxxx-xxxx"/>
+          </div>
+          <div className="form-group"><label>E-mail</label>
+            <input type="email" value={form.email} onChange={e=>set("email",e.target.value)}/>
+          </div>
+          <div className="form-group"><label>Segmento</label>
+            <input value={form.segmento} onChange={e=>set("segmento",e.target.value)} placeholder="Ex: Bancário, Varejo..."/>
+          </div>
+          <div className="form-group"><label>Status</label>
+            <select value={form.status} onChange={e=>set("status",e.target.value)}>
+              <option value="ATIVO">ATIVO</option>
+              <option value="INATIVO">INATIVO</option>
+            </select>
+          </div>
+          <div className="form-group span-2"><label>Endereço</label>
+            <input value={form.endereco} onChange={e=>set("endereco",e.target.value)}/>
+          </div>
+        </div>
+        <div className="form-group"><label>Observações</label>
+          <textarea value={form.obs} onChange={e=>set("obs",e.target.value)} rows={2}/>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// Sub-página clientes — CRUD completo
 function ClientesPage({ addToast, toasts }) {
   const [clientes, setClientes] = useState([]);
-  useEffect(()=>{ return onSnapshot(collection(db,"clientes"),snap=>setClientes(snap.docs.map(d=>({id:d.id,...d.data()})))); },[]);
+  const [loading,  setLoading]  = useState(true);
+  const [search,   setSearch]   = useState("");
+  const [modal,    setModal]    = useState(null);
+
+  useEffect(()=>{
+    return onSnapshot(collection(db,"clientes"),snap=>{
+      setClientes(snap.docs.map(d=>({id:d.id,...d.data()})));
+      setLoading(false);
+    });
+  },[]);
+
+  const filtered = clientes.filter(c=>{
+    const q=search.toLowerCase();
+    return !q||c.razaoSocial?.toLowerCase().includes(q)||c.nomeFantasia?.toLowerCase().includes(q)||c.cnpj?.includes(q)||c.contato?.toLowerCase().includes(q);
+  });
+
   return (
     <div>
       <div className="toast-container">{toasts.map(t=><div key={t.id} className={`toast toast-${t.type}`}>{t.msg}</div>)}</div>
       <div className="panel-header">
-        <div className="panel-title">Clientes</div>
-        <button className="btn btn-primary">+ Novo cliente</button>
+        <div>
+          <div className="panel-title">Clientes</div>
+          <div style={{fontSize:12,color:"#7A7A7A"}}>{clientes.length} cliente(s) cadastrado(s)</div>
+        </div>
+        <button className="btn btn-primary" onClick={()=>setModal({cliente:null})}>+ Novo cliente</button>
       </div>
-      {clientes.length===0 && <div className="empty-state"><div className="empty-icon">🏢</div><p>Nenhum cliente cadastrado ainda</p></div>}
+
+      <div className="search-bar">🔍<input placeholder="Buscar por nome, CNPJ ou contato..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
+
+      {loading && <div className="spinner"/>}
+      {!loading && filtered.length===0 && (
+        <div className="empty-state">
+          <div className="empty-icon">🏢</div>
+          <p>{clientes.length===0?"Nenhum cliente cadastrado ainda":"Nenhum cliente encontrado"}</p>
+        </div>
+      )}
+      {!loading && filtered.length>0 && (
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Cliente</th><th>CNPJ</th><th>Contato</th><th>Telefone</th><th>Segmento</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              {filtered.map(c=>(
+                <tr key={c.id}>
+                  <td><div style={{fontWeight:600}}>{c.razaoSocial}</div>{c.nomeFantasia&&<div style={{fontSize:11,color:"#7A7A7A"}}>{c.nomeFantasia}</div>}</td>
+                  <td style={{fontSize:12}}>{c.cnpj||"–"}</td>
+                  <td style={{fontSize:12}}>{c.contato||"–"}</td>
+                  <td style={{fontSize:12}}>{c.telefone||"–"}</td>
+                  <td style={{fontSize:12}}>{c.segmento||"–"}</td>
+                  <td><span className={`badge ${c.status==="ATIVO"?"badge-green":"badge-gray"}`}>{c.status}</span></td>
+                  <td><button className="btn btn-sm btn-icon" onClick={()=>setModal({cliente:c})}>✏️</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {modal && <ClienteModal cliente={modal.cliente} onClose={()=>setModal(null)} addToast={addToast}/>}
     </div>
   );
 }
