@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { useAgenda } from "../contexts/AgendaContext";
 import { useAuth } from "../contexts/AuthContext";
+import { isCampo } from "../constants/departamentos";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 import { initials } from "../utils/helpers";
@@ -207,13 +208,19 @@ function EventoCard({ ag, funcionarios }) {
 }
 
 export default function Calendario() {
-  const { agendamentos, funcionarios, loading } = useAgenda();
+  const { agendamentos, obras, funcionarios, loading } = useAgenda();
+  const { userProfile, currentUser } = useAuth();
+  const souCampo = isCampo(userProfile);
   const { toasts, addToast } = useToast();
   const hoje = new Date();
   const [mes,  setMes]  = useState(hoje.getMonth());
   const [ano,  setAno]  = useState(hoje.getFullYear());
   const [modal,setModal]= useState(null); // null | { dia: "YYYY-MM-DD" }
   const [vista,setVista]= useState("mes"); // "mes" | "semana"
+
+  // Obras em que o usuário de campo está alocado (via equipeIds[]) — mostrado
+  // como informação fixa na agenda, independente de haver agendamento datado
+  const minhasObras = souCampo ? obras.filter(o => (o.equipeIds||[]).includes(currentUser?.uid)) : [];
 
   const dias = diasDoMes(ano, mes);
   const primeiroDia = new Date(ano, mes, 1).getDay(); // 0=dom
@@ -259,6 +266,20 @@ export default function Calendario() {
         <button className="btn btn-sm" onClick={()=>navMes(1)}>▶</button>
         <button className="btn btn-sm" onClick={()=>{setMes(hoje.getMonth());setAno(hoje.getFullYear());}}>Hoje</button>
       </div>
+
+      {/* Alocação atual em obras — visível só para Campo */}
+      {souCampo && minhasObras.length>0 && (
+        <div className="alert alert-info" style={{marginBottom:16,display:"flex",flexDirection:"column",gap:6}}>
+          <div style={{fontWeight:600,fontSize:13}}>🏗️ Você está alocado em {minhasObras.length} obra(s):</div>
+          {minhasObras.map(o=>(
+            <div key={o.id} style={{fontSize:12,display:"flex",alignItems:"center",gap:6}}>
+              <span style={{fontWeight:600}}>{o.nome}</span>
+              {o.cliente && <span style={{color:"#7A7A7A"}}>· {o.cliente}</span>}
+              {o.logradouro && <span style={{color:"#7A7A7A"}}>· {o.logradouro}, {o.numero}</span>}
+            </div>
+          ))}
+        </div>
+      )}
 
       {loading && <div className="spinner"/>}
 

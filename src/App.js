@@ -46,7 +46,7 @@ const MENU = [
     { to:"/fornecedores",       icon:"🤝", label:"Fornecedores",    roles:["gestor","encarregado"] },
   ]},
   { id:"operacao", label:"Operação", roles:["gestor","encarregado","campo"], items:[
-    { to:"/obras",       icon:"🏗️", label:"Obras",          roles:["gestor","encarregado"] },
+    { to:"/obras",       icon:"🏗️", label:"Obras",          roles:["gestor","encarregado","campo"] },
     { to:"/manutencao",  icon:"🔧", label:"Manutenção",     roles:["gestor","encarregado","campo"] },
   ]},
   { id:"suprimentos", label:"Suprimentos", roles:["gestor","encarregado","campo"], items:[

@@ -5,6 +5,7 @@ import { collection, onSnapshot, addDoc, updateDoc, doc } from "firebase/firesto
 import { db } from "../firebase";
 import { statusBadge, fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
+import { isCampo } from "../constants/departamentos";
 import Modal from "../components/Modal";
 import PhotoUploader from "../components/PhotoUploader";
 import { useToast } from "../hooks/useToast";
@@ -280,7 +281,8 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
 }
 
 export default function Obras({ onObraSelect }) {
-  const { userProfile } = useAuth();
+  const { userProfile, currentUser } = useAuth();
+  const souCampo = isCampo(userProfile);
   const { toasts, addToast } = useToast();
   const [obras,   setObras]   = useState([]);
   const [funcionarios, setFuncionarios] = useState([]);
@@ -312,7 +314,12 @@ export default function Obras({ onObraSelect }) {
     });
   },[]);
 
-  const filtered = obras.filter(o=>{
+  // Campo só vê as obras em que está alocado (via equipeIds[])
+  const obrasVisiveis = souCampo
+    ? obras.filter(o => (o.equipeIds||[]).includes(currentUser?.uid))
+    : obras;
+
+  const filtered = obrasVisiveis.filter(o=>{
     const q=search.toLowerCase();
     const mQ=!q||o.nome?.toLowerCase().includes(q)||o.cliente?.toLowerCase().includes(q)||o.contrato?.toLowerCase().includes(q);
     const mF=filtro==="todos"||o.status===filtro;
@@ -327,7 +334,7 @@ export default function Obras({ onObraSelect }) {
       <div className="panel-header">
         <div>
           <div className="panel-title">Obras</div>
-          <div style={{fontSize:12,color:"#7A7A7A"}}>{obras.length} obras · {obras.filter(o=>o.status==="EM ANDAMENTO").length} em andamento</div>
+          <div style={{fontSize:12,color:"#7A7A7A"}}>{obrasVisiveis.length} obra(s){souCampo?" em que você está alocado":""} · {obrasVisiveis.filter(o=>o.status==="EM ANDAMENTO").length} em andamento</div>
         </div>
         {isGestor && <button className="btn btn-primary" onClick={()=>setModal({obra:null})}>+ Nova obra</button>}
       </div>
@@ -335,14 +342,19 @@ export default function Obras({ onObraSelect }) {
       <div className="chip-row">
         {["todos",...statusList].map(s=>(
           <button key={s} className={`chip ${filtro===s?"active":""}`} onClick={()=>setFiltro(s)}>
-            {s==="todos"?"Todas":s} ({s==="todos"?obras.length:obras.filter(o=>o.status===s).length})
+            {s==="todos"?"Todas":s} ({s==="todos"?obrasVisiveis.length:obrasVisiveis.filter(o=>o.status===s).length})
           </button>
         ))}
       </div>
 
       <div className="search-bar">🔍<input placeholder="Buscar por nome, cliente ou contrato..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
       {loading && <div className="spinner"/>}
-      {!loading && filtered.length===0 && <div className="empty-state"><div className="empty-icon">🏗️</div><p>Nenhuma obra encontrada</p></div>}
+      {!loading && filtered.length===0 && (
+        <div className="empty-state">
+          <div className="empty-icon">🏗️</div>
+          <p>{souCampo?"Você não está alocado em nenhuma obra no momento":"Nenhuma obra encontrada"}</p>
+        </div>
+      )}
       {!loading && filtered.length>0 && (
         <div className="table-wrap">
           <table>

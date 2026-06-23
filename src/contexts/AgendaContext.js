@@ -42,13 +42,13 @@ export function AgendaProvider({ children }) {
       setLoading(false);
     }, () => setLoading(false));
 
-    // Obras: campo vê só as permitidas
-    const qObras = isGestor
-      ? collection(db,"obras")
-      : query(collection(db,"obras"), where("__name__","in",
-          userProfile?.obras?.length > 0 ? userProfile.obras.slice(0,10) : ["__none__"]));
-
-    const u2 = onSnapshot(qObras, snap => setObras(snap.docs.map(d=>({id:d.id,...d.data()}))), ()=>{});
+    // Obras: busca todas (leitura já é liberada a todos autenticados nas regras).
+    // BUG CORRIGIDO: antes filtrava por "userProfile.obras", uma lista manual que
+    // nunca é preenchida pelo fluxo real de alocação (que usa equipeIds[] dentro
+    // da própria obra, definido em Obras.js). Isso fazia o campo nunca ver as
+    // obras em que está de fato alocado. A filtragem por equipeIds é feita nas
+    // páginas (Obras.js, Calendario.js).
+    const u2 = onSnapshot(collection(db,"obras"), snap => setObras(snap.docs.map(d=>({id:d.id,...d.data()}))), ()=>{});
 
     // Manutenções: todos autenticados podem ver (campo vê as que está alocado)
     const u3 = onSnapshot(
