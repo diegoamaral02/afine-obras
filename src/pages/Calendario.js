@@ -207,6 +207,44 @@ function EventoCard({ ag, funcionarios }) {
   );
 }
 
+// Modal somente leitura — usado por Campo para ver os agendamentos do dia, sem poder criar/editar
+function DiaInfoModal({ diaISO, ags, funcionarios, onClose }) {
+  return (
+    <Modal title={`Agendamentos — ${diaISO.split("-").reverse().join("/")}`} onClose={onClose}
+      footer={<button className="btn" onClick={onClose}>Fechar</button>}>
+      {ags.length===0 ? (
+        <div style={{textAlign:"center",padding:"24px 8px",color:"#7A7A7A"}}>
+          <div style={{fontSize:28,marginBottom:8}}>📅</div>
+          <p style={{fontSize:13}}>Nenhum agendamento para este dia.</p>
+        </div>
+      ) : (
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {ags.map(ag=>{
+            const funcs = funcionarios.filter(f=>(ag.funcionarios||[]).includes(f.id)||(ag.funcionarios||[]).includes(f.uid));
+            return (
+              <div key={ag.id} style={{border:"1px solid var(--border)",borderRadius:8,padding:12}}>
+                <div style={{fontWeight:700,fontSize:14}}>{ag.demandaNome||ag.titulo}</div>
+                <div style={{fontSize:12,color:"#7A7A7A",marginTop:2}}>{ag.dataInicio} → {ag.dataFim} · {ag.turno}</div>
+                {funcs.length>0 && (
+                  <div style={{marginTop:8}}>
+                    <div style={{fontSize:10,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".05em",marginBottom:4}}>Equipe alocada</div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                      {funcs.map(f=>(
+                        <span key={f.id} style={{fontSize:12,background:"var(--cinza-lt)",padding:"3px 8px",borderRadius:10}}>{f.nome}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {ag.obs && <div style={{fontSize:12,color:"#7A7A7A",marginTop:8,fontStyle:"italic"}}>{ag.obs}</div>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 export default function Calendario() {
   const { agendamentos, obras, funcionarios, loading } = useAgenda();
   const { userProfile, currentUser } = useAuth();
@@ -310,16 +348,16 @@ export default function Calendario() {
               const isFDS  = dia.getDay()===0||dia.getDay()===6;
               return (
                 <div key={dISO}
-                  onClick={()=>{ if(!souCampo) setModal({dia:dISO}); }}
+                  onClick={()=>setModal({dia:dISO})}
                   style={{
                     minHeight:100, padding:"6px 4px",
                     borderRight:"1px solid var(--border)",
                     borderBottom:"1px solid var(--border)",
                     background: isHoje?"rgba(245,200,0,.06)":isFDS?"rgba(0,0,0,.015)":"var(--afine-white)",
-                    cursor: souCampo?"default":"pointer", transition:".15s",
+                    cursor:"pointer", transition:".15s",
                     position:"relative",
                   }}
-                  onMouseEnter={e=>{ if(!souCampo) e.currentTarget.style.background=isHoje?"rgba(245,200,0,.1)":"rgba(0,0,0,.03)"; }}
+                  onMouseEnter={e=>e.currentTarget.style.background=isHoje?"rgba(245,200,0,.1)":"rgba(0,0,0,.03)"}
                   onMouseLeave={e=>e.currentTarget.style.background=isHoje?"rgba(245,200,0,.06)":isFDS?"rgba(0,0,0,.015)":"var(--afine-white)"}
                 >
                   {/* Número do dia */}
@@ -361,13 +399,20 @@ export default function Calendario() {
         </div>
       )}
 
-      {modal&&(
+      {modal && (souCampo ? (
+        <DiaInfoModal
+          diaISO={modal.dia}
+          ags={agsNoDia(modal.dia)}
+          funcionarios={funcionarios}
+          onClose={()=>setModal(null)}
+        />
+      ) : (
         <AgendaModal
           diaInicial={modal.dia}
           onClose={()=>setModal(null)}
           addToast={addToast}
         />
-      )}
+      ))}
     </div>
   );
 }
