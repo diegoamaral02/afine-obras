@@ -231,15 +231,33 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
                 const clienteSel = (clientes||[]).find(c=>c.id===form.clienteId);
                 const agencias = clienteSel?.agencias||[];
                 if (agencias.length>0) {
+                  const aSel = agencias.find(x=>x.id===form.agenciaId);
                   return (
-                    <select value={form.agenciaId} onChange={e=>{
-                      const id=e.target.value;
-                      const a=agencias.find(x=>x.id===id);
-                      set("agenciaId",id); set("agencia",a?.nome||"");
-                    }}>
-                      <option value="">Selecione...</option>
-                      {agencias.map(a=><option key={a.id} value={a.id}>{a.nome}{a.cidade?` — ${a.cidade}`:""}</option>)}
-                    </select>
+                    <>
+                      <select value={form.agenciaId} onChange={e=>{
+                        const id=e.target.value;
+                        const a=agencias.find(x=>x.id===id);
+                        set("agenciaId",id);
+                        set("agencia",a?.nome||"");
+                        // Auto-preenche o título: "AG-{numero} · {Cidade}"
+                        if (a) {
+                          const num = a.agenciaFilial ? `AG-${a.agenciaFilial}` : a.nome;
+                          const sufixo = a.cidade ? ` · ${a.cidade}` : "";
+                          set("titulo", `${num}${sufixo}`);
+                        }
+                      }}>
+                        <option value="">Selecione...</option>
+                        {agencias.map(a=><option key={a.id} value={a.id}>{a.nome}{a.cidade?` — ${a.cidade}`:""}</option>)}
+                      </select>
+                      {aSel?.endereco && (
+                        <button type="button" onClick={()=>{
+                          const enc=encodeURIComponent(`${aSel.endereco}, ${aSel.numero||""} ${aSel.cidade||""} ${aSel.uf||""}`);
+                          window.open(`https://www.google.com/maps/search/?api=1&query=${enc}`,"_blank");
+                        }} style={{fontSize:11,color:"#185FA5",background:"none",border:"none",cursor:"pointer",padding:0,marginTop:4}}>
+                          🗺️ {aSel.endereco}{aSel.numero?`, ${aSel.numero}`:""} — abrir navegação
+                        </button>
+                      )}
+                    </>
                   );
                 }
                 return <input value={form.agencia} onChange={e=>set("agencia",e.target.value)} placeholder={form.clienteId?"Cliente sem agências cadastradas — digite aqui":"Selecione um cliente primeiro"}/>;

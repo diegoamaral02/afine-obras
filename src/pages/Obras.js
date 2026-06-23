@@ -128,11 +128,29 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
                   <select value={form.agenciaId} onChange={e=>{
                     const id=e.target.value;
                     const a=agencias.find(x=>x.id===id);
-                    set("agenciaId",id); set("agenciaNome",a?.nome||"");
+                    set("agenciaId",id);
+                    set("agenciaNome",a?.nome||"");
+                    // Auto-preenche o nome da obra: "AG-{numero} · {Cidade}"
+                    if (a) {
+                      const num = a.agenciaFilial ? `AG-${a.agenciaFilial}` : a.nome;
+                      const sufixo = a.cidade ? ` · ${a.cidade}` : "";
+                      set("nome", `${num}${sufixo}`);
+                    }
                   }}>
                     <option value="">Selecione...</option>
                     {agencias.map(a=><option key={a.id} value={a.id}>{a.nome}{a.cidade?` — ${a.cidade}`:""}</option>)}
                   </select>
+                  {form.agenciaId&&(()=>{
+                    const a=agencias.find(x=>x.id===form.agenciaId);
+                    return a?.endereco ? (
+                      <button type="button" onClick={()=>{
+                        const enc=encodeURIComponent(`${a.endereco}, ${a.numero||""} ${a.cidade||""} ${a.uf||""}`);
+                        window.open(`https://www.google.com/maps/search/?api=1&query=${enc}`,"_blank");
+                      }} style={{fontSize:11,color:"#185FA5",background:"none",border:"none",cursor:"pointer",padding:0,marginTop:4}}>
+                        🗺️ {a.endereco}{a.numero?`, ${a.numero}`:""} — abrir navegação
+                      </button>
+                    ) : null;
+                  })()}
                 </div>
               );
             })()}

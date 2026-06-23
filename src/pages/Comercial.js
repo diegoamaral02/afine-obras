@@ -180,13 +180,13 @@ function ClienteModal({ cliente, onClose, addToast }) {
     agencias:     cliente?.agencias     || [],
   });
   const [saving, setSaving] = useState(false);
-  const [novaAgencia, setNovaAgencia] = useState({ nome:"", endereco:"", cidade:"", uf:"" });
+  const [novaAgencia, setNovaAgencia] = useState({ nome:"", agenciaFilial:"", endereco:"", numero:"", cidade:"", uf:"" });
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
 
   function addAgencia() {
     if(!novaAgencia.nome.trim()){ alert("Informe o nome/número da agência, loja ou filial."); return; }
     set("agencias",[...form.agencias,{ id:gerarIdAgencia(), ...novaAgencia, nome:novaAgencia.nome.trim() }]);
-    setNovaAgencia({ nome:"", endereco:"", cidade:"", uf:"" });
+    setNovaAgencia({ nome:"", agenciaFilial:"", endereco:"", numero:"", cidade:"", uf:"" });
   }
   function removerAgencia(id) {
     set("agencias", form.agencias.filter(a=>a.id!==id));
@@ -251,22 +251,41 @@ function ClienteModal({ cliente, onClose, addToast }) {
 
           {form.agencias.length>0 && (
             <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
-              {form.agencias.map(a=>(
-                <div key={a.id} style={{display:"flex",alignItems:"center",gap:8,background:"#fff",borderRadius:6,padding:"6px 10px",border:"1px solid var(--border)"}}>
-                  <span style={{fontWeight:600,fontSize:13,flex:1}}>{a.nome}</span>
-                  {a.cidade&&<span style={{fontSize:11,color:"#7A7A7A"}}>{a.cidade}{a.uf?`/${a.uf}`:""}</span>}
-                  {a.endereco&&<span style={{fontSize:11,color:"#7A7A7A",maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.endereco}</span>}
-                  <button onClick={()=>removerAgencia(a.id)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--vermelho)",fontSize:14,padding:"0 4px"}}>✕</button>
-                </div>
-              ))}
+              {form.agencias.map(a=>{
+                const endCompleto = a.endereco ? `${a.endereco}${a.numero?`, ${a.numero}`:""}${a.cidade?` — ${a.cidade}`:""}${a.uf?`/${a.uf}`:""}` : "";
+                return (
+                  <div key={a.id} style={{display:"flex",alignItems:"center",gap:8,background:"#fff",borderRadius:6,padding:"6px 10px",border:"1px solid var(--border)"}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <span style={{fontWeight:600,fontSize:13}}>{a.nome}</span>
+                        {a.agenciaFilial&&<span style={{fontSize:10,background:"var(--afine-yellow-lt)",color:"var(--afine-yellow-dk)",padding:"1px 7px",borderRadius:10,fontWeight:600}}>Ag/Fil {a.agenciaFilial}</span>}
+                      </div>
+                      {endCompleto&&<div style={{fontSize:11,color:"#7A7A7A",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{endCompleto}</div>}
+                    </div>
+                    {a.endereco&&(
+                      <button onClick={()=>{
+                        const enc=encodeURIComponent(`${a.endereco}, ${a.numero||""} ${a.cidade||""} ${a.uf||""}`);
+                        window.open(`https://www.google.com/maps/search/?api=1&query=${enc}`,"_blank");
+                      }} title="Abrir navegação" style={{background:"none",border:"none",cursor:"pointer",color:"#185FA5",fontSize:14,padding:"0 4px"}}>🗺️</button>
+                    )}
+                    <button onClick={()=>removerAgencia(a.id)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--vermelho)",fontSize:14,padding:"0 4px"}}>✕</button>
+                  </div>
+                );
+              })}
             </div>
           )}
 
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>
             <input value={novaAgencia.nome} onChange={e=>setNovaAgencia(p=>({...p,nome:e.target.value}))}
-              placeholder="Nome / nº (ex: Agência 0442)" style={{flex:"2 1 160px"}}/>
+              placeholder="Nome / nº (ex: AG Cravinhos)" style={{flex:"2 1 180px"}}/>
+            <input value={novaAgencia.agenciaFilial} onChange={e=>setNovaAgencia(p=>({...p,agenciaFilial:e.target.value}))}
+              placeholder="Nº Agência/Filial (ex: 0442)" style={{flex:"1 1 140px"}}/>
+          </div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             <input value={novaAgencia.endereco} onChange={e=>setNovaAgencia(p=>({...p,endereco:e.target.value}))}
               placeholder="Endereço" style={{flex:"2 1 160px"}}/>
+            <input value={novaAgencia.numero} onChange={e=>setNovaAgencia(p=>({...p,numero:e.target.value}))}
+              placeholder="Nº" style={{flex:"0 1 70px"}}/>
             <input value={novaAgencia.cidade} onChange={e=>setNovaAgencia(p=>({...p,cidade:e.target.value}))}
               placeholder="Cidade" style={{flex:"1 1 90px"}}/>
             <input value={novaAgencia.uf} onChange={e=>setNovaAgencia(p=>({...p,uf:e.target.value.toUpperCase()}))}
