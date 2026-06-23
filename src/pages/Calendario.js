@@ -255,7 +255,7 @@ export default function Calendario() {
             <button className="btn btn-sm" style={{borderRadius:0,border:"none",background:vista==="mes"?"#1A1A1A":"",color:vista==="mes"?"#F5C800":""}} onClick={()=>setVista("mes")}>Mês</button>
             <button className="btn btn-sm" style={{borderRadius:0,border:"none",background:vista==="semana"?"#1A1A1A":"",color:vista==="semana"?"#F5C800":""}} onClick={()=>setVista("semana")}>Semana</button>
           </div>
-          <button className="btn btn-primary" onClick={()=>setModal({dia:hojeISO})}>+ Agendar</button>
+          {!souCampo && <button className="btn btn-primary" onClick={()=>setModal({dia:hojeISO})}>+ Agendar</button>}
         </div>
       </div>
 
@@ -310,16 +310,16 @@ export default function Calendario() {
               const isFDS  = dia.getDay()===0||dia.getDay()===6;
               return (
                 <div key={dISO}
-                  onClick={()=>setModal({dia:dISO})}
+                  onClick={()=>{ if(!souCampo) setModal({dia:dISO}); }}
                   style={{
                     minHeight:100, padding:"6px 4px",
                     borderRight:"1px solid var(--border)",
                     borderBottom:"1px solid var(--border)",
                     background: isHoje?"rgba(245,200,0,.06)":isFDS?"rgba(0,0,0,.015)":"var(--afine-white)",
-                    cursor:"pointer", transition:".15s",
+                    cursor: souCampo?"default":"pointer", transition:".15s",
                     position:"relative",
                   }}
-                  onMouseEnter={e=>e.currentTarget.style.background=isHoje?"rgba(245,200,0,.1)":"rgba(0,0,0,.03)"}
+                  onMouseEnter={e=>{ if(!souCampo) e.currentTarget.style.background=isHoje?"rgba(245,200,0,.1)":"rgba(0,0,0,.03)"; }}
                   onMouseLeave={e=>e.currentTarget.style.background=isHoje?"rgba(245,200,0,.06)":isFDS?"rgba(0,0,0,.015)":"var(--afine-white)"}
                 >
                   {/* Número do dia */}
