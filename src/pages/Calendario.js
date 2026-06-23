@@ -162,10 +162,21 @@ function AgendaModal({ diaInicial, onClose, addToast }) {
   );
 }
 
+// Cores fixas para indicar início e término no calendário (independente da cor da demanda)
+const COR_INICIO  = "#2D6A1F"; // verde
+const COR_TERMINO = "#B83232"; // vermelho
+const COR_UNICO   = "#7B4F00"; // marrom — quando início e término caem no mesmo dia
+
 // Card de evento no calendário
-function EventoCard({ ag, funcionarios }) {
+// diaISO = dia da célula onde este card está sendo renderizado (para saber se é o
+// dia de início, término, ou um dia intermediário do intervalo do evento)
+function EventoCard({ ag, funcionarios, diaISO }) {
   const [open, setOpen] = useState(false);
   const cor = corDemanda(ag.demandaId);
+  const isInicio = diaISO === ag.dataInicio;
+  const isFim    = diaISO === ag.dataFim;
+  const diaUnico = isInicio && isFim;
+  const corBorda = diaUnico ? COR_UNICO : isInicio ? COR_INICIO : isFim ? COR_TERMINO : "transparent";
   const funcs = funcionarios.filter(f=>
     (ag.funcionarios||[]).includes(f.id)||
     (ag.funcionarios||[]).includes(f.uid)
@@ -173,11 +184,14 @@ function EventoCard({ ag, funcionarios }) {
   return (
     <div
       onClick={e=>{e.stopPropagation();setOpen(!open);}}
+      title={diaUnico?"Início e término":isInicio?"Dia de início":isFim?"Dia de término":""}
       style={{background:cor,color:"#fff",borderRadius:4,padding:"2px 6px",
         marginBottom:2,fontSize:11,cursor:"pointer",position:"relative",
-        userSelect:"none",transition:".1s",opacity:.92}}>
+        userSelect:"none",transition:".1s",opacity:.92,
+        borderLeft:`3px solid ${corBorda}`}}>
       <div style={{fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%"}}>
-        {ag.origem==="obra"?"🏗️ ":ag.origem==="manutencao"?"🔧 ":""}{ag.demandaNome||ag.titulo}
+        {ag.origem==="obra"?"🏗️ ":ag.origem==="manutencao"?"🔧 ":""}
+        {diaUnico?"●":isInicio?"▶":isFim?"■":""} {ag.demandaNome||ag.titulo}
       </div>
       {funcs.length>0&&<div style={{fontSize:9,opacity:.8}}>{funcs.map(f=>f.nome.split(" ")[0]).join(", ")}</div>}
       {open&&(
@@ -186,7 +200,7 @@ function EventoCard({ ag, funcionarios }) {
             padding:10,minWidth:200,boxShadow:"0 8px 30px rgba(0,0,0,.4)",marginTop:4}}>
           <div style={{fontWeight:700,marginBottom:6}}>{ag.demandaNome}</div>
           <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginBottom:6}}>
-            {ag.dataInicio} → {ag.dataFim} · {ag.turno}
+            <span style={{color:COR_INICIO}}>▶ início {ag.dataInicio}</span> → <span style={{color:COR_TERMINO}}>■ término {ag.dataFim}</span> · {ag.turno}
           </div>
           {funcs.length>0&&(
             <div>
@@ -267,11 +281,18 @@ export default function Calendario() {
   // Agora esses eventos são derivados automaticamente e somados aos manuais.
   const eventosDerivadosObras = obras
     .filter(o => o.inicio && o.termino)
-    .map(o => ({
-      id: `obra-${o.id}`, origem: "obra", demandaId: o.id,
-      demandaNome: o.nome, dataInicio: o.inicio, dataFim: o.termino,
-      turno: "integral", funcionarios: o.equipeIds||[], obs: o.cliente||"",
-    }));
+    .map(o => {
+      // Proteção: se "término previsto" foi cadastrado antes do "início" por
+      // engano, o intervalo ficaria inválido e o evento desapareceria do grid
+      // (mesmo continuando a contar para a legenda). Aqui o evento sempre
+      // aparece pelo menos no dia de início.
+      const dataFim = o.termino >= o.inicio ? o.termino : o.inicio;
+      return {
+        id: `obra-${o.id}`, origem: "obra", demandaId: o.id,
+        demandaNome: o.nome, dataInicio: o.inicio, dataFim,
+        turno: "integral", funcionarios: o.equipeIds||[], obs: o.cliente||"",
+      };
+    });
 
   const eventosDerivadosManut = manutencoes
     .filter(m => m.dataAbertura)
@@ -402,7 +423,7 @@ export default function Calendario() {
                   </div>
                   {/* Eventos */}
                   {ags.slice(0,3).map(ag=>(
-                    <EventoCard key={ag.id} ag={ag} funcionarios={funcionarios}/>
+                    <EventoCard key={ag.id} ag={ag} funcionarios={funcionarios} diaISO={dISO}/>
                   ))}
                   {ags.length>3&&(
                     <div style={{fontSize:10,color:"#7A7A7A",padding:"1px 4px"}}>+{ags.length-3} mais</div>
@@ -416,16 +437,23 @@ export default function Calendario() {
 
       {/* Legenda */}
       {todosEventos.length>0&&(
-        <div style={{marginTop:12,display:"flex",gap:8,flexWrap:"wrap"}}>
-          {[...new Set(todosEventos.map(a=>a.demandaId))].slice(0,8).map(id=>{
-            const ag=todosEventos.find(a=>a.demandaId===id);
-            return ag?(
-              <div key={id} style={{display:"flex",alignItems:"center",gap:5,fontSize:11}}>
-                <div style={{width:10,height:10,borderRadius:2,background:corDemanda(id),flexShrink:0}}/>
-                {ag.demandaNome}
-              </div>
-            ):null;
-          })}
+        <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:8}}>
+          <div style={{display:"flex",gap:14,flexWrap:"wrap",fontSize:11,color:"#7A7A7A"}}>
+            <span><span style={{color:"#2D6A1F",fontWeight:700}}>▶</span> dia de início</span>
+            <span><span style={{color:"#B83232",fontWeight:700}}>■</span> dia de término</span>
+            <span><span style={{color:"#7B4F00",fontWeight:700}}>●</span> início e término no mesmo dia</span>
+          </div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {[...new Set(todosEventos.map(a=>a.demandaId))].slice(0,8).map(id=>{
+              const ag=todosEventos.find(a=>a.demandaId===id);
+              return ag?(
+                <div key={id} style={{display:"flex",alignItems:"center",gap:5,fontSize:11}}>
+                  <div style={{width:10,height:10,borderRadius:2,background:corDemanda(id),flexShrink:0}}/>
+                  {ag.demandaNome}
+                </div>
+              ):null;
+            })}
+          </div>
         </div>
       )}
 
