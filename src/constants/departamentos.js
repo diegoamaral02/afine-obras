@@ -124,3 +124,13 @@ export function podeVer(userProfile, modulo) {
   const ac = getAcesso(userProfile);
   return ac[modulo] === true || ac[modulo] === "ver";
 }
+
+// Helper: o usuário é do departamento Campo? (considera tanto o sistema novo
+// "departamento" quanto o legado "perfil" — usado para restringir Home, Equipe
+// e criação de manutenção a partir do app móvel de campo)
+export function isCampo(userProfile) {
+  if (!userProfile) return true;
+  if (userProfile.adm === true) return false;
+  const dep = userProfile.departamento || userProfile.perfil || "campo";
+  return dep === "campo";
+}

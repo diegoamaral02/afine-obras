@@ -690,7 +690,7 @@ export default function Manutencao({ obraAtual }) {
           <div className="panel-title">Manutenções</div>
           <div style={{fontSize:12,color:"#7A7A7A"}}>{manuts.length} registros · {abertas} em aberto</div>
         </div>
-        <button className="btn btn-primary" onClick={()=>setModal({manut:null})}>+ Nova manutenção</button>
+        {!isCampo && <button className="btn btn-primary" onClick={()=>setModal({manut:null})}>+ Nova manutenção</button>}
       </div>
 
       {/* KPIs */}

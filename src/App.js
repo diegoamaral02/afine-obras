@@ -8,7 +8,7 @@ import { AgendaProvider, useAgenda } from "./contexts/AgendaContext";
 import { useNotificacoes } from "./hooks/useNotificacoes";
 import { initials } from "./utils/helpers";
 import { LOGO_BASE64 } from "./utils/assets";
-import { getAcesso, podeVer } from "./constants/departamentos";
+import { getAcesso, podeVer, isCampo } from "./constants/departamentos";
 
 import Login           from "./pages/Login";
 import PainelGerencial from "./pages/PainelGerencial";
@@ -37,7 +37,7 @@ function Protected({ children }) {
 const MENU = [
   { id:"principal", label:"Principal", roles:["gestor","encarregado","campo"], items:[
     { to:"/painel",    icon:"📊", label:"Painel Gerencial", roles:["gestor"] },
-    { to:"/",          icon:"🏠", label:"Home",             roles:["gestor","encarregado","campo"] },
+    { to:"/",          icon:"🏠", label:"Home",             roles:["gestor","encarregado"] },
     { to:"/calendario",icon:"📅", label:"Calendário",       roles:["gestor","encarregado","campo"] },
   ]},
   { id:"comercial", label:"Comercial", roles:["gestor","encarregado"], items:[
@@ -57,8 +57,8 @@ const MENU = [
     { to:"/financeiro", icon:"💰", label:"Lançamentos",      roles:["gestor"] },
     { to:"/dre",        icon:"📈", label:"Resultados",         roles:["gestor"] },
   ]},
-  { id:"pessoas", label:"Pessoas", roles:["gestor","encarregado","campo"], items:[
-    { to:"/equipe",       icon:"👷", label:"Equipe",       roles:["gestor","encarregado","campo"] },
+  { id:"pessoas", label:"Pessoas", roles:["gestor","encarregado"], items:[
+    { to:"/equipe",       icon:"👷", label:"Equipe",       roles:["gestor","encarregado"] },
     { to:"/funcionarios", icon:"👤", label:"Funcionários", roles:["gestor"] },
   ]},
 ];
@@ -249,6 +249,7 @@ function Sidebar({ obraAtual, badges, sideOpen, setSideOpen }) {
 
 function AppShell() {
   const { currentUser, userProfile } = useAuth();
+  const isCampoUser = isCampo(userProfile);
   const [obraAtual,    setObraAtual]    = useState(null);
   const [manutAbertas, setManutAbertas] = useState(0);
   const [comprasPend,  setComprasPend]  = useState(0);
@@ -313,14 +314,14 @@ function AppShell() {
 
         <div className="page">
           <Routes>
-            <Route path="/"                   element={<Dashboard       obraAtual={obraAtual?.id}/>}/>
+            <Route path="/"                   element={isCampoUser ? <Navigate to="/manutencao" replace/> : <Dashboard obraAtual={obraAtual?.id}/>}/>
             <Route path="/painel"             element={<PainelGerencial/>}/>
             <Route path="/calendario"         element={<Calendario/>}/>
             <Route path="/comercial"          element={<Comercial subpagina="funil"/>}/>
             <Route path="/comercial/clientes" element={<Comercial subpagina="clientes"/>}/>
             <Route path="/obras"              element={<Obras           onObraSelect={setObraAtual}/>}/>
             <Route path="/manutencao"         element={<Manutencao      obraAtual={obraAtual?.id}/>}/>
-            <Route path="/equipe"             element={<Equipe          obraAtual={obraAtual?.id}/>}/>
+            <Route path="/equipe"             element={isCampoUser ? <Navigate to="/manutencao" replace/> : <Equipe obraAtual={obraAtual?.id}/>}/>
             <Route path="/funcionarios"       element={<Funcionarios/>}/>
             <Route path="/fornecedores"       element={<Fornecedores/>}/>
             <Route path="/compras"            element={<Compras/>}/>

@@ -1,0 +1,167 @@
+// firestore.rules — v2: cobre todas as coleções + preparação multi-tenancy
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ──────────────────────────────────────────────────
+    function uid()           { return request.auth.uid; }
+    function isAuth()        { return request.auth != null; }
+    function profile()       { return get(/databases/$(database)/documents/usuarios/$(uid())).data; }
+    function perfil()        { return profile().perfil; }
+    function isGestor()      { return isAuth() && perfil() == 'gestor'; }
+    function isEncarregado() { return isAuth() && (perfil() == 'encarregado' || perfil() == 'gestor'); }
+    function isCampo()       { return isAuth(); }
+    // Detecta departamento "campo" considerando tanto o sistema novo (departamento)
+    // quanto o legado (perfil) — usado para bloquear criação de manutenções
+    // diretamente pelo app de campo (ANEXO 1/2 — não permitir que campo crie)
+    function isCampoDept() {
+      return isAuth() && profile().adm != true &&
+        (profile().departamento == 'campo' ||
+         (!('departamento' in profile()) && perfil() == 'campo'));
+    }
+    function obraPermitida(obraId) {
+      return isGestor() || profile().obras.hasAny([obraId]);
+    }
+
+    // ── Usuários ─────────────────────────────────────────────────
+    match /usuarios/{id} {
+      allow read:   if isAuth() && (uid() == id || isGestor());
+      allow create: if isGestor();
+      allow update: if isAuth() && (uid() == id || isGestor());
+      allow delete: if isGestor();
+    }
+
+    // ── Obras ────────────────────────────────────────────────────
+    match /obras/{id} {
+      allow read:   if isAuth();
+      allow create: if isEncarregado();
+      allow update: if isEncarregado();
+      allow delete: if isGestor();
+      // Subcoleção de histórico (auditoria)
+      match /historico/{hid} {
+        allow read:  if isEncarregado();
+        allow write: if isAuth();
+      }
+    }
+
+    // ── Manutenções ──────────────────────────────────────────────
+    match /manutencoes/{id} {
+      allow read:   if isAuth();
+      allow create: if isAuth() && !isCampoDept();
+      allow update: if isAuth();
+      allow delete: if isEncarregado();
+      match /historico/{hid} {
+        allow read:  if isAuth();
+        allow write: if isAuth();
+      }
+    }
+
+    // ── Escopos ──────────────────────────────────────────────────
+    match /escopos/{id} {
+      allow read:   if isAuth();
+      allow create: if isEncarregado();
+      allow update: if isAuth();
+      allow delete: if isEncarregado();
+    }
+
+    // ── RDOs (Diário de Obra) ─────────────────────────────────────
+    match /rdos/{id} {
+      allow read:   if isAuth();
+      allow create: if isAuth();
+      allow update: if isEncarregado();
+      allow delete: if isGestor();
+    }
+
+    // ── Equipe ───────────────────────────────────────────────────
+    match /equipe/{id} {
+      allow read:  if isAuth();
+      allow write: if isEncarregado();
+    }
+
+    // ── Ocorrências ───────────────────────────────────────────────
+    match /ocorrencias/{id} {
+      allow read:   if isAuth();
+      allow create: if isAuth();
+      allow update: if isEncarregado();
+      allow delete: if isGestor();
+    }
+
+    // ── Materiais / Estoque ───────────────────────────────────────
+    match /materiais_estoque/{id} {
+      allow read:  if isAuth();
+      allow write: if isEncarregado();
+    }
+    match /movimentacoes/{id} {
+      allow read:  if isEncarregado();
+      allow write: if isEncarregado();
+    }
+
+    // ── FINANCEIRO (apenas gestor) ───────────────────────────────
+    match /financeiro/{id} {
+      allow read:   if isGestor();
+      allow write:  if isGestor();
+      match /historico/{hid} {
+        allow read:  if isGestor();
+        allow write: if isGestor();
+      }
+    }
+
+    // ── Compras ──────────────────────────────────────────────────
+    match /compras/{id} {
+      allow read:   if isAuth();
+      allow create: if isAuth();
+      allow update: if isEncarregado();
+      allow delete: if isGestor();
+    }
+
+    // ── Fornecedores ──────────────────────────────────────────────
+    match /fornecedores/{id} {
+      allow read:  if isAuth();
+      allow write: if isEncarregado();
+    }
+
+    // ── Clientes (COMERCIAL — apenas gestor/encarregado) ─────────
+    match /clientes/{id} {
+      allow read:  if isEncarregado();
+      allow write: if isEncarregado();
+    }
+
+    // ── Oportunidades (funil de vendas) ──────────────────────────
+    match /oportunidades/{id} {
+      allow read:  if isEncarregado();
+      allow write: if isEncarregado();
+    }
+
+    // ── Agendamentos ──────────────────────────────────────────────
+    match /agendamentos/{id} {
+      allow read:  if isAuth();
+      allow write: if isEncarregado();
+    }
+
+    // ── Boletins de Medição ───────────────────────────────────────
+    match /boletins/{id} {
+      allow read:  if isAuth();
+      allow write: if isEncarregado();
+    }
+
+    // ── FVS (Ficha de Verificação) ────────────────────────────────
+    match /fvs/{id} {
+      allow read:  if isAuth();
+      allow write: if isAuth();
+    }
+
+    // ── Log de Auditoria (append-only) ────────────────────────────
+    match /audit_log/{id} {
+      allow read:  if isGestor();
+      allow create: if isAuth();
+      allow update: if false;   // imutável
+      allow delete: if false;   // imutável
+    }
+
+    // ── Notificações (por usuário) ────────────────────────────────
+    match /notificacoes/{uid_destino}/{id} {
+      allow read:   if isAuth() && uid() == uid_destino;
+      allow write:  if isAuth();
+    }
+  }
+}

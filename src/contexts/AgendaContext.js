@@ -15,23 +15,32 @@ export function AgendaProvider({ children }) {
   const [funcionarios, setFuncionarios] = useState([]);
   const [loading,      setLoading]      = useState(true);
 
-  const perfil = userProfile?.perfil || "campo";
-  const isGestor = perfil === "gestor" || perfil === "encarregado";
+  // Detecta perfil considerando tanto o sistema novo (departamento) quanto o legado (perfil)
+  // BUG CORRIGIDO: antes só olhava userProfile.perfil, então usuários com apenas
+  // "departamento" definido (ex: gestao, financeiro) caíam no fallback "campo".
+  const dep = userProfile?.departamento || userProfile?.perfil || "campo";
+  const isCampo = userProfile?.adm !== true && dep === "campo";
+  const isGestor = !isCampo;
 
   useEffect(() => {
     if (!currentUser) return;
 
-    // Agendamentos: campo vê só os seus, gestor/encarregado vê todos
+    // Agendamentos: campo vê só os seus, demais perfis veem todos
+    // BUG CORRIGIDO: a consulta de "campo" combinava where(array-contains) + orderBy,
+    // o que exige um índice composto no Firestore. Sem esse índice, o onSnapshot
+    // nunca disparava (nem sucesso nem erro), deixando o calendário "carregando"
+    // para sempre. Agora ordenamos no cliente em vez de depender do índice.
     const qAg = isGestor
       ? query(collection(db,"agendamentos"), orderBy("dataInicio","desc"), limit(200))
       : query(collection(db,"agendamentos"),
-          where("funcionarios","array-contains", currentUser.uid),
-          orderBy("dataInicio","desc"), limit(50));
+          where("funcionarios","array-contains", currentUser.uid), limit(100));
 
     const u1 = onSnapshot(qAg, snap => {
-      setAgendamentos(snap.docs.map(d=>({id:d.id,...d.data()})));
+      const lista = snap.docs.map(d=>({id:d.id,...d.data()}));
+      if (!isGestor) lista.sort((a,b)=> (b.dataInicio||"").localeCompare(a.dataInicio||""));
+      setAgendamentos(lista);
       setLoading(false);
-    });
+    }, () => setLoading(false));
 
     // Obras: campo vê só as permitidas
     const qObras = isGestor
@@ -39,20 +48,20 @@ export function AgendaProvider({ children }) {
       : query(collection(db,"obras"), where("__name__","in",
           userProfile?.obras?.length > 0 ? userProfile.obras.slice(0,10) : ["__none__"]));
 
-    const u2 = onSnapshot(qObras, snap => setObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u2 = onSnapshot(qObras, snap => setObras(snap.docs.map(d=>({id:d.id,...d.data()}))), ()=>{});
 
     // Manutenções: todos autenticados podem ver (campo vê as que está alocado)
     const u3 = onSnapshot(
       query(collection(db,"manutencoes"), limit(100)),
-      snap => setManutencoes(snap.docs.map(d=>({id:d.id,...d.data()})))
+      snap => setManutencoes(snap.docs.map(d=>({id:d.id,...d.data()}))), ()=>{}
     );
 
-    // Funcionários: apenas gestor/encarregado precisa da lista completa
+    // Funcionários: apenas perfis de gestão precisam da lista completa
     let u4 = ()=>{};
     if (isGestor) {
       u4 = onSnapshot(collection(db,"usuarios"), snap =>
         setFuncionarios(snap.docs.map(d=>({id:d.id,...d.data()})).filter(f=>f.status==="ATIVO"||!f.status))
-      );
+      , ()=>{});
     }
 
     return ()=>{u1();u2();u3();u4();};
