@@ -6,7 +6,7 @@ import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
-import { getAcesso } from "../constants/departamentos";
+import { getAcesso, isCampo } from "../constants/departamentos";
 
 // ── Regras de aprovação ───────────────────────────────────────────────────────
 // Para MANUTENÇÃO: todos menos campo podem aprovar
@@ -314,6 +314,7 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
       numeroNF, valorNF:Number(valorNF)||0, dataNF, obsNF,
       status: novoStatus || etapaAtual,
       autorNome: compra?.autorNome || nomeUser,
+      autorId: compra?.autorId || currentUser?.uid || null,
       updatedAt: agora(),
     };
     // FIX: grava o ator da etapa ATUAL (quem executa esta etapa), não a próxima
@@ -745,7 +746,9 @@ function ResumoCotacao({ valorCotado, fornecedorNome, prazoEntrega }) {
 
 // ── Página Principal ──────────────────────────────────────────────────────────
 export default function Compras() {
-  const { userProfile } = useAuth();
+  const { userProfile, currentUser } = useAuth();
+  const souCampo = isCampo(userProfile);
+  const nomeUser = userProfile?.nome || currentUser?.email || "–";
   const { toasts, addToast } = useToast();
   const [compras,      setCompras]      = useState([]);
   const [obras,        setObras]        = useState([]);
@@ -764,21 +767,27 @@ export default function Compras() {
     return()=>{u1();u2();u3();u4();};
   },[]);
 
+  // Campo só vê as próprias solicitações (compatível com registros antigos sem autorId, via nome)
+  const comprasVisiveis = useMemo(()=>{
+    if (!souCampo) return compras;
+    return compras.filter(c => c.autorId ? c.autorId===currentUser?.uid : c.autorNome===nomeUser);
+  },[compras, souCampo, currentUser, nomeUser]);
+
   const comprasFiltradas = useMemo(()=>{
     const q=search.toLowerCase();
-    return compras.filter(c=>c.status===etapaAtiva&&(!q||c.titulo?.toLowerCase().includes(q)||c.demandaNome?.toLowerCase().includes(q)||c.fornecedorNome?.toLowerCase().includes(q)));
-  },[compras,etapaAtiva,search]);
+    return comprasVisiveis.filter(c=>c.status===etapaAtiva&&(!q||c.titulo?.toLowerCase().includes(q)||c.demandaNome?.toLowerCase().includes(q)||c.fornecedorNome?.toLowerCase().includes(q)));
+  },[comprasVisiveis,etapaAtiva,search]);
 
   const kpis = useMemo(()=>({
-    solicit:      compras.filter(c=>c.status==="SOLICITAÇÃO").length,
-    cotacao:      compras.filter(c=>c.status==="COTAÇÃO").length,
-    aprovadas:    compras.filter(c=>c.status==="APROVADA").length,
-    oc:           compras.filter(c=>c.status==="ORDEM DE COMPRA").length,
-    aguardNF:     compras.filter(c=>c.status==="AGUARD. NF").length,
-    revisao:      compras.filter(c=>c.status==="EM REVISÃO").length,
-    recusadas:    compras.filter(c=>c.status==="RECUSADA").length,
-    comprometido: compras.filter(c=>["APROVADA","ORDEM DE COMPRA"].includes(c.status)).reduce((s,c)=>s+(c.valorAprovado||0),0),
-  }),[compras]);
+    solicit:      comprasVisiveis.filter(c=>c.status==="SOLICITAÇÃO").length,
+    cotacao:      comprasVisiveis.filter(c=>c.status==="COTAÇÃO").length,
+    aprovadas:    comprasVisiveis.filter(c=>c.status==="APROVADA").length,
+    oc:           comprasVisiveis.filter(c=>c.status==="ORDEM DE COMPRA").length,
+    aguardNF:     comprasVisiveis.filter(c=>c.status==="AGUARD. NF").length,
+    revisao:      comprasVisiveis.filter(c=>c.status==="EM REVISÃO").length,
+    recusadas:    comprasVisiveis.filter(c=>c.status==="RECUSADA").length,
+    comprometido: comprasVisiveis.filter(c=>["APROVADA","ORDEM DE COMPRA"].includes(c.status)).reduce((s,c)=>s+(c.valorAprovado||0),0),
+  }),[comprasVisiveis]);
 
   const fmt = v=>`R$ ${Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:0})}`;
 
@@ -786,7 +795,7 @@ export default function Compras() {
     <div>
       <div className="toast-container">{toasts.map(t=><div key={t.id} className={`toast toast-${t.type}`}>{t.msg}</div>)}</div>
       <div className="panel-header">
-        <div><div className="panel-title">Compras</div><div style={{fontSize:12,color:"#7A7A7A"}}>{compras.length} pedidos totais</div></div>
+        <div><div className="panel-title">Compras</div><div style={{fontSize:12,color:"#7A7A7A"}}>{comprasVisiveis.length} pedido(s){souCampo?" seu(s)":" totais"}</div></div>
         <button className="btn btn-primary" onClick={()=>setModal({compra:null})}>+ Nova solicitação</button>
       </div>
 
@@ -804,7 +813,7 @@ export default function Compras() {
       {/* Barra de etapas */}
       <div style={{display:"flex",gap:0,marginBottom:16,borderRadius:10,overflow:"hidden",border:"1px solid var(--border)"}}>
         {[...ETAPAS_BARRA,{id:"EM REVISÃO",label:"Em revisão",icone:"🔄",cor:"#8A6000"},{id:"RECUSADA",label:"Recusada",icone:"❌",cor:"#B83232"}].map((e,i,arr)=>{
-          const count=compras.filter(c=>c.status===e.id).length;
+          const count=comprasVisiveis.filter(c=>c.status===e.id).length;
           const ativa=etapaAtiva===e.id;
           return (
             <button key={e.id} onClick={()=>setEtapaAtiva(e.id)}
