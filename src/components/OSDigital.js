@@ -25,6 +25,7 @@ export default function OSDigital({ manutencao, descritivos, descExtra, funciona
   const [descricaoExtra, setDescricaoExtra] = useState(descExtra || "");
   const [assinPrestador, setAssinPrestador] = useState(null);
   const [assinGerente,   setAssinGerente]   = useState(null);
+  const [geoGerente,     setGeoGerente]     = useState(null);
   const [nomeGerente,    setNomeGerente]    = useState("");
   const [passo, setPasso] = useState(1);
 
@@ -38,6 +39,7 @@ export default function OSDigital({ manutencao, descritivos, descExtra, funciona
 
   function finalizar() {
     if (!assinGerente) { alert("O gerente precisa assinar."); return; }
+    if (!geoGerente) { alert("É necessário confirmar a localização do dispositivo para validar a assinatura do gerente."); return; }
     if (!nomeGerente.trim()) { alert("Informe o nome do gerente."); return; }
     onSalvar({
       numero: `OS-${Date.now()}`,
@@ -47,6 +49,7 @@ export default function OSDigital({ manutencao, descritivos, descExtra, funciona
       descricaoExtra,
       assinPrestador,
       assinGerente,
+      geoGerente,
       nomeGerente,
       geradaEm: new Date().toISOString(),
     });
@@ -124,13 +127,20 @@ export default function OSDigital({ manutencao, descritivos, descExtra, funciona
       {passo===3 && (
         <>
           <div className="alert alert-warning" style={{fontSize:12}}>
-            📱 <strong>Entregue o celular ao gerente da agência</strong> para assinar.
+            📱 <strong>Entregue o celular ao gerente da agência</strong> para assinar. A localização do dispositivo será solicitada para autenticar a identidade do responsável.
           </div>
           <div className="form-group">
             <label className="required">Nome do gerente</label>
             <input value={nomeGerente} onChange={e=>setNomeGerente(e.target.value)} placeholder="Nome completo"/>
           </div>
-          <AssinaturaDigital label="Assinatura do gerente da agência" assinatura={assinGerente} onChange={setAssinGerente}/>
+          <AssinaturaDigital
+            label="Assinatura do gerente da agência"
+            assinatura={assinGerente}
+            onChange={setAssinGerente}
+            requererLocalizacao
+            geoInicial={geoGerente}
+            onGeoChange={setGeoGerente}
+          />
           <div style={{display:"flex",gap:8}}>
             <button className="btn" onClick={()=>setPasso(2)}>← Voltar</button>
             <button className="btn btn-primary" style={{flex:1,justifyContent:"center"}} onClick={finalizar}>✓ Finalizar OS</button>

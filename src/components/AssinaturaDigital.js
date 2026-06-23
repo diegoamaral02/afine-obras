@@ -1,12 +1,16 @@
 // src/components/AssinaturaDigital.js
 // Componente de assinatura digital via tela touch/mouse
+// Suporta autenticação por geolocalização (usada para assinatura de gerente/responsável)
 import React, { useRef, useEffect, useState } from "react";
 
-export default function AssinaturaDigital({ label, assinatura, onChange }) {
+export default function AssinaturaDigital({ label, assinatura, onChange, requererLocalizacao, geoInicial, onGeoChange }) {
   const canvasRef = useRef(null);
   const [desenhando, setDesenhando] = useState(false);
   const [temAssinatura, setTemAssinatura] = useState(!!assinatura);
   const [confirmado, setConfirmado] = useState(!!assinatura);
+  const [geo, setGeo] = useState(geoInicial || null);
+  const [buscandoGeo, setBuscandoGeo] = useState(false);
+  const [erroGeo, setErroGeo] = useState("");
   const ultimoPonto = useRef(null);
 
   useEffect(() => {
@@ -70,16 +74,60 @@ export default function AssinaturaDigital({ label, assinatura, onChange }) {
     setDesenhando(false);
   }
 
+  // BUG CORRIGIDO: quando confirmado=true, o <canvas> não está montado no DOM
+  // (só a <img>), então canvasRef.current era null e o "Refazer" travava aqui.
   function limpar() {
-    const ctx = canvasRef.current.getContext("2d");
-    ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext("2d");
+      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    }
     setTemAssinatura(false);
     setConfirmado(false);
+    setGeo(null);
+    setErroGeo("");
     onChange(null);
+    if (onGeoChange) onGeoChange(null);
   }
 
-  function confirmar() {
+  function obterLocalizacao() {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("Geolocalização não é suportada neste dispositivo/navegador."));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          precisao: Math.round(pos.coords.accuracy),
+          capturadoEm: new Date().toISOString(),
+        }),
+        () => reject(new Error("Não foi possível obter a localização. Permita o acesso à localização do dispositivo para validar esta assinatura.")),
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+      );
+    });
+  }
+
+  async function confirmar() {
     const base64 = canvasRef.current.toDataURL("image/png");
+
+    if (requererLocalizacao) {
+      setBuscandoGeo(true);
+      setErroGeo("");
+      try {
+        const geoData = await obterLocalizacao();
+        setGeo(geoData);
+        setBuscandoGeo(false);
+        onChange(base64);
+        if (onGeoChange) onGeoChange(geoData);
+        setConfirmado(true);
+      } catch (err) {
+        setBuscandoGeo(false);
+        setErroGeo(err.message);
+      }
+      return;
+    }
+
     onChange(base64);
     setConfirmado(true);
   }
@@ -97,12 +145,23 @@ export default function AssinaturaDigital({ label, assinatura, onChange }) {
             <button className="btn btn-sm" onClick={limpar} style={{ fontSize: 11 }}>Refazer</button>
           </div>
           <img src={assinatura} alt="Assinatura" style={{ maxWidth: "100%", maxHeight: 80, border: "1px solid #ddd", borderRadius: 4, background: "#fff" }} />
+          {requererLocalizacao && geo && (
+            <div style={{ marginTop: 8, fontSize: 11, color: "var(--verde)", display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+              📍 Localização confirmada (precisão ~{geo.precisao}m) · {new Date(geo.capturadoEm).toLocaleString("pt-BR")}
+              <a href={`https://www.google.com/maps?q=${geo.lat},${geo.lng}`} target="_blank" rel="noreferrer" style={{ color: "#185FA5" }}>ver no mapa</a>
+            </div>
+          )}
         </div>
       ) : (
         <div>
           <div style={{ fontSize: 11, color: "var(--cinza-med)", marginBottom: 6 }}>
-            {label.includes("Gerente") ? "📱 Entregue o celular ao gerente para assinar abaixo:" : "✍️ Assine no espaço abaixo:"}
+            {label.includes("Gerente") || label.toLowerCase().includes("responsável") ? "📱 Entregue o celular ao responsável para assinar abaixo:" : "✍️ Assine no espaço abaixo:"}
           </div>
+          {requererLocalizacao && (
+            <div className="alert alert-info" style={{ fontSize: 11, marginBottom: 8 }}>
+              📍 Esta assinatura exige confirmação de localização do dispositivo, para autenticar a identidade do responsável.
+            </div>
+          )}
           <div style={{ position: "relative", border: "2px dashed #ccc", borderRadius: 8, background: "#fafafa", touchAction: "none" }}>
             <canvas
               ref={canvasRef}
@@ -123,10 +182,15 @@ export default function AssinaturaDigital({ label, assinatura, onChange }) {
               </div>
             )}
           </div>
+          {erroGeo && (
+            <div className="alert alert-danger" style={{ fontSize: 11, marginTop: 8 }}>
+              ⚠️ {erroGeo}
+            </div>
+          )}
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
             <button className="btn btn-sm" onClick={limpar} disabled={!temAssinatura}>Limpar</button>
-            <button className="btn btn-sm btn-primary" onClick={confirmar} disabled={!temAssinatura} style={{ flex: 1, justifyContent: "center" }}>
-              ✓ Confirmar assinatura
+            <button className="btn btn-sm btn-primary" onClick={confirmar} disabled={!temAssinatura || buscandoGeo} style={{ flex: 1, justifyContent: "center" }}>
+              {buscandoGeo ? "📍 Obtendo localização..." : "✓ Confirmar assinatura"}
             </button>
           </div>
         </div>
