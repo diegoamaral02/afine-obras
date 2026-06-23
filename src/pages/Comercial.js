@@ -7,6 +7,7 @@ import Modal from "../components/Modal";
 import KanbanBoard from "../components/KanbanBoard";
 import { useToast } from "../hooks/useToast";
 import { fmtDate } from "../utils/helpers";
+import { buscarCEP } from "../utils/cep";
 
 // Gera ID simples para agências (não depende do Firestore autoId pois ficam embutidas em array)
 function gerarIdAgencia() { return "ag_"+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
@@ -180,16 +181,45 @@ function ClienteModal({ cliente, onClose, addToast }) {
     agencias:     cliente?.agencias     || [],
   });
   const [saving, setSaving] = useState(false);
-  const [novaAgencia, setNovaAgencia] = useState({ nome:"", agenciaFilial:"", endereco:"", numero:"", cidade:"", uf:"" });
+  const [novaAgencia, setNovaAgencia] = useState({ nome:"", agenciaFilial:"", cep:"", endereco:"", numero:"", bairro:"", cidade:"", uf:"" });
+  const [editandoAgenciaId, setEditandoAgenciaId] = useState(null);
+  const [buscandoCEPAg, setBuscandoCEPAg] = useState(false);
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
 
-  function addAgencia() {
+  async function handleCEPAgencia(cep) {
+    setNovaAgencia(p=>({...p,cep}));
+    if (cep.replace(/\D/g,"").length===8) {
+      setBuscandoCEPAg(true);
+      const d = await buscarCEP(cep);
+      if (d) setNovaAgencia(p=>({...p,endereco:d.logradouro||p.endereco,bairro:d.bairro||p.bairro,cidade:d.cidade||p.cidade,uf:d.uf||p.uf}));
+      setBuscandoCEPAg(false);
+    }
+  }
+
+  function iniciarEdicaoAgencia(a) {
+    setNovaAgencia({ nome:a.nome||"", agenciaFilial:a.agenciaFilial||"", cep:a.cep||"", endereco:a.endereco||"", numero:a.numero||"", bairro:a.bairro||"", cidade:a.cidade||"", uf:a.uf||"" });
+    setEditandoAgenciaId(a.id);
+  }
+  function cancelarEdicaoAgencia() {
+    setNovaAgencia({ nome:"", agenciaFilial:"", cep:"", endereco:"", numero:"", bairro:"", cidade:"", uf:"" });
+    setEditandoAgenciaId(null);
+  }
+  function salvarAgencia() {
     if(!novaAgencia.nome.trim()){ alert("Informe o nome/número da agência, loja ou filial."); return; }
-    set("agencias",[...form.agencias,{ id:gerarIdAgencia(), ...novaAgencia, nome:novaAgencia.nome.trim() }]);
-    setNovaAgencia({ nome:"", agenciaFilial:"", endereco:"", numero:"", cidade:"", uf:"" });
+    if(!novaAgencia.cep.trim()||!novaAgencia.endereco.trim()||!novaAgencia.numero.trim()||!novaAgencia.cidade.trim()||!novaAgencia.uf.trim()){
+      alert("CEP, endereço, número, cidade e UF são obrigatórios.");
+      return;
+    }
+    if (editandoAgenciaId) {
+      set("agencias", form.agencias.map(a=>a.id===editandoAgenciaId ? { ...a, ...novaAgencia, nome:novaAgencia.nome.trim() } : a));
+    } else {
+      set("agencias",[...form.agencias,{ id:gerarIdAgencia(), ...novaAgencia, nome:novaAgencia.nome.trim() }]);
+    }
+    cancelarEdicaoAgencia();
   }
   function removerAgencia(id) {
     set("agencias", form.agencias.filter(a=>a.id!==id));
+    if (editandoAgenciaId===id) cancelarEdicaoAgencia();
   }
 
   async function save() {
@@ -252,15 +282,16 @@ function ClienteModal({ cliente, onClose, addToast }) {
           {form.agencias.length>0 && (
             <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
               {form.agencias.map(a=>{
-                const endCompleto = a.endereco ? `${a.endereco}${a.numero?`, ${a.numero}`:""}${a.cidade?` — ${a.cidade}`:""}${a.uf?`/${a.uf}`:""}` : "";
+                const endCompleto = a.endereco ? `${a.endereco}${a.numero?`, ${a.numero}`:""}${a.bairro?` — ${a.bairro}`:""}${a.cidade?`, ${a.cidade}`:""}${a.uf?`/${a.uf}`:""}` : "";
+                const sendoEditada = editandoAgenciaId===a.id;
                 return (
-                  <div key={a.id} style={{display:"flex",alignItems:"center",gap:8,background:"#fff",borderRadius:6,padding:"6px 10px",border:"1px solid var(--border)"}}>
+                  <div key={a.id} style={{display:"flex",alignItems:"center",gap:8,background:sendoEditada?"var(--afine-yellow-lt)":"#fff",borderRadius:6,padding:"6px 10px",border:"1px solid var(--border)"}}>
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{display:"flex",alignItems:"center",gap:6}}>
                         <span style={{fontWeight:600,fontSize:13}}>{a.nome}</span>
                         {a.agenciaFilial&&<span style={{fontSize:10,background:"var(--afine-yellow-lt)",color:"var(--afine-yellow-dk)",padding:"1px 7px",borderRadius:10,fontWeight:600}}>Ag/Fil {a.agenciaFilial}</span>}
                       </div>
-                      {endCompleto&&<div style={{fontSize:11,color:"#7A7A7A",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{endCompleto}</div>}
+                      {endCompleto&&<div style={{fontSize:11,color:"#7A7A7A",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.cep?`${a.cep} — `:""}{endCompleto}</div>}
                     </div>
                     {a.endereco&&(
                       <button onClick={()=>{
@@ -268,29 +299,42 @@ function ClienteModal({ cliente, onClose, addToast }) {
                         window.open(`https://www.google.com/maps/search/?api=1&query=${enc}`,"_blank");
                       }} title="Abrir navegação" style={{background:"none",border:"none",cursor:"pointer",color:"#185FA5",fontSize:14,padding:"0 4px"}}>🗺️</button>
                     )}
-                    <button onClick={()=>removerAgencia(a.id)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--vermelho)",fontSize:14,padding:"0 4px"}}>✕</button>
+                    <button onClick={()=>iniciarEdicaoAgencia(a)} title="Editar" style={{background:"none",border:"none",cursor:"pointer",color:"#4A4A4A",fontSize:14,padding:"0 4px"}}>✏️</button>
+                    <button onClick={()=>removerAgencia(a.id)} title="Excluir" style={{background:"none",border:"none",cursor:"pointer",color:"var(--vermelho)",fontSize:14,padding:"0 4px"}}>✕</button>
                   </div>
                 );
               })}
             </div>
           )}
 
+          {editandoAgenciaId && (
+            <div style={{fontSize:11,fontWeight:600,color:"var(--afine-yellow-dk)",marginBottom:6}}>✏️ Editando agência — altere os campos e clique em Salvar</div>
+          )}
           <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>
             <input value={novaAgencia.nome} onChange={e=>setNovaAgencia(p=>({...p,nome:e.target.value}))}
               placeholder="Nome / nº (ex: AG Cravinhos)" style={{flex:"2 1 180px"}}/>
             <input value={novaAgencia.agenciaFilial} onChange={e=>setNovaAgencia(p=>({...p,agenciaFilial:e.target.value}))}
               placeholder="Nº Agência/Filial (ex: 0442)" style={{flex:"1 1 140px"}}/>
           </div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>
+            <div style={{display:"flex",gap:6,alignItems:"center",flex:"1 1 140px"}}>
+              <input value={novaAgencia.cep} onChange={e=>handleCEPAgencia(e.target.value)} placeholder="CEP *" maxLength={9} style={{flex:1}}/>
+              {buscandoCEPAg && <span style={{fontSize:11,color:"#7A7A7A",whiteSpace:"nowrap"}}>Buscando...</span>}
+            </div>
+            <input value={novaAgencia.numero} onChange={e=>setNovaAgencia(p=>({...p,numero:e.target.value}))}
+              placeholder="Nº *" style={{flex:"0 1 70px"}}/>
+            <input value={novaAgencia.bairro} onChange={e=>setNovaAgencia(p=>({...p,bairro:e.target.value}))}
+              placeholder="Bairro" style={{flex:"1 1 120px"}}/>
+          </div>
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             <input value={novaAgencia.endereco} onChange={e=>setNovaAgencia(p=>({...p,endereco:e.target.value}))}
-              placeholder="Endereço" style={{flex:"2 1 160px"}}/>
-            <input value={novaAgencia.numero} onChange={e=>setNovaAgencia(p=>({...p,numero:e.target.value}))}
-              placeholder="Nº" style={{flex:"0 1 70px"}}/>
+              placeholder="Endereço (logradouro) *" style={{flex:"2 1 200px"}}/>
             <input value={novaAgencia.cidade} onChange={e=>setNovaAgencia(p=>({...p,cidade:e.target.value}))}
-              placeholder="Cidade" style={{flex:"1 1 90px"}}/>
+              placeholder="Cidade *" style={{flex:"1 1 110px"}}/>
             <input value={novaAgencia.uf} onChange={e=>setNovaAgencia(p=>({...p,uf:e.target.value.toUpperCase()}))}
-              placeholder="UF" maxLength={2} style={{flex:"0 1 50px"}}/>
-            <button className="btn btn-primary btn-sm" onClick={addAgencia}>+ Add</button>
+              placeholder="UF *" maxLength={2} style={{flex:"0 1 50px"}}/>
+            <button className="btn btn-primary btn-sm" onClick={salvarAgencia}>{editandoAgenciaId?"✓ Salvar edição":"+ Add"}</button>
+            {editandoAgenciaId && <button className="btn btn-sm" onClick={cancelarEdicaoAgencia}>Cancelar</button>}
           </div>
         </div>
         <div className="form-group"><label>Observações</label>

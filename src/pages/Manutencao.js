@@ -104,7 +104,7 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
     if (cep.replace(/\D/g,"").length===8) {
       setBuscandoCEP(true);
       const d=await buscarCEP(cep);
-      if(d){set("logradouro",d.logradouro||"");set("bairro",d.bairro||"");set("cidade",d.localidade||"");set("uf",d.uf||"");}
+      if(d){set("logradouro",d.logradouro||"");set("bairro",d.bairro||"");set("cidade",d.cidade||"");set("uf",d.uf||"");}
       setBuscandoCEP(false);
     }
   }
@@ -244,6 +244,9 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
                           const num = a.agenciaFilial ? `AG-${a.agenciaFilial}` : a.nome;
                           const sufixo = a.cidade ? ` · ${a.cidade}` : "";
                           set("titulo", `${num}${sufixo}`);
+                          // Auto-preenche o endereço a partir da agência (ANEXO3)
+                          set("cep", a.cep||""); set("logradouro", a.endereco||""); set("numero", a.numero||"");
+                          set("bairro", a.bairro||""); set("cidade", a.cidade||""); set("uf", a.uf||"");
                         }
                       }}>
                         <option value="">Selecione...</option>
