@@ -1,5 +1,5 @@
 // src/pages/Calendario.js — Hub de agendamento visual
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useAgenda } from "../contexts/AgendaContext";
 import { useAuth } from "../contexts/AuthContext";
 import { isCampo } from "../constants/departamentos";
@@ -177,7 +177,7 @@ function EventoCard({ ag, funcionarios }) {
         marginBottom:2,fontSize:11,cursor:"pointer",position:"relative",
         userSelect:"none",transition:".1s",opacity:.92}}>
       <div style={{fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%"}}>
-        {ag.demandaNome||ag.titulo}
+        {ag.origem==="obra"?"🏗️ ":ag.origem==="manutencao"?"🔧 ":""}{ag.demandaNome||ag.titulo}
       </div>
       {funcs.length>0&&<div style={{fontSize:9,opacity:.8}}>{funcs.map(f=>f.nome.split(" ")[0]).join(", ")}</div>}
       {open&&(
@@ -246,7 +246,7 @@ function DiaInfoModal({ diaISO, ags, funcionarios, onClose }) {
 }
 
 export default function Calendario() {
-  const { agendamentos, obras, funcionarios, loading } = useAgenda();
+  const { agendamentos, obras, manutencoes, funcionarios, loading } = useAgenda();
   const { userProfile, currentUser } = useAuth();
   const souCampo = isCampo(userProfile);
   const { toasts, addToast } = useToast();
@@ -260,6 +260,36 @@ export default function Calendario() {
   // como informação fixa na agenda, independente de haver agendamento datado
   const minhasObras = souCampo ? obras.filter(o => (o.equipeIds||[]).includes(currentUser?.uid)) : [];
 
+  // CORREÇÃO: o calendário só mostrava agendamentos criados manualmente pelo
+  // botão "+ Agendar" (coleção "agendamentos"). Datas e equipes já definidas
+  // diretamente em Obras (início/término + equipeIds) e Manutenções
+  // (data de abertura/prevista + alocadoIds) não apareciam para ninguém.
+  // Agora esses eventos são derivados automaticamente e somados aos manuais.
+  const eventosDerivadosObras = obras
+    .filter(o => o.inicio && o.termino)
+    .map(o => ({
+      id: `obra-${o.id}`, origem: "obra", demandaId: o.id,
+      demandaNome: o.nome, dataInicio: o.inicio, dataFim: o.termino,
+      turno: "integral", funcionarios: o.equipeIds||[], obs: o.cliente||"",
+    }));
+
+  const eventosDerivadosManut = manutencoes
+    .filter(m => m.dataAbertura)
+    .map(m => {
+      const fimBruto = m.dataConclusao || m.dataPrevista || m.dataAbertura;
+      const dataFim = fimBruto >= m.dataAbertura ? fimBruto : m.dataAbertura;
+      return {
+        id: `manut-${m.id}`, origem: "manutencao", demandaId: m.id,
+        demandaNome: m.titulo, dataInicio: m.dataAbertura, dataFim,
+        turno: "integral", funcionarios: m.alocadoIds||[], obs: m.cliente||"",
+      };
+    });
+
+  const todosEventos = useMemo(
+    () => [...agendamentos.map(a=>({...a, origem:"manual"})), ...eventosDerivadosObras, ...eventosDerivadosManut],
+    [agendamentos, eventosDerivadosObras, eventosDerivadosManut]
+  );
+
   const dias = diasDoMes(ano, mes);
   const primeiroDia = new Date(ano, mes, 1).getDay(); // 0=dom
   const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -271,9 +301,9 @@ export default function Calendario() {
     setMes(m); setAno(a);
   }
 
-  // Agendamentos que ocorrem em determinado dia
+  // Eventos (manuais + derivados de Obras/Manutenções) que ocorrem em determinado dia
   function agsNoDia(diaISO) {
-    return agendamentos.filter(a => a.dataInicio<=diaISO && a.dataFim>=diaISO);
+    return todosEventos.filter(a => a.dataInicio<=diaISO && a.dataFim>=diaISO);
   }
 
   const hojeISO = toISO(hoje);
@@ -286,7 +316,7 @@ export default function Calendario() {
       <div className="panel-header">
         <div>
           <div className="panel-title">Calendário</div>
-          <div style={{fontSize:12,color:"#7A7A7A"}}>{agendamentos.length} agendamentos · {MESES[mes]} {ano}</div>
+          <div style={{fontSize:12,color:"#7A7A7A"}}>{todosEventos.length} evento(s) · {MESES[mes]} {ano}</div>
         </div>
         <div style={{display:"flex",gap:8}}>
           <div style={{display:"flex",border:"1px solid var(--border)",borderRadius:6,overflow:"hidden"}}>
@@ -385,10 +415,10 @@ export default function Calendario() {
       )}
 
       {/* Legenda */}
-      {agendamentos.length>0&&(
+      {todosEventos.length>0&&(
         <div style={{marginTop:12,display:"flex",gap:8,flexWrap:"wrap"}}>
-          {[...new Set(agendamentos.map(a=>a.demandaId))].slice(0,8).map(id=>{
-            const ag=agendamentos.find(a=>a.demandaId===id);
+          {[...new Set(todosEventos.map(a=>a.demandaId))].slice(0,8).map(id=>{
+            const ag=todosEventos.find(a=>a.demandaId===id);
             return ag?(
               <div key={id} style={{display:"flex",alignItems:"center",gap:5,fontSize:11}}>
                 <div style={{width:10,height:10,borderRadius:2,background:corDemanda(id),flexShrink:0}}/>
