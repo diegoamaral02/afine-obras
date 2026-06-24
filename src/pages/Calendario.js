@@ -215,7 +215,7 @@ function EventoCard({ ag, funcionarios, diaISO }) {
         {ag.origem==="obra"?"🏗️ ":ag.origem==="manutencao"?"🔧 ":""}
         {diaUnico?"●":isInicio?"▶":isFim?"■":""} {ag.demandaNome||ag.titulo}
       </div>
-      {funcs.length>0&&<div style={{fontSize:9,opacity:.8}}>{funcs.map(f=>f.nome.split(" ")[0]).join(", ")}</div>}
+      {funcs.length>0&&<div style={{fontSize:9,opacity:.8,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{funcs.map(f=>f.nome.split(" ")[0]).join(", ")}</div>}
       {open&&(
         <div onClick={e=>e.stopPropagation()}
           style={{position:"absolute",top:"100%",left:0,zIndex:50,background:"#1A1A1A",color:"#fff",borderRadius:8,
@@ -289,7 +289,8 @@ export default function Calendario() {
   const hoje = new Date();
   const [mes,  setMes]  = useState(hoje.getMonth());
   const [ano,  setAno]  = useState(hoje.getFullYear());
-  const [modal,setModal]= useState(null); // null | { dia: "YYYY-MM-DD" }
+  const [modalVer,    setModalVer]    = useState(null); // null | { dia }
+  const [modalCriar,  setModalCriar]  = useState(null); // null | { dia }
   const [vista,setVista]= useState("mes"); // "mes" | "semana"
 
   // Obras em que o usuário de campo está alocado (via equipeIds[]) — mostrado
@@ -400,7 +401,7 @@ export default function Calendario() {
             <button className="btn btn-sm" style={{borderRadius:0,border:"none",background:vista==="mes"?"#1A1A1A":"",color:vista==="mes"?"#F5C800":""}} onClick={()=>setVista("mes")}>Mês</button>
             <button className="btn btn-sm" style={{borderRadius:0,border:"none",background:vista==="semana"?"#1A1A1A":"",color:vista==="semana"?"#F5C800":""}} onClick={()=>setVista("semana")}>Semana</button>
           </div>
-          {!souCampo && <button className="btn btn-primary" onClick={()=>setModal({dia:hojeISO})}>+ Agendar</button>}
+          {!souCampo && <button className="btn btn-primary" onClick={()=>setModalCriar({dia:hojeISO})}>+ Agendar</button>}
         </div>
       </div>
 
@@ -432,7 +433,7 @@ export default function Calendario() {
       {!loading && (
         <div style={{background:"var(--afine-white)",border:"1px solid var(--border)",borderRadius:12,overflow:"hidden"}}>
           {/* Cabeçalho dias da semana */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",background:"#1A1A1A"}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",background:"#1A1A1A"}}>
             {SEMANA.map(d=>(
               <div key={d} style={{textAlign:"center",padding:"10px 4px",fontSize:11,fontWeight:700,color:"#F5C800",letterSpacing:".05em"}}>
                 {d}
@@ -441,7 +442,7 @@ export default function Calendario() {
           </div>
 
           {/* Grade dias */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)"}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))"}}>
             {/* Células vazias antes do primeiro dia */}
             {Array.from({length:primeiroDia}).map((_,i)=>(
               <div key={`vazio-${i}`} style={{minHeight:100,padding:6,background:"#FAFAF8",borderRight:"1px solid var(--border)",borderBottom:"1px solid var(--border)"}}/>
@@ -455,9 +456,9 @@ export default function Calendario() {
               const isFDS  = dia.getDay()===0||dia.getDay()===6;
               return (
                 <div key={dISO}
-                  onClick={()=>setModal({dia:dISO})}
+                  onClick={()=>setModalVer({dia:dISO})}
                   style={{
-                    minHeight:100, padding:"6px 4px",
+                    minHeight:100, minWidth:0, padding:"6px 4px",
                     borderRight:"1px solid var(--border)",
                     borderBottom:"1px solid var(--border)",
                     background: isHoje?"rgba(245,200,0,.06)":isFDS?"rgba(0,0,0,.015)":"var(--afine-white)",
@@ -513,20 +514,22 @@ export default function Calendario() {
         </div>
       )}
 
-      {modal && (souCampo ? (
+      {modalVer && (
         <DiaInfoModal
-          diaISO={modal.dia}
-          ags={agsNoDia(modal.dia)}
+          diaISO={modalVer.dia}
+          ags={agsNoDia(modalVer.dia)}
           funcionarios={funcionarios}
-          onClose={()=>setModal(null)}
+          onClose={()=>setModalVer(null)}
         />
-      ) : (
+      )}
+
+      {modalCriar && (
         <AgendaModal
-          diaInicial={modal.dia}
-          onClose={()=>setModal(null)}
+          diaInicial={modalCriar.dia}
+          onClose={()=>setModalCriar(null)}
           addToast={addToast}
         />
-      ))}
+      )}
     </div>
   );
 }
