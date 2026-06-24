@@ -413,7 +413,7 @@ export default function Obras({ onObraSelect }) {
                   </td>
                   <td><span className={`badge ${statusBadge(o.status)}`}>{o.status}</span></td>
                   <td style={{display:"flex",gap:4}}>
-                    <button className="btn btn-sm" onClick={()=>onObraSelect(o)} title="Selecionar">🔀</button>
+                    <button className="btn btn-primary btn-sm" onClick={()=>setModal({obra:o})}>▶ Executar</button>
                     {isGestor && <button className="btn btn-sm btn-icon" onClick={()=>setModal({obra:o})}>✏️</button>}
                     <button className="btn btn-sm btn-icon" title="Ocorrências" onClick={()=>{setObraAberta(o);setAbaDrawer("ocorrencias");}} style={{fontSize:12}}>⚠️</button>
                     <button className="btn btn-sm btn-icon" title="Acompanhamento" onClick={()=>{setObraAberta(o);setAbaDrawer("acompanhamento");}} style={{fontSize:12}}>📐</button>
