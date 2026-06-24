@@ -1,5 +1,5 @@
 // src/pages/Materiais.js — controle global de estoque + por demanda
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { collection, onSnapshot, addDoc, updateDoc, doc, query, where } from "firebase/firestore";
 import { db } from "../firebase";
 import { fmtDate } from "../utils/helpers";
@@ -153,10 +153,13 @@ export default function MateriaisGlobal() {
   const [movs,       setMovs]       = useState([]);
   const [obras,      setObras]      = useState([]);
   const [manut,      setManut]      = useState([]);
+  const [compras,    setCompras]    = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [search,     setSearch]     = useState("");
   const [filtroCateg,setFiltroCateg]= useState("todas");
   const [aba,        setAba]        = useState("estoque");
+  const [searchCompras, setSearchCompras] = useState("");
+  const [obraExpandida, setObraExpandida] = useState(null);
   const [modalMov,   setModalMov]   = useState(null); // {item, tipo}
   const [modalNovo,  setModalNovo]  = useState(false);
 
@@ -174,8 +177,50 @@ export default function MateriaisGlobal() {
     });
     const u3 = onSnapshot(collection(db,"obras"), snap => setObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u4 = onSnapshot(collection(db,"manutencoes"), snap => setManut(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    return ()=>{ u1(); u2(); u3(); u4(); };
+    const u5 = onSnapshot(query(collection(db,"compras"), where("demandaTipo","==","obra")), snap => setCompras(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    return ()=>{ u1(); u2(); u3(); u4(); u5(); };
   }, []);
+
+  // ── Estoque por Compras: o que foi comprado/recebido (conferido) em cada
+  // obra, menos o que já foi utilizado na execução — controle entre obras.
+  const estoqueComprasPorObra = useMemo(() => {
+    const porObra = {}; // obraId -> { obraNome, materiais: { key: {nome,un,comprado,usado} } }
+
+    obras.forEach(o => { porObra[o.id] = { obraNome: o.nome, materiais: {} }; });
+
+    compras
+      .filter(c => ["RECEBIDO","AGUARD. NF","NF VINCULADA"].includes(c.status) && (c.tipoReceb==="conforme"||!c.tipoReceb) && porObra[c.demandaId])
+      .forEach(c => (c.itens||[]).forEach(it => {
+        const key = `${it.nome.trim().toLowerCase()}|${it.un}`;
+        const bucket = porObra[c.demandaId].materiais;
+        if (!bucket[key]) bucket[key] = { nome: it.nome, un: it.un, comprado: 0, usado: 0 };
+        bucket[key].comprado += Number(it.qtd)||0;
+      }));
+
+    obras.forEach(o => (o.materiais||[]).forEach(m => {
+      const key = `${m.nome.trim().toLowerCase()}|${m.un}`;
+      const bucket = porObra[o.id]?.materiais;
+      if (!bucket) return;
+      if (!bucket[key]) bucket[key] = { nome: m.nome, un: m.un, comprado: 0, usado: 0 };
+      bucket[key].usado += Number(m.qtd)||0;
+    }));
+
+    // Remove obras sem nenhum material comprado/usado
+    return Object.fromEntries(Object.entries(porObra).filter(([,v])=>Object.keys(v.materiais).length>0));
+  }, [obras, compras]);
+
+  // Totais consolidados de todas as obras (visão global do material)
+  const estoqueComprasGlobal = useMemo(() => {
+    const mapa = {};
+    Object.values(estoqueComprasPorObra).forEach(({materiais}) => {
+      Object.entries(materiais).forEach(([key,item]) => {
+        if (!mapa[key]) mapa[key] = { nome:item.nome, un:item.un, comprado:0, usado:0 };
+        mapa[key].comprado += item.comprado;
+        mapa[key].usado    += item.usado;
+      });
+    });
+    return mapa;
+  }, [estoqueComprasPorObra]);
 
   const categorias = ["todas", ...new Set(materiais.map(m=>m.categoria).filter(Boolean))];
 
@@ -220,6 +265,7 @@ export default function MateriaisGlobal() {
         <button className={`tab ${aba==="estoque"?"active":""}`} onClick={()=>setAba("estoque")}>Estoque</button>
         <button className={`tab ${aba==="movs"?"active":""}`} onClick={()=>setAba("movs")}>Movimentações</button>
         <button className={`tab ${aba==="porDemanda"?"active":""}`} onClick={()=>setAba("porDemanda")}>Por demanda</button>
+        <button className={`tab ${aba==="comprasObras"?"active":""}`} onClick={()=>setAba("comprasObras")}>📦 Comprado em Obras</button>
       </div>
 
       {/* ABA ESTOQUE */}
@@ -356,6 +402,93 @@ export default function MateriaisGlobal() {
           {movs.filter(m=>m.tipo==="saida").length===0 && (
             <div className="empty-state"><div className="empty-icon">📊</div><p>Nenhum consumo registrado ainda</p></div>
           )}
+        </>
+      )}
+
+      {/* ABA COMPRADO EM OBRAS — controle entre obras (comprado/recebido x usado) */}
+      {aba==="comprasObras" && (
+        <>
+          <div style={{fontSize:12,color:"var(--cinza-med)",marginBottom:12}}>
+            Materiais comprados e recebidos (conferidos como "conforme") em cada obra, menos o que já foi utilizado na execução.
+            O saldo é o que sobrou e pode ser realocado para outra obra.
+          </div>
+
+          <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".05em",marginBottom:8}}>
+            Visão consolidada (todas as obras)
+          </div>
+          {Object.keys(estoqueComprasGlobal).length===0 ? (
+            <div className="empty-state"><div className="empty-icon">📦</div><p>Nenhuma compra de obra recebida e conferida ainda.</p></div>
+          ) : (
+            <div className="table-wrap" style={{marginBottom:24}}>
+              <table>
+                <thead><tr><th>Material</th><th>Un.</th><th>Comprado</th><th>Usado</th><th>Saldo total</th></tr></thead>
+                <tbody>
+                  {Object.values(estoqueComprasGlobal).sort((a,b)=>a.nome.localeCompare(b.nome)).map((item,i)=>{
+                    const saldo = item.comprado-item.usado;
+                    return (
+                      <tr key={i}>
+                        <td style={{fontWeight:600}}>{item.nome}</td>
+                        <td style={{fontSize:12}}>{item.un}</td>
+                        <td style={{fontSize:12}}>{item.comprado}</td>
+                        <td style={{fontSize:12}}>{item.usado}</td>
+                        <td style={{fontWeight:700,fontSize:14,color:saldo>0?"var(--verde)":saldo<0?"var(--vermelho)":"#7A7A7A"}}>{saldo}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".05em",marginBottom:8}}>
+            Detalhamento por obra — onde está cada saldo
+          </div>
+          <div className="search-bar" style={{marginBottom:10}}>🔍<input placeholder="Buscar obra ou material..." value={searchCompras} onChange={e=>setSearchCompras(e.target.value)}/></div>
+
+          {Object.entries(estoqueComprasPorObra)
+            .filter(([,v])=>{
+              const q=searchCompras.toLowerCase();
+              if(!q) return true;
+              return v.obraNome?.toLowerCase().includes(q) || Object.values(v.materiais).some(m=>m.nome.toLowerCase().includes(q));
+            })
+            .map(([obraId,v])=>{
+              const aberta = obraExpandida===obraId;
+              const itensComSaldo = Object.values(v.materiais).filter(m=>m.comprado-m.usado>0).length;
+              return (
+                <div key={obraId} style={{marginBottom:8,border:"1px solid var(--border)",borderRadius:8,overflow:"hidden"}}>
+                  <button onClick={()=>setObraExpandida(aberta?null:obraId)}
+                    style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",
+                      padding:"10px 14px",background:aberta?"#1A1A1A":"var(--cinza-lt)",color:aberta?"#F5C800":"#1A1A1A",
+                      border:"none",cursor:"pointer",fontWeight:600,fontSize:13}}>
+                    <span>🏗️ {v.obraNome}</span>
+                    <span style={{fontSize:11,fontWeight:400}}>
+                      {itensComSaldo>0 ? `${itensComSaldo} item(ns) com saldo` : "sem saldo"} {aberta?"▲":"▼"}
+                    </span>
+                  </button>
+                  {aberta && (
+                    <div className="table-wrap">
+                      <table>
+                        <thead><tr><th>Material</th><th>Un.</th><th>Comprado</th><th>Usado</th><th>Saldo</th></tr></thead>
+                        <tbody>
+                          {Object.values(v.materiais).sort((a,b)=>a.nome.localeCompare(b.nome)).map((m,i)=>{
+                            const saldo=m.comprado-m.usado;
+                            return (
+                              <tr key={i}>
+                                <td style={{fontWeight:500}}>{m.nome}</td>
+                                <td style={{fontSize:12}}>{m.un}</td>
+                                <td style={{fontSize:12}}>{m.comprado}</td>
+                                <td style={{fontSize:12}}>{m.usado}</td>
+                                <td style={{fontWeight:700,color:saldo>0?"var(--verde)":saldo<0?"var(--vermelho)":"#7A7A7A"}}>{saldo}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
         </>
       )}
 
