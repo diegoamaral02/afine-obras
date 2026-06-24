@@ -1,0 +1,232 @@
+// src/pages/Despesas.js — Controle de gastos / reembolsos por funcionário
+// (migrado da antiga aba "Controle de Gasto" da planilha)
+import React, { useEffect, useState, useMemo } from "react";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, limit } from "firebase/firestore";
+import { db } from "../firebase";
+import { useAuth } from "../contexts/AuthContext";
+import { podeEditar } from "../constants/departamentos";
+import Modal from "../components/Modal";
+import { useToast } from "../hooks/useToast";
+import { exportarExcel, BtnExcel } from "../utils/exportExcel";
+
+const METODOS = ["Cartão","PIX","Transferência","Dinheiro","Boleto","Outro"];
+const fmt  = v => `R$ ${Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}`;
+const hoje = () => new Date().toISOString().split("T")[0];
+
+// ── Modal de Despesa ─────────────────────────────────────────────────────────
+function DespesaModal({ despesa, funcionarios, onClose, addToast }) {
+  const [form, setForm] = useState({
+    data:            despesa?.data            || hoje(),
+    descricao:       despesa?.descricao       || "",
+    valor:           despesa?.valor           || "",
+    metodoPagamento: despesa?.metodoPagamento || "Cartão",
+    reembolso:       despesa?.reembolso       || false,
+    funcionarioId:   despesa?.funcionarioId   || "",
+    funcionarioNome: despesa?.funcionarioNome || "",
+    obs:             despesa?.obs             || "",
+  });
+  const [saving, setSaving] = useState(false);
+  function set(f,v) { setForm(p=>({...p,[f]:v})); }
+  function handleFunc(id) {
+    const f = funcionarios.find(x=>x.id===id);
+    set("funcionarioId", id); set("funcionarioNome", f?.nome||"");
+  }
+
+  async function save() {
+    if (!form.descricao || !form.valor || !form.data) { alert("Informe data, descrição e valor."); return; }
+    setSaving(true);
+    const agora = new Date().toISOString();
+    const payload = { ...form, valor: Number(form.valor), updatedAt: agora };
+    try {
+      if (despesa?.id) { await updateDoc(doc(db,"despesas",despesa.id), payload); addToast("✓ Despesa atualizada!"); }
+      else { payload.createdAt = agora; await addDoc(collection(db,"despesas"), payload); addToast("✓ Despesa registrada!"); }
+      onClose();
+    } catch(err) { addToast("Erro: "+err.message, "error"); }
+    setSaving(false);
+  }
+
+  return (
+    <Modal title={despesa?.id ? "Editar despesa" : "Nova despesa"} onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>Cancelar</button>
+        <button className="btn btn-primary" onClick={save} disabled={saving}>{saving?"Salvando...":"Salvar"}</button>
+      </>}>
+      <div className="form-grid">
+        <div className="form-group"><label className="required">Data</label><input type="date" value={form.data} onChange={e=>set("data",e.target.value)}/></div>
+        <div className="form-group"><label className="required">Valor (R$)</label><input type="number" step="0.01" value={form.valor} onChange={e=>set("valor",e.target.value)} placeholder="0,00"/></div>
+        <div className="form-group span-2"><label className="required">Descrição</label><input value={form.descricao} onChange={e=>set("descricao",e.target.value)} placeholder="Ex: Material, Combustível, Gasolina..."/></div>
+        <div className="form-group">
+          <label>Funcionário</label>
+          <select value={form.funcionarioId} onChange={e=>handleFunc(e.target.value)}>
+            <option value="">Selecione...</option>
+            {funcionarios.map(f=><option key={f.id} value={f.id}>{f.nome}</option>)}
+          </select>
+          {!form.funcionarioId && (
+            <input value={form.funcionarioNome} onChange={e=>set("funcionarioNome",e.target.value)} placeholder="Ou digite o nome (não cadastrado)" style={{marginTop:6}}/>
+          )}
+        </div>
+        <div className="form-group">
+          <label>Método de pagamento</label>
+          <select value={form.metodoPagamento} onChange={e=>set("metodoPagamento",e.target.value)}>
+            {METODOS.map(m=><option key={m}>{m}</option>)}
+          </select>
+        </div>
+        <div className="form-group span-2" style={{display:"flex",alignItems:"center",gap:8}}>
+          <input type="checkbox" checked={form.reembolso} onChange={e=>set("reembolso",e.target.checked)} id="chk-reembolso" style={{width:"auto"}}/>
+          <label htmlFor="chk-reembolso" style={{margin:0}}>Necessita reembolso ao funcionário</label>
+        </div>
+        <div className="form-group span-2"><label>Observações</label><textarea rows={2} value={form.obs} onChange={e=>set("obs",e.target.value)}/></div>
+      </div>
+    </Modal>
+  );
+}
+
+// ── Página principal ─────────────────────────────────────────────────────────
+export default function Despesas() {
+  const { userProfile } = useAuth();
+  const podeEditarDespesas = podeEditar(userProfile, "despesas");
+  const { toasts, addToast } = useToast();
+  const [despesas,     setDespesas]     = useState([]);
+  const [funcionarios, setFuncionarios] = useState([]);
+  const [loading,       setLoading]      = useState(true);
+  const [search,        setSearch]       = useState("");
+  const [filtroMes,     setFiltroMes]    = useState("todos");
+  const [filtroReemb,   setFiltroReemb]  = useState("todos");
+  const [qtdMostrar,    setQtdMostrar]   = useState(100);
+  const [modal,         setModal]        = useState(null);
+
+  useEffect(()=>{
+    const q1 = query(collection(db,"despesas"), orderBy("data","desc"), limit(3000));
+    const u1 = onSnapshot(q1, snap=>{ setDespesas(snap.docs.map(d=>({id:d.id,...d.data()}))); setLoading(false); }, ()=>setLoading(false));
+    const u2 = onSnapshot(collection(db,"usuarios"), snap=>setFuncionarios(snap.docs.map(d=>({id:d.id,...d.data()})).filter(f=>f.status==="ATIVO"||!f.status)));
+    return ()=>{u1();u2();};
+  },[]);
+
+  const meses = useMemo(()=>{
+    const s = new Set(despesas.map(d=>(d.data||"").slice(0,7)).filter(Boolean));
+    return [...s].sort().reverse();
+  },[despesas]);
+
+  const filtradas = useMemo(()=>{
+    const q = search.toLowerCase();
+    return despesas.filter(d=>{
+      const mQ = !q || d.descricao?.toLowerCase().includes(q) || d.funcionarioNome?.toLowerCase().includes(q);
+      const mMes = filtroMes==="todos" || (d.data||"").startsWith(filtroMes);
+      const mReemb = filtroReemb==="todos" || (filtroReemb==="sim"?d.reembolso:!d.reembolso);
+      return mQ && mMes && mReemb;
+    });
+  },[despesas,search,filtroMes,filtroReemb]);
+
+  const kpis = useMemo(()=>({
+    total: filtradas.reduce((s,d)=>s+(d.valor||0),0),
+    qtd: filtradas.length,
+    pendentesReembolso: filtradas.filter(d=>d.reembolso).reduce((s,d)=>s+(d.valor||0),0),
+    qtdPendentes: filtradas.filter(d=>d.reembolso).length,
+  }),[filtradas]);
+
+  async function excluir(d) {
+    if (!window.confirm(`Excluir a despesa "${d.descricao}" (${fmt(d.valor)})?`)) return;
+    try { await deleteDoc(doc(db,"despesas",d.id)); addToast("✓ Excluída"); }
+    catch(err) { addToast("Erro: "+err.message,"error"); }
+  }
+
+  function exportar() {
+    exportarExcel(filtradas, "despesas", [
+      { key:"data", header:"Data" },
+      { key:"descricao", header:"Descrição" },
+      { key:"valor", header:"Valor", format:v=>Number(v||0).toFixed(2) },
+      { key:"metodoPagamento", header:"Método" },
+      { key:"reembolso", header:"Reembolso", format:v=>v?"Sim":"Não" },
+      { key:"funcionarioNome", header:"Funcionário" },
+      { key:"obs", header:"Observações" },
+    ]);
+  }
+
+  return (
+    <div>
+      <div className="toast-container">{toasts.map(t=><div key={t.id} className={`toast toast-${t.type}`}>{t.msg}</div>)}</div>
+
+      <div className="panel-header">
+        <div>
+          <div className="panel-title">Despesas</div>
+          <div style={{fontSize:12,color:"#7A7A7A"}}>{despesas.length} registro(s) · {filtradas.length} exibido(s) no filtro atual</div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <BtnExcel onClick={exportar} disabled={filtradas.length===0}/>
+          {podeEditarDespesas && <button className="btn btn-primary" onClick={()=>setModal({despesa:null})}>+ Nova despesa</button>}
+        </div>
+      </div>
+
+      {/* KPIs */}
+      <div className="kpi-row">
+        <div className="kpi-card"><div className="kpi-label">TOTAL NO FILTRO</div><div className="kpi-value">{fmt(kpis.total)}</div></div>
+        <div className="kpi-card"><div className="kpi-label">LANÇAMENTOS</div><div className="kpi-value">{kpis.qtd}</div></div>
+        <div className="kpi-card" style={{borderLeftColor:"var(--vermelho)"}}>
+          <div className="kpi-label">A REEMBOLSAR</div>
+          <div className="kpi-value" style={{color:"var(--vermelho)"}}>{fmt(kpis.pendentesReembolso)}</div>
+          <div style={{fontSize:11,color:"#7A7A7A"}}>{kpis.qtdPendentes} lançamento(s)</div>
+        </div>
+      </div>
+
+      {/* Filtros */}
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
+        <div className="search-bar" style={{flex:"2 1 220px"}}>🔍<input placeholder="Buscar por descrição ou funcionário..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
+        <select value={filtroMes} onChange={e=>setFiltroMes(e.target.value)} style={{flex:"1 1 140px"}}>
+          <option value="todos">Todos os meses</option>
+          {meses.map(m=><option key={m} value={m}>{m.split("-").reverse().join("/")}</option>)}
+        </select>
+        <select value={filtroReemb} onChange={e=>setFiltroReemb(e.target.value)} style={{flex:"1 1 160px"}}>
+          <option value="todos">Reembolso: todos</option>
+          <option value="sim">Só com reembolso</option>
+          <option value="nao">Só sem reembolso</option>
+        </select>
+      </div>
+
+      {loading && <div className="spinner"/>}
+      {!loading && filtradas.length===0 && (
+        <div className="empty-state"><div className="empty-icon">💰</div><p>Nenhuma despesa encontrada para esse filtro.</p></div>
+      )}
+
+      {!loading && filtradas.length>0 && (
+        <>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Data</th><th>Descrição</th><th>Funcionário</th><th>Método</th>
+                <th>Reembolso</th><th style={{textAlign:"right"}}>Valor</th>
+                {podeEditarDespesas && <th></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {filtradas.slice(0,qtdMostrar).map(d=>(
+                <tr key={d.id}>
+                  <td>{d.data?.split("-").reverse().join("/")}</td>
+                  <td>{d.descricao}</td>
+                  <td>{d.funcionarioNome||"–"}</td>
+                  <td>{d.metodoPagamento||"–"}</td>
+                  <td>{d.reembolso?<span style={{color:"var(--vermelho)",fontWeight:600}}>Sim</span>:"Não"}</td>
+                  <td style={{textAlign:"right",fontWeight:600}}>{fmt(d.valor)}</td>
+                  {podeEditarDespesas && (
+                    <td style={{whiteSpace:"nowrap"}}>
+                      <button className="btn btn-sm" onClick={()=>setModal({despesa:d})}>✏️</button>
+                      <button className="btn btn-sm" onClick={()=>excluir(d)} style={{color:"var(--vermelho)"}}>🗑️</button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filtradas.length>qtdMostrar && (
+            <div style={{textAlign:"center",marginTop:12}}>
+              <button className="btn" onClick={()=>setQtdMostrar(q=>q+200)}>Carregar mais ({filtradas.length-qtdMostrar} restante(s))</button>
+            </div>
+          )}
+        </>
+      )}
+
+      {modal && (
+        <DespesaModal despesa={modal.despesa} funcionarios={funcionarios} onClose={()=>setModal(null)} addToast={addToast}/>
+      )}
+    </div>
+  );
+}

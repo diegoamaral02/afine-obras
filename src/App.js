@@ -20,6 +20,7 @@ import Funcionarios    from "./pages/Funcionarios";
 import Fornecedores    from "./pages/Fornecedores";
 import Compras         from "./pages/Compras";
 import Financeiro      from "./pages/Financeiro";
+import Despesas        from "./pages/Despesas";
 import DRE             from "./pages/DRE";
 import Medicao         from "./pages/Medicao";
 import Calendario      from "./pages/Calendario";
@@ -53,9 +54,10 @@ const MENU = [
     { to:"/compras",   icon:"🛒", label:"Compras",    roles:["gestor","encarregado","campo"] },
     { to:"/materiais", icon:"📦", label:"Materiais",  roles:["gestor","encarregado"] },
   ]},
-  { id:"financeiro", label:"Financeiro", roles:["gestor"], items:[
+  { id:"financeiro", label:"Financeiro", roles:["gestor","encarregado"], items:[
     { to:"/financeiro", icon:"💰", label:"Lançamentos",      roles:["gestor"] },
     { to:"/dre",        icon:"📈", label:"Resultados",         roles:["gestor"] },
+    { to:"/despesas",   icon:"🧾", label:"Despesas",           roles:["gestor","encarregado"] },
   ]},
   { id:"pessoas", label:"Pessoas", roles:["gestor","encarregado"], items:[
     { to:"/equipe",       icon:"👷", label:"Equipe",       roles:["gestor","encarregado"] },
@@ -326,6 +328,7 @@ function AppShell() {
             <Route path="/fornecedores"       element={<Fornecedores/>}/>
             <Route path="/compras"            element={<Compras/>}/>
             <Route path="/financeiro"         element={<Financeiro/>}/>
+            <Route path="/despesas"           element={<Despesas/>}/>
             <Route path="/dre"                element={<DRE/>}/>
             <Route path="/materiais"          element={<MateriaisGlobal/>}/>
             <Route path="*"                   element={<Navigate to="/" replace/>}/>

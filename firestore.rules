@@ -11,6 +11,14 @@ service cloud.firestore {
     function isGestor()      { return isAuth() && perfil() == 'gestor'; }
     function isEncarregado() { return isAuth() && (perfil() == 'encarregado' || perfil() == 'gestor'); }
     function isCampo()       { return isAuth(); }
+    // Detecta departamento "campo" considerando tanto o sistema novo (departamento)
+    // quanto o legado (perfil) — usado para bloquear criação de manutenções
+    // diretamente pelo app de campo (ANEXO 1/2 — não permitir que campo crie)
+    function isCampoDept() {
+      return isAuth() && profile().adm != true &&
+        (profile().departamento == 'campo' ||
+         (!('departamento' in profile()) && perfil() == 'campo'));
+    }
     function obraPermitida(obraId) {
       return isGestor() || profile().obras.hasAny([obraId]);
     }
@@ -39,7 +47,7 @@ service cloud.firestore {
     // ── Manutenções ──────────────────────────────────────────────
     match /manutencoes/{id} {
       allow read:   if isAuth();
-      allow create: if isAuth();
+      allow create: if isAuth() && !isCampoDept();
       allow update: if isAuth();
       allow delete: if isEncarregado();
       match /historico/{hid} {
@@ -100,6 +108,14 @@ service cloud.firestore {
 
     // ── Compras ──────────────────────────────────────────────────
     match /compras/{id} {
+      allow read:   if isAuth();
+      allow create: if isAuth();
+      allow update: if isEncarregado();
+      allow delete: if isGestor();
+    }
+
+    // ── Despesas / reembolsos (novo — migrado do controle de planilha) ─
+    match /despesas/{id} {
       allow read:   if isAuth();
       allow create: if isAuth();
       allow update: if isEncarregado();
