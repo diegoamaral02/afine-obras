@@ -134,3 +134,23 @@ export function isCampo(userProfile) {
   const dep = userProfile.departamento || userProfile.perfil || "campo";
   return dep === "campo";
 }
+
+// Departamento efetivo do usuário, com ADM Master sempre resolvendo para "adm"
+export function getDepartamentoEfetivo(userProfile) {
+  if (!userProfile) return "campo";
+  if (userProfile.adm === true) return "adm";
+  return userProfile.departamento || userProfile.perfil || "campo";
+}
+
+// Regras de agenda por departamento:
+// - Gestão, Financeiro e ADM: a agenda que eles criam fica PRIVADA por padrão
+//   (só quem criou vê) até que marquem explicitamente "disponibilizar para todos".
+// - Fiscal, Gestão e ADM: têm a opção de filtrar a visão do calendário para
+//   "mostrar apenas minha agenda" (Campo já é restrito sem opção; Financeiro e
+//   Compras sempre veem todas as agendas não-privadas, sem esse filtro).
+export function agendaPrivadaPorPadrao(userProfile) {
+  return ["gestao","financeiro","adm"].includes(getDepartamentoEfetivo(userProfile));
+}
+export function temFiltroSoMinhaAgenda(userProfile) {
+  return ["fiscal","gestao","adm"].includes(getDepartamentoEfetivo(userProfile));
+}

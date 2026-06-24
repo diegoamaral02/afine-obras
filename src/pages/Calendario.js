@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from "react";
 import { useAgenda } from "../contexts/AgendaContext";
 import { useAuth } from "../contexts/AuthContext";
-import { isCampo } from "../constants/departamentos";
+import { isCampo, agendaPrivadaPorPadrao, temFiltroSoMinhaAgenda } from "../constants/departamentos";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 import { initials } from "../utils/helpers";
@@ -36,13 +36,15 @@ function toISO(date) {
 // Modal de novo agendamento
 function AgendaModal({ diaInicial, onClose, addToast }) {
   const { obras, manutencoes, funcionarios, criarAgendamento, atualizarAgendamento, funcOcupado } = useAgenda();
-  const { userProfile } = useAuth();
+  const { userProfile, currentUser } = useAuth();
+  const temPrivacidade = agendaPrivadaPorPadrao(userProfile); // gestão, financeiro e ADM
   const [form, setForm] = useState({
     titulo: "", demandaTipo: "obra", demandaId: "",
     dataInicio: diaInicial || new Date().toISOString().split("T")[0],
     dataFim:    diaInicial || new Date().toISOString().split("T")[0],
     turno: "integral", obs: "",
     funcionarios: [],
+    publico: !temPrivacidade, // gestão/financeiro/ADM começam privado; demais já públicos
   });
   const [saving, setSaving] = useState(false);
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
@@ -74,6 +76,8 @@ function AgendaModal({ diaInicial, onClose, addToast }) {
       ...form,
       demandaNome: demanda?.nome||demanda?.titulo||"",
       autor: userProfile?.nome||"–",
+      criadorId: currentUser?.uid||"", criadorNome: userProfile?.nome||"–",
+      privado: temPrivacidade && !form.publico,
     };
     try {
       await criarAgendamento(payload);
@@ -157,6 +161,20 @@ function AgendaModal({ diaInicial, onClose, addToast }) {
             </div>
           )}
         </div>
+
+        {temPrivacidade && (
+          <div className="alert alert-info" style={{display:"flex",flexDirection:"column",gap:6}}>
+            <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",margin:0}}>
+              <input type="checkbox" checked={form.publico} onChange={e=>set("publico",e.target.checked)} style={{width:"auto"}}/>
+              <span style={{fontSize:13,fontWeight:600}}>👁️ Disponibilizar esta agenda para todos verem</span>
+            </label>
+            <span style={{fontSize:11,color:"#7A7A7A"}}>
+              {form.publico
+                ? "Visível para todos os usuários no calendário."
+                : "Por padrão, sua agenda fica visível só para você — ninguém mais vê este agendamento até que você marque a opção acima."}
+            </span>
+          </div>
+        )}
 
         <div className="form-group"><label>Observações</label>
           <textarea value={form.obs} onChange={e=>set("obs",e.target.value)} rows={2}/>
@@ -310,9 +328,36 @@ export default function Calendario() {
       };
     });
 
-  const todosEventos = useMemo(
+  const todosEventosBruto = useMemo(
     () => [...agendamentos.map(a=>({...a, origem:"manual"})), ...eventosDerivadosObras, ...eventosDerivadosManut],
     [agendamentos, eventosDerivadosObras, eventosDerivadosManut]
+  );
+
+  // ── Visibilidade por departamento ────────────────────────────────────
+  // Gestão/Financeiro/ADM: agenda criada por eles fica PRIVADA por padrão —
+  // só quem criou vê, a não ser que tenha marcado "disponibilizar para todos"
+  // ao criar. Eventos derivados de Obras/Manutenções não têm esse conceito
+  // (são sempre visíveis a quem já tem acesso à obra/manutenção).
+  const todosEventos = useMemo(
+    () => todosEventosBruto.filter(ev =>
+      !ev.privado || ev.criadorId === currentUser?.uid
+    ),
+    [todosEventosBruto, currentUser]
+  );
+
+  // "Mostrar apenas minha agenda" — obrigatório para Campo (sem opção),
+  // opcional para Fiscal/Gestão/ADM (toggle), inexistente para Financeiro/Compras
+  const mostraToggleSoMinha = temFiltroSoMinhaAgenda(userProfile);
+  const [soMinha, setSoMinha] = useState(false);
+  const filtroSoMinhaAtivo = souCampo || soMinha;
+
+  function souParticipante(ev) {
+    return (ev.funcionarios||[]).includes(currentUser?.uid) || ev.criadorId === currentUser?.uid;
+  }
+
+  const eventosExibidos = useMemo(
+    () => filtroSoMinhaAtivo ? todosEventos.filter(souParticipante) : todosEventos,
+    [todosEventos, filtroSoMinhaAtivo, currentUser]
   );
 
   const dias = diasDoMes(ano, mes);
@@ -326,9 +371,10 @@ export default function Calendario() {
     setMes(m); setAno(a);
   }
 
-  // Eventos (manuais + derivados de Obras/Manutenções) que ocorrem em determinado dia
+  // Eventos (manuais + derivados de Obras/Manutenções), já filtrados por
+  // privacidade e pelo modo "só minha agenda", que ocorrem em determinado dia
   function agsNoDia(diaISO) {
-    return todosEventos.filter(a => a.dataInicio<=diaISO && a.dataFim>=diaISO);
+    return eventosExibidos.filter(a => a.dataInicio<=diaISO && a.dataFim>=diaISO);
   }
 
   const hojeISO = toISO(hoje);
@@ -341,9 +387,15 @@ export default function Calendario() {
       <div className="panel-header">
         <div>
           <div className="panel-title">Calendário</div>
-          <div style={{fontSize:12,color:"#7A7A7A"}}>{todosEventos.length} evento(s) · {MESES[mes]} {ano}</div>
+          <div style={{fontSize:12,color:"#7A7A7A"}}>{eventosExibidos.length} evento(s) · {MESES[mes]} {ano}</div>
         </div>
         <div style={{display:"flex",gap:8}}>
+          {mostraToggleSoMinha && (
+            <button className="btn btn-sm" onClick={()=>setSoMinha(v=>!v)}
+              style={{background:soMinha?"#1A1A1A":"",color:soMinha?"var(--afine-yellow)":""}}>
+              {soMinha?"✓ ":""}Só minha agenda
+            </button>
+          )}
           <div style={{display:"flex",border:"1px solid var(--border)",borderRadius:6,overflow:"hidden"}}>
             <button className="btn btn-sm" style={{borderRadius:0,border:"none",background:vista==="mes"?"#1A1A1A":"",color:vista==="mes"?"#F5C800":""}} onClick={()=>setVista("mes")}>Mês</button>
             <button className="btn btn-sm" style={{borderRadius:0,border:"none",background:vista==="semana"?"#1A1A1A":"",color:vista==="semana"?"#F5C800":""}} onClick={()=>setVista("semana")}>Semana</button>
@@ -440,7 +492,7 @@ export default function Calendario() {
       )}
 
       {/* Legenda */}
-      {todosEventos.length>0&&(
+      {eventosExibidos.length>0&&(
         <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:8}}>
           <div style={{display:"flex",gap:14,flexWrap:"wrap",fontSize:11,color:"#7A7A7A"}}>
             <span><span style={{color:"#2D6A1F",fontWeight:700}}>▶</span> dia de início</span>
@@ -448,8 +500,8 @@ export default function Calendario() {
             <span><span style={{color:"#7B4F00",fontWeight:700}}>●</span> início e término no mesmo dia</span>
           </div>
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-            {[...new Set(todosEventos.map(a=>a.demandaId))].slice(0,8).map(id=>{
-              const ag=todosEventos.find(a=>a.demandaId===id);
+            {[...new Set(eventosExibidos.map(a=>a.demandaId))].slice(0,8).map(id=>{
+              const ag=eventosExibidos.find(a=>a.demandaId===id);
               return ag?(
                 <div key={id} style={{display:"flex",alignItems:"center",gap:5,fontSize:11}}>
                   <div style={{width:10,height:10,borderRadius:2,background:corDemanda(id),flexShrink:0}}/>
