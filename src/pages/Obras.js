@@ -88,9 +88,14 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   const [transferenciasObra, setTransferenciasObra] = useState([]);
   useEffect(() => {
     if (!obra?.id) return;
+    // BUG CORRIGIDO: a consulta combinava 2 filtros (demandaTipo + demandaId).
+    // Para evitar qualquer dependência de índice composto no Firestore (mesmo
+    // tipo de bug já visto no Calendário), busca-se só por demandaTipo=="obra"
+    // (filtro único) e filtra o demandaId no próprio app.
     return onSnapshot(
-      query(collection(db,"compras"), where("demandaTipo","==","obra"), where("demandaId","==",obra.id)),
-      snap => setComprasObra(snap.docs.map(d=>({id:d.id,...d.data()})))
+      query(collection(db,"compras"), where("demandaTipo","==","obra")),
+      snap => setComprasObra(snap.docs.map(d=>({id:d.id,...d.data()})).filter(c=>c.demandaId===obra.id)),
+      err => console.error("Erro ao buscar compras da obra:", err)
     );
   }, [obra?.id]);
   useEffect(() => {
@@ -98,7 +103,7 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
     return onSnapshot(collection(db,"transferencias_material"), snap => {
       const todas = snap.docs.map(d=>({id:d.id,...d.data()}));
       setTransferenciasObra(todas.filter(t=>t.obraOrigemId===obra.id||t.obraDestinoId===obra.id));
-    });
+    }, err => console.error("Erro ao buscar transferências:", err));
   }, [obra?.id]);
 
   // Total comprado e recebido (conferido) por material, agregando todas as compras
