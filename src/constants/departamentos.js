@@ -136,10 +136,16 @@ export function isCampo(userProfile) {
 }
 
 // Departamento efetivo do usuário, com ADM Master sempre resolvendo para "adm"
+// BUG CORRIGIDO: contas antigas usam o campo legado perfil:"gestor" (sem
+// "departamento" definido). Sem este mapeamento, "gestor" (legado) não batia
+// com "gestao" (novo id), fazendo o checkbox de privacidade e o botão "Só
+// minha agenda" não aparecerem para esses usuários.
 export function getDepartamentoEfetivo(userProfile) {
   if (!userProfile) return "campo";
   if (userProfile.adm === true) return "adm";
-  return userProfile.departamento || userProfile.perfil || "campo";
+  const dep = userProfile.departamento || userProfile.perfil || "campo";
+  if (dep === "gestor") return "gestao";
+  return dep;
 }
 
 // Regras de agenda por departamento:
