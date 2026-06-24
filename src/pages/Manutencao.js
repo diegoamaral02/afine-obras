@@ -535,7 +535,18 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
             </div>
           )}
 
-          {showOS&&<OSDigital manut={form} fotos={fotos} onConcluir={(os)=>{setOsDigital(os);setShowOS(false);}} onClose={()=>setShowOS(false)}/>}
+          {showOS&&(
+            <Modal title="Ordem de Serviço Digital" onClose={()=>setShowOS(false)}>
+              <OSDigital
+                manutencao={true}
+                descritivos={form.descProntas}
+                descExtra={form.descExtra}
+                funcionario={{ nome: nomeUser, funcao: userProfile?.departamento||userProfile?.perfil||"" }}
+                onSalvar={(os)=>{setOsDigital(os);setShowOS(false);}}
+                onFechar={()=>setShowOS(false)}
+              />
+            </Modal>
+          )}
 
           {/* Botão concluir manutenção */}
           {podeConcluir&&(

@@ -9,17 +9,31 @@ import { isCampo } from "../constants/departamentos";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
 import Modal from "../components/Modal";
 import PhotoUploader from "../components/PhotoUploader";
+import OSDigital from "../components/OSDigital";
 import { useToast } from "../hooks/useToast";
 import { Ocorrencias } from "./Equipe";
 import Medicao from "./Medicao";
 import Diario from "./Diario";
 
 const TIPOS_OBRA = ["Reforma geral","Layout","Adequação","Retrofit","Manutenção preventiva","Manutenção corretiva","Instalação","Ampliação","Outro"];
+const MIN_FOTOS_OBRA = 15;
+// Mesmo checklist usado em Manutenção, para manter a mesma restrição de conclusão
+const CHECKLIST_ITENS = [
+  "Elétrica — tomadas e interruptores","Elétrica — quadro de distribuição","Elétrica — iluminação",
+  "Hidráulica — torneiras e metais","Hidráulica — vasos e louças","Hidráulica — tubulação visível",
+  "Ar-condicionado — filtros limpos","Ar-condicionado — funcionamento","Cabeamento — pontos de rede",
+  "Cabeamento — rack e patch panel","Pintura — paredes e teto","Piso — estado geral",
+  "Forro — estado geral","Portas e fechaduras","Controle de acesso","CFTV — câmeras",
+  "Sinalização de emergência","Extintores — validade","Limpeza geral",
+];
 
 
 
 function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
-  const [aba, setAba] = useState("dados");
+  const { userProfile, currentUser } = useAuth();
+  const isCampoUser = isCampo(userProfile);
+  const nomeUser = userProfile?.nome || currentUser?.email || "–";
+  const [aba, setAba] = useState(isCampoUser ? "materiais" : "dados");
   const [form, setForm] = useState({
     nome: obra?.nome||"", tipo: obra?.tipo||"", cliente: obra?.cliente||"",
     clienteId: obra?.clienteId||"",
@@ -43,10 +57,27 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
     // Extra
     subcontratados: obra?.subcontratados||"",
     obs: obra?.obs||"",
+    // Execução (mesmas restrições de Manutenção)
+    materiais: obra?.materiais||[],
+    semMaterial: obra?.semMaterial||false,
+    motivoSemMaterial: obra?.motivoSemMaterial||"",
   });
   const [fotos, setFotos] = useState(obra?.fotos||[]);
+  const [checklist, setChecklist] = useState(obra?.checklist||{});
+  const [osDigital, setOsDigital] = useState(obra?.osDigital||null);
+  const [showOS, setShowOS] = useState(false);
   const [buscandoCEP, setBuscandoCEP] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [matNome, setMatNome] = useState("");
+  const [matQtd,  setMatQtd]  = useState("");
+  const [matUn,   setMatUn]   = useState("un");
+
+  function toggleCheck(item) { setChecklist(p=>({...p,[item]:!p[item]})); }
+  function adicionarMaterial() {
+    if(!matNome.trim()||!matQtd){alert("Informe nome e quantidade.");return;}
+    setForm(p=>({...p,materiais:[...p.materiais,{nome:matNome,qtd:Number(matQtd),un:matUn}]}));
+    setMatNome("");setMatQtd("");
+  }
 
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
   function handleFunc(field, idField, e) {
@@ -71,11 +102,26 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
     else window.open(`https://www.google.com/maps/search/?api=1&query=${end}`,"_blank");
   }
 
+  const fotosOk = fotos.length>=MIN_FOTOS_OBRA;
+  const matOk   = form.materiais.length>0 || (form.semMaterial && form.motivoSemMaterial?.trim());
+  const osOk    = !!osDigital;
+  const endOk   = form.logradouro&&form.numero&&form.cep;
+  const podeConcluir = fotosOk&&matOk&&osOk&&endOk;
+
   async function save() {
     if (!form.nome||!form.cliente) { alert("Nome e cliente são obrigatórios."); return; }
+    if (form.status==="CONCLUÍDA"&&!podeConcluir) {
+      const msgs=[];
+      if(!fotosOk) msgs.push(`• ${MIN_FOTOS_OBRA} fotos (você tem ${fotos.length})`);
+      if(!matOk)   msgs.push("• Materiais utilizados (ou justificar ausência)");
+      if(!osOk)    msgs.push("• OS digital assinada");
+      if(!endOk)   msgs.push("• Endereço completo");
+      alert("Para concluir:\n"+msgs.join("\n"));
+      return;
+    }
     setSaving(true);
     const agora = new Date().toISOString();
-    const payload = { ...form, progresso: Number(form.progresso)||0, fotos, updatedAt: agora };
+    const payload = { ...form, progresso: Number(form.progresso)||0, fotos, checklist, osDigital: osDigital||null, updatedAt: agora };
     try {
       if (obra?.id) { await updateDoc(doc(db,"obras",obra.id),payload); addToast("Obra atualizada!"); }
       else { payload.createdAt=agora; await addDoc(collection(db,"obras"),payload); addToast("Obra criada!"); }
@@ -84,7 +130,10 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
     setSaving(false);
   }
 
-  const ABAS = ["dados","endereço","financeiro","fotos"];
+  const ABAS = isCampoUser
+    ? ["materiais","fotos_checklist","os_digital"]
+    : ["dados","endereço","financeiro","materiais","fotos_checklist","os_digital"];
+  const LABELS = { dados:"Dados", "endereço":"Endereço", financeiro:"Financeiro", materiais:"Materiais", fotos_checklist:"Fotos & Checklist", os_digital:"OS Digital" };
 
   return (
     <Modal title={obra?.id?"Editar obra":"Nova obra"} onClose={onClose}
@@ -94,7 +143,7 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
         {ABAS.map((a,i)=>(
           <button key={a} onClick={()=>setAba(a)} className="btn btn-sm"
             style={{background:aba===a?"var(--afine-yellow)":"",borderColor:aba===a?"var(--afine-yellow)":"",fontWeight:aba===a?700:400,color:aba===a?"var(--afine-black)":""}}>
-            {a.charAt(0).toUpperCase()+a.slice(1)}
+            {LABELS[a]}
           </button>
         ))}
       </div>
@@ -271,10 +320,138 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
         </div>
       )}
 
-      {aba==="fotos" && (
-        <div>
-          <div style={{fontSize:12,color:"#7A7A7A",marginBottom:12}}>Fotos de vistoria e registro da obra. Não há mínimo obrigatório aqui.</div>
-          <PhotoUploader fotos={fotos} onChange={setFotos} minFotos={0}/>
+      {aba==="materiais" && (
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          {isCampoUser&&(
+            <div style={{background:"#1A1A1A",borderRadius:8,padding:12,color:"#fff"}}>
+              <div style={{fontWeight:600,fontSize:14,color:"#F5C800"}}>{obra?.nome}</div>
+              <div style={{fontSize:12,color:"rgba(255,255,255,.5)",marginTop:2}}>{obra?.cliente}{obra?.agenciaNome&&` · ${obra.agenciaNome}`}</div>
+              {obra?.logradouro&&<button onClick={abrirNavegacao} style={{background:"none",border:"none",color:"#F5C800",cursor:"pointer",fontSize:12,padding:0,marginTop:4}}>🗺️ {obra.logradouro}, {obra.numero}</button>}
+            </div>
+          )}
+          <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>Materiais utilizados <span style={{color:"var(--vermelho)"}}>*</span></div>
+          <div style={{display:"flex",gap:6,alignItems:"flex-end"}}>
+            <div className="form-group" style={{flex:2}}><label>Material</label><input value={matNome} onChange={e=>setMatNome(e.target.value)} placeholder="Ex: Saco de cimento"/></div>
+            <div className="form-group" style={{width:80}}><label>Qtd.</label><input type="number" min="0" value={matQtd} onChange={e=>setMatQtd(e.target.value)}/></div>
+            <div className="form-group" style={{width:80}}><label>Un.</label>
+              <select value={matUn} onChange={e=>setMatUn(e.target.value)}>
+                {["un","m","m²","kg","saco","cx","rolo","litro"].map(u=><option key={u}>{u}</option>)}
+              </select>
+            </div>
+            <button className="btn btn-primary btn-sm" onClick={adicionarMaterial} style={{marginBottom:1}}>+ Add</button>
+          </div>
+
+          <label style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",borderRadius:8,cursor:"pointer",
+            background:form.semMaterial?"rgba(245,200,0,.08)":"var(--cinza-lt)",
+            border:`1px solid ${form.semMaterial?"var(--afine-yellow-dk)":"var(--border)"}`,transition:".15s"}}>
+            <input type="checkbox" checked={!!form.semMaterial} onChange={e=>set("semMaterial",e.target.checked)}
+              style={{width:17,height:17,marginTop:1,flexShrink:0}}/>
+            <div>
+              <div style={{fontSize:13,fontWeight:600,color:form.semMaterial?"var(--afine-yellow-dk)":"#4A4A4A"}}>
+                Não foi necessário utilizar materiais
+              </div>
+              <div style={{fontSize:11,color:"#7A7A7A",marginTop:2}}>
+                Marque esta opção e justifique o motivo para liberar a conclusão sem materiais
+              </div>
+            </div>
+          </label>
+
+          {form.semMaterial && (
+            <div className="form-group">
+              <label className="required" style={{color:"var(--afine-yellow-dk)"}}>
+                Justificativa obrigatória — por que não houve uso de materiais?
+              </label>
+              <textarea
+                value={form.motivoSemMaterial}
+                onChange={e=>set("motivoSemMaterial",e.target.value)}
+                rows={3}
+                placeholder="Ex: Mão de obra apenas / Material já estava no canteiro / Serviço de limpeza..."
+                style={{borderColor:!form.motivoSemMaterial?.trim()?"var(--afine-yellow-dk)":"var(--verde)"}}
+              />
+              {form.motivoSemMaterial?.trim() && (
+                <span style={{fontSize:11,color:"var(--verde)",fontWeight:600}}>✓ Justificativa registrada</span>
+              )}
+            </div>
+          )}
+
+          {!form.semMaterial && form.materiais.length===0&&<div className="alert alert-warning" style={{fontSize:12}}>Adicione pelo menos 1 material ou marque "Não foi necessário utilizar materiais".</div>}
+          {form.materiais.length>0&&(
+            <div className="table-wrap"><table><thead><tr><th>Material</th><th>Qtd.</th><th>Un.</th><th></th></tr></thead>
+              <tbody>{form.materiais.map((m,i)=>(
+                <tr key={i}><td style={{fontWeight:500}}>{m.nome}</td><td>{m.qtd}</td><td>{m.un}</td>
+                  <td><button className="btn btn-sm" style={{color:"var(--vermelho)"}} onClick={()=>setForm(p=>({...p,materiais:p.materiais.filter((_,j)=>j!==i)}))}>✕</button></td>
+                </tr>
+              ))}</tbody>
+            </table></div>
+          )}
+        </div>
+      )}
+
+      {aba==="fotos_checklist" && (
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <PhotoUploader fotos={fotos} onChange={setFotos} minFotos={MIN_FOTOS_OBRA}/>
+          <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>
+            Checklist de vistoria ({Object.values(checklist).filter(Boolean).length}/{CHECKLIST_ITENS.length})
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:3,maxHeight:240,overflowY:"auto"}}>
+            {CHECKLIST_ITENS.map(item=>(
+              <label key={item} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,cursor:"pointer",padding:"5px 8px",borderRadius:5,
+                background:checklist[item]?"var(--verde-lt)":"var(--cinza-lt)",
+                border:`1px solid ${checklist[item]?"rgba(45,106,31,.2)":"var(--border)"}`,transition:".15s"}}>
+                <input type="checkbox" checked={!!checklist[item]} onChange={()=>toggleCheck(item)} style={{width:15,height:15}}/>
+                <span style={{color:checklist[item]?"var(--verde)":"#4A4A4A"}}>{item}</span>
+                {checklist[item]&&<span style={{marginLeft:"auto",fontSize:14}}>✓</span>}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {aba==="os_digital" && (
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,fontSize:11}}>
+            <div style={{textAlign:"center",background:fotosOk?"var(--verde-lt)":"var(--vermelho-lt)",borderRadius:8,padding:8}}>
+              <div style={{fontSize:18,marginBottom:2}}>{fotosOk?"✅":"📷"}</div>
+              <div style={{fontWeight:600,color:fotosOk?"var(--verde)":"var(--vermelho)"}}>{fotos.length}/{MIN_FOTOS_OBRA} fotos</div>
+            </div>
+            <div style={{textAlign:"center",background:matOk?"var(--verde-lt)":"var(--vermelho-lt)",borderRadius:8,padding:8}}>
+              <div style={{fontSize:18,marginBottom:2}}>{matOk?"✅":"📦"}</div>
+              <div style={{fontWeight:600,color:matOk?"var(--verde)":"var(--vermelho)"}}>{form.materiais.length} mater.</div>
+            </div>
+            <div style={{textAlign:"center",background:osOk?"var(--verde-lt)":"var(--cinza-lt)",borderRadius:8,padding:8}}>
+              <div style={{fontSize:18,marginBottom:2}}>{osOk?"✅":"✍️"}</div>
+              <div style={{fontWeight:600,color:osOk?"var(--verde)":"#7A7A7A"}}>OS {osOk?"assinada":"pendente"}</div>
+            </div>
+          </div>
+
+          {!osDigital?(
+            <button className="btn btn-primary" onClick={()=>setShowOS(true)} style={{padding:"14px",fontSize:14}}>✍️ Assinar OS digital</button>
+          ):(
+            <div style={{background:"var(--verde-lt)",border:"1px solid rgba(45,106,31,.3)",borderRadius:8,padding:12,textAlign:"center"}}>
+              <div style={{fontSize:32,marginBottom:4}}>✅</div>
+              <div style={{fontWeight:600,color:"var(--verde)"}}>OS assinada!</div>
+              <button className="btn btn-sm" onClick={()=>setOsDigital(null)} style={{marginTop:8,fontSize:11}}>Refazer assinatura</button>
+            </div>
+          )}
+
+          {showOS&&(
+            <Modal title="Ordem de Serviço Digital" onClose={()=>setShowOS(false)}>
+              <OSDigital
+                manutencao={false}
+                descExtra={form.obs}
+                funcionario={{ nome: nomeUser, funcao: userProfile?.departamento||userProfile?.perfil||"" }}
+                onSalvar={(os)=>{setOsDigital(os);setShowOS(false);}}
+                onFechar={()=>setShowOS(false)}
+              />
+            </Modal>
+          )}
+
+          {podeConcluir&&(
+            <button className="btn btn-primary" style={{background:"var(--verde)",borderColor:"var(--verde)",padding:14,fontSize:14,marginTop:4}}
+              onClick={()=>{set("status","CONCLUÍDA");setTimeout(save,100);}}>
+              🏁 Concluir obra
+            </button>
+          )}
         </div>
       )}
     </Modal>
