@@ -12,7 +12,11 @@ const CORES_DEMANDA = [
   "#1A1A1A","#185FA5","#2D6A1F","#8A1F1F","#7B4F00",
   "#1A4A6E","#4A1A6E","#006E4A","#6E1A3A","#4A4A00",
 ];
-function corDemanda(id="") {
+function corDemanda(id) {
+  id = id || ""; // BUG CORRIGIDO: id="" como valor padrão de parâmetro só cobre
+                 // "undefined", não "null" — e os agendamentos migrados da
+                 // planilha sem cliente vinculado têm demandaId=null, o que
+                 // quebrava "for...of null" e deixava a tela em branco.
   let h=0; for(let c of id) h=(h*31+c.charCodeAt(0))%CORES_DEMANDA.length;
   return CORES_DEMANDA[h];
 }
