@@ -1,7 +1,7 @@
 import { buscarCEP } from "../utils/cep";
 // src/pages/Obras.js — completo com endereço, busca CEP, fotos, medições, subcontratados
-import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, doc } from "firebase/firestore";
+import React, { useEffect, useState, useMemo } from "react";
+import { collection, onSnapshot, addDoc, updateDoc, doc, query, where } from "firebase/firestore";
 import { db } from "../firebase";
 import { statusBadge, fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -77,6 +77,54 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
     if(!matNome.trim()||!matQtd){alert("Informe nome e quantidade.");return;}
     setForm(p=>({...p,materiais:[...p.materiais,{nome:matNome,qtd:Number(matQtd),un:matUn}]}));
     setMatNome("");setMatQtd("");
+  }
+
+  // ── Controle de estoque: o que foi comprado/recebido para esta obra ────────
+  // Busca todas as compras vinculadas a esta obra que já passaram pela
+  // conferência de recebimento ("RECEBIDO" em diante) com resultado "conforme"
+  // — ou seja, material que realmente entrou e foi confirmado, não apenas
+  // solicitado. Isso fica disponível pra usar na execução (aba Materiais).
+  const [comprasObra, setComprasObra] = useState([]);
+  useEffect(() => {
+    if (!obra?.id) return;
+    return onSnapshot(
+      query(collection(db,"compras"), where("demandaTipo","==","obra"), where("demandaId","==",obra.id)),
+      snap => setComprasObra(snap.docs.map(d=>({id:d.id,...d.data()})))
+    );
+  }, [obra?.id]);
+
+  // Total comprado e recebido (conferido) por material, agregando todas as compras
+  const materiaisComprados = useMemo(() => {
+    const mapa = {};
+    comprasObra
+      .filter(c => ["RECEBIDO","AGUARD. NF","NF VINCULADA"].includes(c.status) && (c.tipoReceb==="conforme"||!c.tipoReceb))
+      .forEach(c => (c.itens||[]).forEach(it => {
+        const key = `${it.nome.trim().toLowerCase()}|${it.un}`;
+        if (!mapa[key]) mapa[key] = { nome: it.nome, un: it.un, comprado: 0 };
+        mapa[key].comprado += Number(it.qtd)||0;
+      }));
+    return mapa;
+  }, [comprasObra]);
+
+  // Total já utilizado por material, agregando o que já foi lançado nesta obra
+  const materiaisUtilizados = useMemo(() => {
+    const mapa = {};
+    form.materiais.forEach(m => {
+      const key = `${m.nome.trim().toLowerCase()}|${m.un}`;
+      mapa[key] = (mapa[key]||0) + (Number(m.qtd)||0);
+    });
+    return mapa;
+  }, [form.materiais]);
+
+  const [usoQtd, setUsoQtd] = useState({}); // quantidade a usar agora, por material comprado
+
+  function usarMaterialComprado(key, item) {
+    const qtd = Number(usoQtd[key]);
+    if (!qtd || qtd<=0) { alert("Informe a quantidade utilizada."); return; }
+    const saldo = item.comprado - (materiaisUtilizados[key]||0);
+    if (qtd > saldo) { alert(`Saldo disponível é de apenas ${saldo} ${item.un}.`); return; }
+    setForm(p=>({...p,materiais:[...p.materiais,{nome:item.nome,qtd,un:item.un,origemCompra:true}]}));
+    setUsoQtd(p=>({...p,[key]:""}));
   }
 
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
@@ -330,6 +378,35 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
             </div>
           )}
           <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>Materiais utilizados <span style={{color:"var(--vermelho)"}}>*</span></div>
+
+          {Object.keys(materiaisComprados).length>0 && (
+            <div style={{background:"var(--cinza-lt)",border:"1px solid var(--border)",borderRadius:8,padding:12}}>
+              <div style={{fontSize:12,fontWeight:700,color:"#4A4A4A",marginBottom:8}}>📦 Comprado e recebido para esta obra</div>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {Object.entries(materiaisComprados).map(([key,item])=>{
+                  const utilizado = materiaisUtilizados[key]||0;
+                  const saldo = item.comprado - utilizado;
+                  return (
+                    <div key={key} style={{display:"flex",alignItems:"center",gap:8,background:"#fff",borderRadius:6,padding:"8px 10px",border:"1px solid var(--border)",flexWrap:"wrap"}}>
+                      <div style={{flex:"2 1 140px",minWidth:0}}>
+                        <div style={{fontWeight:600,fontSize:13}}>{item.nome}</div>
+                        <div style={{fontSize:11,color:"#7A7A7A"}}>
+                          Comprado: {item.comprado}{item.un} · Usado: {utilizado}{item.un} ·{" "}
+                          <span style={{fontWeight:700,color:saldo>0?"var(--verde)":"var(--vermelho)"}}>Saldo: {saldo}{item.un}</span>
+                        </div>
+                      </div>
+                      <input type="number" min="0" max={saldo} placeholder="Qtd. usar" value={usoQtd[key]||""}
+                        onChange={e=>setUsoQtd(p=>({...p,[key]:e.target.value}))}
+                        style={{width:90}} disabled={saldo<=0}/>
+                      <button className="btn btn-primary btn-sm" disabled={saldo<=0} onClick={()=>usarMaterialComprado(key,item)}>Usar</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>Adicionar material avulso (não comprado pelo sistema)</div>
           <div style={{display:"flex",gap:6,alignItems:"flex-end"}}>
             <div className="form-group" style={{flex:2}}><label>Material</label><input value={matNome} onChange={e=>setMatNome(e.target.value)} placeholder="Ex: Saco de cimento"/></div>
             <div className="form-group" style={{width:80}}><label>Qtd.</label><input type="number" min="0" value={matQtd} onChange={e=>setMatQtd(e.target.value)}/></div>
@@ -376,9 +453,10 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
 
           {!form.semMaterial && form.materiais.length===0&&<div className="alert alert-warning" style={{fontSize:12}}>Adicione pelo menos 1 material ou marque "Não foi necessário utilizar materiais".</div>}
           {form.materiais.length>0&&(
-            <div className="table-wrap"><table><thead><tr><th>Material</th><th>Qtd.</th><th>Un.</th><th></th></tr></thead>
+            <div className="table-wrap"><table><thead><tr><th>Material</th><th>Qtd.</th><th>Un.</th><th>Origem</th><th></th></tr></thead>
               <tbody>{form.materiais.map((m,i)=>(
                 <tr key={i}><td style={{fontWeight:500}}>{m.nome}</td><td>{m.qtd}</td><td>{m.un}</td>
+                  <td>{m.origemCompra?<span className="badge badge-green" style={{fontSize:9}}>📦 Comprado</span>:<span style={{fontSize:11,color:"#7A7A7A"}}>Avulso</span>}</td>
                   <td><button className="btn btn-sm" style={{color:"var(--vermelho)"}} onClick={()=>setForm(p=>({...p,materiais:p.materiais.filter((_,j)=>j!==i)}))}>✕</button></td>
                 </tr>
               ))}</tbody>
