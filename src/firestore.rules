@@ -114,6 +114,22 @@ service cloud.firestore {
       allow delete: if isGestor();
     }
 
+    // ── Despesas / reembolsos (novo — migrado do controle de planilha) ─
+    match /despesas/{id} {
+      allow read:   if isAuth();
+      allow create: if isAuth();
+      allow update: if isEncarregado();
+      allow delete: if isGestor();
+    }
+
+    // ── Transferências de material entre obras ──────────────────────
+    match /transferencias_material/{id} {
+      allow read:   if isAuth();
+      allow create: if isEncarregado();
+      allow update: if isEncarregado();
+      allow delete: if isGestor();
+    }
+
     // ── Fornecedores ──────────────────────────────────────────────
     match /fornecedores/{id} {
       allow read:  if isAuth();

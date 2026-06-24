@@ -101,6 +101,64 @@ function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }
   );
 }
 
+// Modal de transferência de saldo entre obras
+function TransferenciaModal({ origem, material, obras, onClose, addToast }) {
+  const { userProfile } = useAuth();
+  const [destinoId, setDestinoId] = useState("");
+  const [qtd, setQtd] = useState("");
+  const [obs, setObs] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const saldo = material.comprado - material.usado;
+  const destinos = obras.filter(o=>o.id!==origem.obraId);
+
+  async function salvar() {
+    if (!destinoId) { alert("Selecione a obra de destino."); return; }
+    if (!qtd || Number(qtd)<=0) { alert("Informe uma quantidade válida."); return; }
+    if (Number(qtd) > saldo) { alert(`Saldo disponível é de apenas ${saldo} ${material.un}.`); return; }
+    setSaving(true);
+    const destino = obras.find(o=>o.id===destinoId);
+    try {
+      await addDoc(collection(db,"transferencias_material"), {
+        materialNome: material.nome, un: material.un, qtd: Number(qtd),
+        obraOrigemId: origem.obraId, obraOrigemNome: origem.obraNome,
+        obraDestinoId: destinoId, obraDestinoNome: destino?.nome||"",
+        obs, usuario: userProfile?.nome||"–",
+        data: new Date().toISOString().split("T")[0],
+        createdAt: new Date().toISOString(),
+      });
+      addToast(`✓ ${qtd} ${material.un} de "${material.nome}" transferido(s) para ${destino?.nome}!`);
+      onClose();
+    } catch(err) { addToast("Erro: "+err.message,"error"); }
+    setSaving(false);
+  }
+
+  return (
+    <Modal title="🔄 Transferir saldo entre obras" onClose={onClose}
+      footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" onClick={salvar} disabled={saving}>{saving?"Salvando...":"Confirmar transferência"}</button></>}>
+      <div style={{display:"flex",flexDirection:"column",gap:14}}>
+        <div style={{background:"var(--cinza-lt)",borderRadius:8,padding:10,fontSize:13}}>
+          <div><strong>{material.nome}</strong> ({material.un})</div>
+          <div style={{fontSize:12,color:"#7A7A7A",marginTop:2}}>Saindo de: <strong>🏗️ {origem.obraNome}</strong></div>
+          <div style={{fontSize:12,color:"var(--verde)",fontWeight:600,marginTop:2}}>Saldo disponível: {saldo} {material.un}</div>
+        </div>
+        <div className="form-group"><label className="required">Obra de destino</label>
+          <select value={destinoId} onChange={e=>setDestinoId(e.target.value)}>
+            <option value="">Selecione...</option>
+            {destinos.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}
+          </select>
+        </div>
+        <div className="form-group"><label className="required">Quantidade a transferir ({material.un})</label>
+          <input type="number" min="1" max={saldo} value={qtd} onChange={e=>setQtd(e.target.value)} placeholder={`Máx. ${saldo}`}/>
+        </div>
+        <div className="form-group"><label>Observações</label>
+          <input value={obs} onChange={e=>setObs(e.target.value)} placeholder="Ex: levado por João no dia X"/>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // Modal de cadastro de novo material
 function NovoMaterialModal({ onClose, addToast }) {
   const [form, setForm] = useState({ nome:"", categoria:"", un:"un", estoqueMin:0, saldo:0 });
@@ -154,6 +212,7 @@ export default function MateriaisGlobal() {
   const [obras,      setObras]      = useState([]);
   const [manut,      setManut]      = useState([]);
   const [compras,    setCompras]    = useState([]);
+  const [transferencias, setTransferencias] = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [search,     setSearch]     = useState("");
   const [filtroCateg,setFiltroCateg]= useState("todas");
@@ -162,6 +221,7 @@ export default function MateriaisGlobal() {
   const [obraExpandida, setObraExpandida] = useState(null);
   const [modalMov,   setModalMov]   = useState(null); // {item, tipo}
   const [modalNovo,  setModalNovo]  = useState(false);
+  const [modalTransf, setModalTransf] = useState(null); // {origem, material}
 
   const canEdit = userProfile?.perfil !== "campo";
 
@@ -178,36 +238,42 @@ export default function MateriaisGlobal() {
     const u3 = onSnapshot(collection(db,"obras"), snap => setObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u4 = onSnapshot(collection(db,"manutencoes"), snap => setManut(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u5 = onSnapshot(query(collection(db,"compras"), where("demandaTipo","==","obra")), snap => setCompras(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    return ()=>{ u1(); u2(); u3(); u4(); u5(); };
+    const u6 = onSnapshot(collection(db,"transferencias_material"), snap => setTransferencias(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    return ()=>{ u1(); u2(); u3(); u4(); u5(); u6(); };
   }, []);
 
   // ── Estoque por Compras: o que foi comprado/recebido (conferido) em cada
   // obra, menos o que já foi utilizado na execução — controle entre obras.
+  // Transferências entre obras entram como "entrada" na obra destino e
+  // "saída" na obra origem, sem alterar a compra nem o log de execução.
   const estoqueComprasPorObra = useMemo(() => {
     const porObra = {}; // obraId -> { obraNome, materiais: { key: {nome,un,comprado,usado} } }
 
     obras.forEach(o => { porObra[o.id] = { obraNome: o.nome, materiais: {} }; });
 
+    function add(obraId, nome, un, campo, qtd) {
+      const bucket = porObra[obraId]?.materiais;
+      if (!bucket) return;
+      const key = `${nome.trim().toLowerCase()}|${un}`;
+      if (!bucket[key]) bucket[key] = { nome, un, comprado: 0, usado: 0 };
+      bucket[key][campo] += qtd;
+    }
+
     compras
       .filter(c => ["RECEBIDO","AGUARD. NF","NF VINCULADA"].includes(c.status) && (c.tipoReceb==="conforme"||!c.tipoReceb) && porObra[c.demandaId])
-      .forEach(c => (c.itens||[]).forEach(it => {
-        const key = `${it.nome.trim().toLowerCase()}|${it.un}`;
-        const bucket = porObra[c.demandaId].materiais;
-        if (!bucket[key]) bucket[key] = { nome: it.nome, un: it.un, comprado: 0, usado: 0 };
-        bucket[key].comprado += Number(it.qtd)||0;
-      }));
+      .forEach(c => (c.itens||[]).forEach(it => add(c.demandaId, it.nome, it.un, "comprado", Number(it.qtd)||0)));
 
-    obras.forEach(o => (o.materiais||[]).forEach(m => {
-      const key = `${m.nome.trim().toLowerCase()}|${m.un}`;
-      const bucket = porObra[o.id]?.materiais;
-      if (!bucket) return;
-      if (!bucket[key]) bucket[key] = { nome: m.nome, un: m.un, comprado: 0, usado: 0 };
-      bucket[key].usado += Number(m.qtd)||0;
-    }));
+    obras.forEach(o => (o.materiais||[]).forEach(m => add(o.id, m.nome, m.un, "usado", Number(m.qtd)||0)));
+
+    // Transferências: entra como "comprado" na obra destino, sai como "usado" na obra origem
+    transferencias.forEach(t => {
+      add(t.obraDestinoId, t.materialNome, t.un, "comprado", Number(t.qtd)||0);
+      add(t.obraOrigemId,  t.materialNome, t.un, "usado",    Number(t.qtd)||0);
+    });
 
     // Remove obras sem nenhum material comprado/usado
     return Object.fromEntries(Object.entries(porObra).filter(([,v])=>Object.keys(v.materiais).length>0));
-  }, [obras, compras]);
+  }, [obras, compras, transferencias]);
 
   // Totais consolidados de todas as obras (visão global do material)
   const estoqueComprasGlobal = useMemo(() => {
@@ -468,7 +534,7 @@ export default function MateriaisGlobal() {
                   {aberta && (
                     <div className="table-wrap">
                       <table>
-                        <thead><tr><th>Material</th><th>Un.</th><th>Comprado</th><th>Usado</th><th>Saldo</th></tr></thead>
+                        <thead><tr><th>Material</th><th>Un.</th><th>Comprado</th><th>Usado</th><th>Saldo</th>{canEdit&&<th></th>}</tr></thead>
                         <tbody>
                           {Object.values(v.materiais).sort((a,b)=>a.nome.localeCompare(b.nome)).map((m,i)=>{
                             const saldo=m.comprado-m.usado;
@@ -479,6 +545,15 @@ export default function MateriaisGlobal() {
                                 <td style={{fontSize:12}}>{m.comprado}</td>
                                 <td style={{fontSize:12}}>{m.usado}</td>
                                 <td style={{fontWeight:700,color:saldo>0?"var(--verde)":saldo<0?"var(--vermelho)":"#7A7A7A"}}>{saldo}</td>
+                                {canEdit && (
+                                  <td>
+                                    {saldo>0 && (
+                                      <button className="btn btn-sm btn-primary" onClick={()=>setModalTransf({origem:{obraId,obraNome:v.obraNome},material:m})}>
+                                        🔄 Transferir
+                                      </button>
+                                    )}
+                                  </td>
+                                )}
                               </tr>
                             );
                           })}
@@ -489,7 +564,38 @@ export default function MateriaisGlobal() {
                 </div>
               );
             })}
+
+          {transferencias.length>0 && (
+            <div style={{marginTop:24}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".05em",marginBottom:8}}>
+                Histórico de transferências
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Data</th><th>Material</th><th>Qtd.</th><th>De</th><th>Para</th><th>Usuário</th><th>Obs.</th></tr></thead>
+                  <tbody>
+                    {[...transferencias].sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")).map(t=>(
+                      <tr key={t.id}>
+                        <td style={{fontSize:12}}>{fmtDate(t.data)}</td>
+                        <td style={{fontWeight:500}}>{t.materialNome}</td>
+                        <td style={{fontWeight:700,color:"var(--azul)"}}>{t.qtd} {t.un}</td>
+                        <td style={{fontSize:12}}>🏗️ {t.obraOrigemNome}</td>
+                        <td style={{fontSize:12}}>🏗️ {t.obraDestinoNome}</td>
+                        <td style={{fontSize:12}}>{t.usuario}</td>
+                        <td style={{fontSize:11,color:"#7A7A7A"}}>{t.obs||"–"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </>
+      )}
+
+      {modalTransf && (
+        <TransferenciaModal origem={modalTransf.origem} material={modalTransf.material} obras={obras}
+          onClose={()=>setModalTransf(null)} addToast={addToast}/>
       )}
 
       {modalMov && <MovimentacaoModal item={modalMov.item} tipo={modalMov.tipo} obras={obras} manutencoes={manut} onClose={()=>setModalMov(null)} addToast={addToast}/>}

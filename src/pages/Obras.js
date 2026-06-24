@@ -85,6 +85,7 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   // — ou seja, material que realmente entrou e foi confirmado, não apenas
   // solicitado. Isso fica disponível pra usar na execução (aba Materiais).
   const [comprasObra, setComprasObra] = useState([]);
+  const [transferenciasObra, setTransferenciasObra] = useState([]);
   useEffect(() => {
     if (!obra?.id) return;
     return onSnapshot(
@@ -92,8 +93,16 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
       snap => setComprasObra(snap.docs.map(d=>({id:d.id,...d.data()})))
     );
   }, [obra?.id]);
+  useEffect(() => {
+    if (!obra?.id) return;
+    return onSnapshot(collection(db,"transferencias_material"), snap => {
+      const todas = snap.docs.map(d=>({id:d.id,...d.data()}));
+      setTransferenciasObra(todas.filter(t=>t.obraOrigemId===obra.id||t.obraDestinoId===obra.id));
+    });
+  }, [obra?.id]);
 
   // Total comprado e recebido (conferido) por material, agregando todas as compras
+  // + transferências recebidas de outras obras, menos transferências enviadas.
   const materiaisComprados = useMemo(() => {
     const mapa = {};
     comprasObra
@@ -103,8 +112,14 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
         if (!mapa[key]) mapa[key] = { nome: it.nome, un: it.un, comprado: 0 };
         mapa[key].comprado += Number(it.qtd)||0;
       }));
+    transferenciasObra.forEach(t => {
+      const key = `${t.materialNome.trim().toLowerCase()}|${t.un}`;
+      if (!mapa[key]) mapa[key] = { nome: t.materialNome, un: t.un, comprado: 0 };
+      if (t.obraDestinoId===obra.id) mapa[key].comprado += Number(t.qtd)||0;   // recebido de outra obra
+      if (t.obraOrigemId===obra.id)  mapa[key].comprado -= Number(t.qtd)||0;   // enviado para outra obra
+    });
     return mapa;
-  }, [comprasObra]);
+  }, [comprasObra, transferenciasObra, obra?.id]);
 
   // Total já utilizado por material, agregando o que já foi lançado nesta obra
   const materiaisUtilizados = useMemo(() => {
@@ -382,6 +397,14 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
           {Object.keys(materiaisComprados).length>0 && (
             <div style={{background:"var(--cinza-lt)",border:"1px solid var(--border)",borderRadius:8,padding:12}}>
               <div style={{fontSize:12,fontWeight:700,color:"#4A4A4A",marginBottom:8}}>📦 Comprado e recebido para esta obra</div>
+              {transferenciasObra.length>0 && (
+                <div style={{fontSize:11,color:"#7A7A7A",marginBottom:8}}>
+                  🔄 Inclui {transferenciasObra.filter(t=>t.obraDestinoId===obra.id).length>0?"materiais recebidos de outra obra":""}
+                  {transferenciasObra.filter(t=>t.obraDestinoId===obra.id).length>0 && transferenciasObra.filter(t=>t.obraOrigemId===obra.id).length>0?" e ":""}
+                  {transferenciasObra.filter(t=>t.obraOrigemId===obra.id).length>0?"materiais já transferidos para outra obra (já descontados)":""}.
+                  Veja o detalhe em Suprimentos → Materiais.
+                </div>
+              )}
               <div style={{display:"flex",flexDirection:"column",gap:6}}>
                 {Object.entries(materiaisComprados).map(([key,item])=>{
                   const utilizado = materiaisUtilizados[key]||0;
