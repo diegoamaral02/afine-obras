@@ -7,6 +7,7 @@ import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
+import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 const CATS_PAGAR   = ["Materiais","Mão de obra","Subempreiteiro","Aluguel equipamentos","Serviços terceiros","Despesas viagem","Impressos","Combustível","Despesas administrativas","Impostos / Taxas","Honorários","Outros"];
@@ -228,10 +229,10 @@ function AbaLancamentos({ lancs, obras, addToast }) {
   const [filtro,      setFiltro]      = useState("todos");
   const [obraFiltro,  setObraFiltro]  = useState("");
   const [catFiltro,   setCatFiltro]   = useState("");
-  const [mesFiltro,   setMesFiltro]   = useState("");
   const [search,      setSearch]      = useState("");
   const [ordem,       setOrdem]       = useState("vencimento");
   const [modal,       setModal]       = useState(null);
+  const [filtrosAv,   setFiltrosAv]   = useState({ periodo:{de:"",ate:""}, fornecedor:"" });
 
   const filtered = useMemo(()=>{
     const q=search.toLowerCase();
@@ -244,15 +245,16 @@ function AbaLancamentos({ lancs, obras, addToast }) {
         ||(filtro==="parcial"&&l.status==="PARCIAL");
       const mO=!obraFiltro||l.obraId===obraFiltro;
       const mC=!catFiltro||l.categoria===catFiltro;
-      const mM=!mesFiltro||(l.vencimento||"").startsWith(mesFiltro);
-      return mQ&&mT&&mO&&mC&&mM;
+      const mPeriodo = dentroPeriodo(l.vencimento, filtrosAv.periodo);
+      const mForn = !filtrosAv.fornecedor || l.fornecedor===filtrosAv.fornecedor;
+      return mQ&&mT&&mO&&mC&&mPeriodo&&mForn;
     }).sort((a,b)=>{
       if(ordem==="vencimento") return (a.vencimento||"").localeCompare(b.vencimento||"");
       if(ordem==="valor")       return (b.valor||0)-(a.valor||0);
       if(ordem==="data")        return (b.createdAt||"").localeCompare(a.createdAt||"");
       return 0;
     });
-  },[lancs,filtro,obraFiltro,catFiltro,mesFiltro,search,ordem,hj]);
+  },[lancs,filtro,obraFiltro,catFiltro,filtrosAv,search,ordem,hj]);
 
   const totais = useMemo(()=>({
     pagar:   filtered.filter(l=>l.tipo==="PAGAR"  &&["ABERTO","VENCIDO"].includes(l.status)).reduce((s,l)=>s+(l.valor||0),0),
@@ -260,10 +262,9 @@ function AbaLancamentos({ lancs, obras, addToast }) {
     pago:    filtered.filter(l=>["PAGO","RECEBIDO"].includes(l.status)).reduce((s,l)=>s+(l.valor||0),0),
   }),[filtered]);
 
-  // Categorias disponíveis
+  // Categorias e fornecedores disponíveis
   const cats = useMemo(()=>[...new Set(lancs.map(l=>l.categoria).filter(Boolean))].sort(),[lancs]);
-  // Meses disponíveis
-  const meses = useMemo(()=>[...new Set(lancs.map(l=>(l.vencimento||"").slice(0,7)).filter(Boolean))].sort().reverse().slice(0,12),[lancs]);
+  const fornecedoresNomes = useMemo(()=>[...new Set(lancs.map(l=>l.fornecedor).filter(Boolean))].sort(),[lancs]);
 
   const excelCols=[
     {key:"tipo",header:"Tipo"},{key:"descricao",header:"Descrição"},{key:"categoria",header:"Categoria"},
@@ -316,16 +317,21 @@ function AbaLancamentos({ lancs, obras, addToast }) {
           <option value="">Todas as categorias</option>
           {cats.map(c=><option key={c}>{c}</option>)}
         </select>
-        <select value={mesFiltro} onChange={e=>setMesFiltro(e.target.value)} style={{padding:"6px 10px",borderRadius:6,border:"1px solid var(--border)",fontSize:12,flex:"1 1 120px"}}>
-          <option value="">Todos os meses</option>
-          {meses.map(m=><option key={m} value={m}>{m}</option>)}
-        </select>
         <select value={ordem} onChange={e=>setOrdem(e.target.value)} style={{padding:"6px 10px",borderRadius:6,border:"1px solid var(--border)",fontSize:12,flex:"1 1 120px"}}>
           <option value="vencimento">Ordenar: Vencimento</option>
           <option value="valor">Ordenar: Maior valor</option>
           <option value="data">Ordenar: Mais recente</option>
         </select>
       </div>
+
+      <FiltroAvancado
+        campos={[
+          { tipo:"periodo", key:"periodo", label:"Período de vencimento" },
+          { tipo:"select", key:"fornecedor", label:"Fornecedor/Cliente", opcoes: fornecedoresNomes.map(f=>({value:f,label:f})) },
+        ]}
+        valores={filtrosAv} onChange={setFiltrosAv}
+        onLimpar={()=>setFiltrosAv({ periodo:{de:"",ate:""}, fornecedor:"" })}
+      />
 
       <div className="search-bar">🔍<input placeholder="Descrição, fornecedor, obra, categoria, NF..." value={search} onChange={e=>setSearch(e.target.value)}/>{search&&<button onClick={()=>setSearch("")} style={{background:"none",border:"none",cursor:"pointer",color:"#7A7A7A"}}>✕</button>}</div>
 

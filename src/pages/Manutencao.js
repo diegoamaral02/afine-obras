@@ -11,6 +11,7 @@ import OSDigital from "../components/OSDigital";
 import { exportarOSParaPDF } from "../utils/exportPDF";
 import { useToast } from "../hooks/useToast";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
+import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
 
 const MIN_FOTOS = 15;
 const CHECKLIST_ITENS = [
@@ -593,7 +594,7 @@ export default function Manutencao({ obraAtual }) {
   const [clientes,     setClientes]     = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [aba,          setAba]          = useState("minhas");
-  const [filtro,       setFiltro]       = useState("todas");
+  const [filtros,      setFiltros]      = useState({ periodo:{de:"",ate:""}, clienteNome:"", responsavelId:"", status:[] });
   const [search,       setSearch]       = useState("");
   const [modal,        setModal]        = useState(null);
 
@@ -639,10 +640,13 @@ export default function Manutencao({ obraAtual }) {
     const q=search.toLowerCase();
     return manuts.filter(m=>{
       const mQ=!q||m.titulo?.toLowerCase().includes(q)||m.cliente?.toLowerCase().includes(q)||m.agencia?.toLowerCase().includes(q)||(m.numeroOT||"").toLowerCase().includes(q);
-      const mF=filtro==="todas"||m.status===filtro;
-      return mQ&&mF;
+      const mPeriodo = dentroPeriodo(m.dataAbertura, filtros.periodo);
+      const mCliente = !filtros.clienteNome || m.cliente===filtros.clienteNome;
+      const mResp = !filtros.responsavelId || m.responsavelId===filtros.responsavelId;
+      const mStatus = filtros.status.length===0 || filtros.status.includes(m.status);
+      return mQ && mPeriodo && mCliente && mResp && mStatus;
     });
-  },[manuts,filtro,search]);
+  },[manuts,filtros,search]);
 
   // KPIs
   const abertas    = manuts.filter(m=>["ABERTA","EM ANDAMENTO"].includes(m.status)).length;
@@ -673,6 +677,16 @@ export default function Manutencao({ obraAtual }) {
     {id:"garantias",label:"🛡️ Garantias"},
     ...(!isCampo?[{id:"sem_ot",label:`⚠️ S/OT${semOT>0?` (${semOT})`:""}`}]:[]),
     ...(!isCampo?[{id:"historico",label:"📅 Histórico"}]:[]),
+  ];
+
+  const STATUS_MANUT = ["ABERTA","EM ANDAMENTO","CONCLUÍDA","CANCELADA","AGUARDANDO PEÇAS"];
+  const clientesNomes = [...new Set(manuts.map(m=>m.cliente).filter(Boolean))].sort();
+  const responsaveisList = funcionarios.filter(f=>f.adm===true||f.departamento==="gestao"||f.perfil==="gestor");
+  const camposFiltroManut = [
+    { tipo:"periodo", key:"periodo", label:"Período de abertura" },
+    { tipo:"select", key:"clienteNome", label:"Cliente", opcoes: clientesNomes.map(c=>({value:c,label:c})) },
+    { tipo:"select", key:"responsavelId", label:"Responsável", opcoes: responsaveisList.map(f=>({value:f.id,label:f.nome})) },
+    { tipo:"multi", key:"status", label:"Status", largo:true, opcoes: STATUS_MANUT.map(s=>({value:s,label:s})) },
   ];
 
   // Auto-selecionar primeira aba correta
@@ -770,13 +784,8 @@ export default function Manutencao({ obraAtual }) {
       {aba==="lista" && (
         <>
           <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"center",flexWrap:"wrap"}}>
-            <div className="chip-row" style={{margin:0,flex:1}}>
-              {["todas","ABERTA","EM ANDAMENTO","CONCLUÍDA","CANCELADA","AGUARDANDO PEÇAS"].map(s=>(
-                <button key={s} className={`chip ${filtro===s?"active":""}`} onClick={()=>setFiltro(s)}>
-                  {s==="todas"?"Todas":s} ({s==="todas"?manuts.length:manuts.filter(m=>m.status===s).length})
-                </button>
-              ))}
-            </div>
+            <FiltroAvancado campos={camposFiltroManut} valores={filtros} onChange={setFiltros}
+              onLimpar={()=>setFiltros({ periodo:{de:"",ate:""}, clienteNome:"", responsavelId:"", status:[] })}/>
             <BtnExcel onClick={()=>exportarExcel(filtered,"Manutencoes",excelCols)}/>
           </div>
           <div className="search-bar">🔍<input placeholder="Buscar por título, cliente, agência ou OT..." value={search} onChange={e=>setSearch(e.target.value)}/>{search&&<button onClick={()=>setSearch("")} style={{background:"none",border:"none",cursor:"pointer",color:"#7A7A7A"}}>✕</button>}</div>

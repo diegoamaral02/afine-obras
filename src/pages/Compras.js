@@ -7,6 +7,7 @@ import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 import { getAcesso, isCampo } from "../constants/departamentos";
+import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
 
 // ── Regras de aprovação ───────────────────────────────────────────────────────
 // Para MANUTENÇÃO: todos menos campo podem aprovar
@@ -773,10 +774,19 @@ export default function Compras() {
     return compras.filter(c => c.autorId ? c.autorId===currentUser?.uid : c.autorNome===nomeUser);
   },[compras, souCampo, currentUser, nomeUser]);
 
+  const [filtros, setFiltros] = useState({ periodo:{de:"",ate:""}, fornecedorId:"", autorNome:"" });
+
   const comprasFiltradas = useMemo(()=>{
     const q=search.toLowerCase();
-    return comprasVisiveis.filter(c=>c.status===etapaAtiva&&(!q||c.titulo?.toLowerCase().includes(q)||c.demandaNome?.toLowerCase().includes(q)||c.fornecedorNome?.toLowerCase().includes(q)));
-  },[comprasVisiveis,etapaAtiva,search]);
+    return comprasVisiveis.filter(c=>{
+      const mEtapa = c.status===etapaAtiva;
+      const mQ = !q||c.titulo?.toLowerCase().includes(q)||c.demandaNome?.toLowerCase().includes(q)||c.fornecedorNome?.toLowerCase().includes(q);
+      const mPeriodo = dentroPeriodo(c.solicitadoEm, filtros.periodo);
+      const mForn = !filtros.fornecedorId || c.fornecedorId===filtros.fornecedorId;
+      const mAutor = !filtros.autorNome || c.autorNome===filtros.autorNome;
+      return mEtapa && mQ && mPeriodo && mForn && mAutor;
+    });
+  },[comprasVisiveis,etapaAtiva,search,filtros]);
 
   const kpis = useMemo(()=>({
     solicit:      comprasVisiveis.filter(c=>c.status==="SOLICITAÇÃO").length,
@@ -830,6 +840,16 @@ export default function Compras() {
       </div>
 
       <div className="search-bar">🔍<input placeholder={`Buscar...`} value={search} onChange={e=>setSearch(e.target.value)}/>{search&&<button onClick={()=>setSearch("")} style={{background:"none",border:"none",cursor:"pointer",color:"#7A7A7A"}}>✕</button>}</div>
+
+      <FiltroAvancado
+        campos={[
+          { tipo:"periodo", key:"periodo", label:"Período de solicitação" },
+          { tipo:"select", key:"fornecedorId", label:"Fornecedor", opcoes: fornecedores.map(f=>({value:f.id,label:f.razaoSocial})) },
+          { tipo:"select", key:"autorNome", label:"Solicitante", opcoes: [...new Set(comprasVisiveis.map(c=>c.autorNome).filter(Boolean))].map(n=>({value:n,label:n})) },
+        ]}
+        valores={filtros} onChange={setFiltros}
+        onLimpar={()=>setFiltros({ periodo:{de:"",ate:""}, fornecedorId:"", autorNome:"" })}
+      />
 
       {loading&&<div className="spinner"/>}
       {!loading&&comprasFiltradas.length===0&&(

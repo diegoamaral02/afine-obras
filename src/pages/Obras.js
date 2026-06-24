@@ -6,6 +6,7 @@ import { db } from "../firebase";
 import { statusBadge, fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
 import { isCampo } from "../constants/departamentos";
+import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
 import Modal from "../components/Modal";
 import PhotoUploader from "../components/PhotoUploader";
 import { useToast } from "../hooks/useToast";
@@ -289,7 +290,7 @@ export default function Obras({ onObraSelect }) {
   const [clientes, setClientes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState("");
-  const [filtro,  setFiltro]  = useState("todos");
+  const [filtros, setFiltros] = useState({ periodo:{de:"",ate:""}, clienteId:"", responsavelId:"", status:[] });
   const [modal,   setModal]   = useState(null);
   const [obraAberta, setObraAberta] = useState(null);
   const [abaDrawer, setAbaDrawer]   = useState("ocorrencias");
@@ -322,11 +323,22 @@ export default function Obras({ onObraSelect }) {
   const filtered = obrasVisiveis.filter(o=>{
     const q=search.toLowerCase();
     const mQ=!q||o.nome?.toLowerCase().includes(q)||o.cliente?.toLowerCase().includes(q)||o.contrato?.toLowerCase().includes(q);
-    const mF=filtro==="todos"||o.status===filtro;
-    return mQ&&mF;
+    const mPeriodo = dentroPeriodo(o.inicio, filtros.periodo);
+    const mCliente = !filtros.clienteId || o.clienteId===filtros.clienteId;
+    const mResp = !filtros.responsavelId || o.responsavelId===filtros.responsavelId;
+    const mStatus = filtros.status.length===0 || filtros.status.includes(o.status);
+    return mQ && mPeriodo && mCliente && mResp && mStatus;
   });
 
   const statusList=["EM ANDAMENTO","CONCLUÍDA","PARALISADA","PLANEJAMENTO","AGUARDANDO APROVAÇÃO"];
+  const gestoresList = funcionarios.filter(f=>f.adm===true||f.departamento==="gestao"||f.perfil==="gestor");
+
+  const camposFiltro = [
+    { tipo:"periodo", key:"periodo", label:"Período de início" },
+    { tipo:"select", key:"clienteId", label:"Cliente", opcoes: clientes.map(c=>({value:c.id,label:c.nomeFantasia||c.razaoSocial})) },
+    { tipo:"select", key:"responsavelId", label:"Responsável", opcoes: gestoresList.map(f=>({value:f.id,label:f.nome})) },
+    { tipo:"multi", key:"status", label:"Status", largo:true, opcoes: statusList.map(s=>({value:s,label:s})) },
+  ];
 
   return (
     <div>
@@ -339,13 +351,8 @@ export default function Obras({ onObraSelect }) {
         {isGestor && <button className="btn btn-primary" onClick={()=>setModal({obra:null})}>+ Nova obra</button>}
       </div>
 
-      <div className="chip-row">
-        {["todos",...statusList].map(s=>(
-          <button key={s} className={`chip ${filtro===s?"active":""}`} onClick={()=>setFiltro(s)}>
-            {s==="todos"?"Todas":s} ({s==="todos"?obrasVisiveis.length:obrasVisiveis.filter(o=>o.status===s).length})
-          </button>
-        ))}
-      </div>
+      <FiltroAvancado campos={camposFiltro} valores={filtros} onChange={setFiltros}
+        onLimpar={()=>setFiltros({ periodo:{de:"",ate:""}, clienteId:"", responsavelId:"", status:[] })}/>
 
       <div className="search-bar">🔍<input placeholder="Buscar por nome, cliente ou contrato..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
       {loading && <div className="spinner"/>}

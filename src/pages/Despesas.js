@@ -8,6 +8,7 @@ import { podeEditar } from "../constants/departamentos";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
+import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
 
 const METODOS = ["Cartão","PIX","Transferência","Dinheiro","Boleto","Outro"];
 const fmt  = v => `R$ ${Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}`;
@@ -90,8 +91,7 @@ export default function Despesas() {
   const [funcionarios, setFuncionarios] = useState([]);
   const [loading,       setLoading]      = useState(true);
   const [search,        setSearch]       = useState("");
-  const [filtroMes,     setFiltroMes]    = useState("todos");
-  const [filtroReemb,   setFiltroReemb]  = useState("todos");
+  const [filtros,       setFiltros]      = useState({ periodo:{de:"",ate:""}, funcionarioNome:"", metodoPagamento:"", reembolso:"" });
   const [qtdMostrar,    setQtdMostrar]   = useState(100);
   const [modal,         setModal]        = useState(null);
 
@@ -102,20 +102,19 @@ export default function Despesas() {
     return ()=>{u1();u2();};
   },[]);
 
-  const meses = useMemo(()=>{
-    const s = new Set(despesas.map(d=>(d.data||"").slice(0,7)).filter(Boolean));
-    return [...s].sort().reverse();
-  },[despesas]);
+  const nomesFuncionarios = useMemo(()=>[...new Set(despesas.map(d=>d.funcionarioNome).filter(Boolean))].sort(),[despesas]);
 
   const filtradas = useMemo(()=>{
     const q = search.toLowerCase();
     return despesas.filter(d=>{
       const mQ = !q || d.descricao?.toLowerCase().includes(q) || d.funcionarioNome?.toLowerCase().includes(q);
-      const mMes = filtroMes==="todos" || (d.data||"").startsWith(filtroMes);
-      const mReemb = filtroReemb==="todos" || (filtroReemb==="sim"?d.reembolso:!d.reembolso);
-      return mQ && mMes && mReemb;
+      const mPeriodo = dentroPeriodo(d.data, filtros.periodo);
+      const mFunc = !filtros.funcionarioNome || d.funcionarioNome===filtros.funcionarioNome;
+      const mMetodo = !filtros.metodoPagamento || d.metodoPagamento===filtros.metodoPagamento;
+      const mReemb = filtros.reembolso==="" || (filtros.reembolso===true ? d.reembolso : !d.reembolso);
+      return mQ && mPeriodo && mFunc && mMetodo && mReemb;
     });
-  },[despesas,search,filtroMes,filtroReemb]);
+  },[despesas,search,filtros]);
 
   const kpis = useMemo(()=>({
     total: filtradas.reduce((s,d)=>s+(d.valor||0),0),
@@ -169,18 +168,18 @@ export default function Despesas() {
       </div>
 
       {/* Filtros */}
-      <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
-        <div className="search-bar" style={{flex:"2 1 220px"}}>🔍<input placeholder="Buscar por descrição ou funcionário..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
-        <select value={filtroMes} onChange={e=>setFiltroMes(e.target.value)} style={{flex:"1 1 140px"}}>
-          <option value="todos">Todos os meses</option>
-          {meses.map(m=><option key={m} value={m}>{m.split("-").reverse().join("/")}</option>)}
-        </select>
-        <select value={filtroReemb} onChange={e=>setFiltroReemb(e.target.value)} style={{flex:"1 1 160px"}}>
-          <option value="todos">Reembolso: todos</option>
-          <option value="sim">Só com reembolso</option>
-          <option value="nao">Só sem reembolso</option>
-        </select>
-      </div>
+      <div className="search-bar" style={{marginBottom:8}}>🔍<input placeholder="Buscar por descrição ou funcionário..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
+
+      <FiltroAvancado
+        campos={[
+          { tipo:"periodo", key:"periodo", label:"Período" },
+          { tipo:"select", key:"funcionarioNome", label:"Funcionário", opcoes: nomesFuncionarios.map(n=>({value:n,label:n})) },
+          { tipo:"select", key:"metodoPagamento", label:"Método de pagamento", opcoes: METODOS.map(m=>({value:m,label:m})) },
+          { tipo:"bool", key:"reembolso", label:"Necessita reembolso" },
+        ]}
+        valores={filtros} onChange={setFiltros}
+        onLimpar={()=>setFiltros({ periodo:{de:"",ate:""}, funcionarioNome:"", metodoPagamento:"", reembolso:"" })}
+      />
 
       {loading && <div className="spinner"/>}
       {!loading && filtradas.length===0 && (
