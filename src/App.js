@@ -205,7 +205,7 @@ function Sidebar({ obraAtual, badges, sideOpen, setSideOpen }) {
   return (
     <div className={`sidebar ${sideOpen?"open":""}`}>
       <div className="sidebar-logo">
-        <img src={LOGO_BASE64} alt="AFINE" style={{height:40,width:"auto",filter:"brightness(0) invert(1)",opacity:.95}}/>
+        <img src={LOGO_BASE64} alt="AFINE"/>
         <div className="sidebar-logo-text"><h1>AFINE</h1><p>ERP · Gestão</p></div>
       </div>
       {obraAtual&&(
