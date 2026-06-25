@@ -295,6 +295,23 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
   const demandas = demandaTipo === "obra" ? obras : manutencoes;
   const fornSel  = fornecedores.find(f=>f.id===fornecedorId);
   const canAprovar = podeAprovar(userProfile, demandaTipo);
+  const [editandoVinculo, setEditandoVinculo] = useState(false);
+  const podeCorrigirVinculo = !isNova && (userProfile?.adm===true || userProfile?.departamento==="gestao") && !["SOLICITAÇÃO","EM REVISÃO"].includes(etapaAtual);
+
+  async function salvarCorrecaoVinculo() {
+    if (!demandaId && demandaTipo!=="geral") { alert("Selecione a demanda correta."); return; }
+    const demandaNomeCorrigido = demandaTipo==="geral" ? "" : (demandas.find(d=>d.id===demandaId)?.nome || demandas.find(d=>d.id===demandaId)?.titulo || "");
+    setSaving(true);
+    try {
+      await updateDoc(doc(db,"compras",compra.id), {
+        demandaTipo, demandaId: demandaTipo==="geral"?"":demandaId, demandaNome: demandaNomeCorrigido,
+        vinculoCorrigidoEm: agora(), vinculoCorrigidoPor: nomeUser,
+      });
+      addToast("✓ Vínculo da demanda corrigido!");
+      setEditandoVinculo(false);
+    } catch(err) { addToast("Erro: "+err.message,"error"); }
+    setSaving(false);
+  }
 
   function addItem() {
     if (!itemNome||!itemQtd) { alert("Informe o item e a quantidade."); return; }
@@ -483,6 +500,47 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
                 ? <div style={{fontSize:10,textAlign:"right",opacity:.7}}>por {compra[tf.ator]}</div>
                 : null;
             })()}
+          </div>
+        )}
+
+        {/* Correção de vínculo de demanda (ADM/Gestão, etapas avançadas) */}
+        {podeCorrigirVinculo && (
+          <div style={{border:"1px solid var(--border)",borderRadius:8,padding:10}}>
+            {!editandoVinculo ? (
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div style={{fontSize:12,color:"#7A7A7A"}}>Vinculado a: <strong>{compra.demandaNome||compra.demandaTipo||"–"}</strong></div>
+                <button className="btn btn-sm" onClick={()=>setEditandoVinculo(true)}>🔧 Corrigir vínculo</button>
+              </div>
+            ) : (
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                <div className="alert alert-warning" style={{fontSize:11,marginBottom:0}}>
+                  ⚠️ Isso só corrige a qual obra/manutenção esta compra está vinculada. Não altera a etapa, itens ou valores já registrados.
+                </div>
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label>Vinculado a</label>
+                    <select value={demandaTipo} onChange={e=>{setDemandaTipo(e.target.value);setDemandaId("");}}>
+                      <option value="obra">Obra</option>
+                      <option value="manutencao">Manutenção</option>
+                      <option value="geral">Estoque geral</option>
+                    </select>
+                  </div>
+                  {demandaTipo!=="geral" && (
+                    <div className="form-group">
+                      <label>Qual {demandaTipo==="obra"?"obra":"manutenção"}?</label>
+                      <select value={demandaId} onChange={e=>setDemandaId(e.target.value)}>
+                        <option value="">Selecione...</option>
+                        {demandas.map(d=><option key={d.id} value={d.id}>{d.nome||d.titulo}</option>)}
+                      </select>
+                    </div>
+                  )}
+                </div>
+                <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                  <button className="btn btn-sm" onClick={()=>setEditandoVinculo(false)}>Cancelar</button>
+                  <button className="btn btn-sm btn-primary" onClick={salvarCorrecaoVinculo} disabled={saving}>{saving?"Salvando...":"Salvar vínculo"}</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
