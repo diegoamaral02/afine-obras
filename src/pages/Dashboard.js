@@ -27,13 +27,17 @@ export default function Dashboard({ obraAtual }) {
   const [ocorr,   setOcorr]   = useState([]);
   const [lancs,   setLancs]   = useState([]);
   const [compras, setCompras] = useState([]);
+  const [comprasComprometidas, setComprasComprometidas] = useState([]);
 
   useEffect(()=>{
     const u1=onSnapshot(collection(db,"obras"),snap=>setObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u2=onSnapshot(query(collection(db,"manutencoes"),where("status","in",["ABERTA","EM ANDAMENTO"])),snap=>setManuts(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u3=onSnapshot(collection(db,"financeiro"),snap=>setLancs(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u4=onSnapshot(query(collection(db,"compras"),where("status","in",["SOLICITAÇÃO","COTAÇÃO","APROVADA"])),snap=>setCompras(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    return()=>{u1();u2();u3();u4();};
+    // Compras já aprovadas/em andamento de recebimento — representam valor
+    // comprometido ainda não lançado como pagamento no Financeiro
+    const u5=onSnapshot(query(collection(db,"compras"),where("status","in",["APROVADA","ORDEM DE COMPRA","RECEBIDO","AGUARD. NF"])),snap=>setComprasComprometidas(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    return()=>{u1();u2();u3();u4();u5();};
   },[]);
 
   useEffect(()=>{
@@ -44,7 +48,14 @@ export default function Dashboard({ obraAtual }) {
   const hoje = new Date().toISOString().split("T")[0];
 
   // KPIs financeiros
-  const totalPagar   = lancs.filter(l=>l.tipo==="PAGAR"&&l.status==="ABERTO").reduce((s,l)=>s+(l.valor||0),0);
+  // BUG CORRIGIDO: "A pagar" só somava lançamentos manuais do Financeiro
+  // (status ABERTO), ignorando compromissos já assumidos via Compras
+  // aprovadas/em andamento — por isso ficava R$0 mesmo com compras reais
+  // em curso. Agora soma os dois.
+  const totalPagarLanc = lancs.filter(l=>l.tipo==="PAGAR"&&l.status==="ABERTO").reduce((s,l)=>s+(l.valor||0),0);
+  const totalComprasComprometido = comprasComprometidas
+    .reduce((s,c)=>s+(c.valorAprovado||c.valorCotado||0),0);
+  const totalPagar   = totalPagarLanc + totalComprasComprometido;
   const totalReceber = lancs.filter(l=>l.tipo==="RECEBER"&&l.status==="ABERTO").reduce((s,l)=>s+(l.valor||0),0);
   const vencidos     = lancs.filter(l=>l.status==="ABERTO"&&l.vencimento<hoje).length;
   const saldo        = totalReceber - totalPagar;
@@ -52,7 +63,11 @@ export default function Dashboard({ obraAtual }) {
   // Obras stats
   const andamento  = obras.filter(o=>o.status==="EM ANDAMENTO");
   const concluidas = obras.filter(o=>o.status==="CONCLUÍDA");
-  const totalOrcado = lancs.filter(l=>l.tipoValor==="orcado"&&l.tipo==="PAGAR").reduce((s,l)=>s+(l.valor||0),0);
+  // BUG CORRIGIDO: "Orçado total" só somava lançamentos com tipoValor==="orcado"
+  // no Financeiro — campo que a equipe praticamente não usa. O orçamento real
+  // é preenchido direto em cada Obra (aba Financeiro → "Valor do orçamento"),
+  // então agora soma esse campo das obras, que é onde o dado de fato existe.
+  const totalOrcado = obras.filter(o=>o.status!=="PARALISADA").reduce((s,o)=>s+(Number(o.valorOrcamento)||0),0);
   const totalReal   = lancs.filter(l=>l.tipoValor==="realizado"&&l.tipo==="PAGAR"&&l.status==="PAGO").reduce((s,l)=>s+(l.valor||0),0);
 
   const fmt=(v)=>`R$ ${Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:0})}`;
