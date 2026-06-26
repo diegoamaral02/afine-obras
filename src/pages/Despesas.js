@@ -15,7 +15,7 @@ const fmt  = v => `R$ ${Number(v||0).toLocaleString("pt-BR",{minimumFractionDigi
 const hoje = () => new Date().toISOString().split("T")[0];
 
 // ── Modal de Despesa ─────────────────────────────────────────────────────────
-function DespesaModal({ despesa, funcionarios, onClose, addToast }) {
+function DespesaModal({ despesa, funcionarios, obras, onClose, addToast }) {
   const [form, setForm] = useState({
     data:            despesa?.data            || hoje(),
     descricao:       despesa?.descricao       || "",
@@ -24,6 +24,8 @@ function DespesaModal({ despesa, funcionarios, onClose, addToast }) {
     reembolso:       despesa?.reembolso       || false,
     funcionarioId:   despesa?.funcionarioId   || "",
     funcionarioNome: despesa?.funcionarioNome || "",
+    obraId:          despesa?.obraId          || "",
+    obraNome:        despesa?.obraNome        || "",
     obs:             despesa?.obs             || "",
   });
   const [saving, setSaving] = useState(false);
@@ -31,6 +33,10 @@ function DespesaModal({ despesa, funcionarios, onClose, addToast }) {
   function handleFunc(id) {
     const f = funcionarios.find(x=>x.id===id);
     set("funcionarioId", id); set("funcionarioNome", f?.nome||"");
+  }
+  function handleObra(id) {
+    const o = obras.find(x=>x.id===id);
+    set("obraId", id); set("obraNome", o?.nome||"");
   }
 
   async function save() {
@@ -72,6 +78,13 @@ function DespesaModal({ despesa, funcionarios, onClose, addToast }) {
             {METODOS.map(m=><option key={m}>{m}</option>)}
           </select>
         </div>
+        <div className="form-group">
+          <label>Obra (centro de custo)</label>
+          <select value={form.obraId} onChange={e=>handleObra(e.target.value)}>
+            <option value="">Geral / Administrativo (sem obra)</option>
+            {obras.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}
+          </select>
+        </div>
         <div className="form-group span-2" style={{display:"flex",alignItems:"center",gap:8}}>
           <input type="checkbox" checked={form.reembolso} onChange={e=>set("reembolso",e.target.checked)} id="chk-reembolso" style={{width:"auto"}}/>
           <label htmlFor="chk-reembolso" style={{margin:0}}>Necessita reembolso ao funcionário</label>
@@ -89,9 +102,10 @@ export default function Despesas() {
   const { toasts, addToast } = useToast();
   const [despesas,     setDespesas]     = useState([]);
   const [funcionarios, setFuncionarios] = useState([]);
+  const [obras,        setObras]        = useState([]);
   const [loading,       setLoading]      = useState(true);
   const [search,        setSearch]       = useState("");
-  const [filtros,       setFiltros]      = useState({ periodo:{de:"",ate:""}, funcionarioNome:"", metodoPagamento:"", reembolso:"" });
+  const [filtros,       setFiltros]      = useState({ periodo:{de:"",ate:""}, funcionarioNome:"", metodoPagamento:"", obraId:"", reembolso:"" });
   const [qtdMostrar,    setQtdMostrar]   = useState(100);
   const [modal,         setModal]        = useState(null);
 
@@ -99,7 +113,8 @@ export default function Despesas() {
     const q1 = query(collection(db,"despesas"), orderBy("data","desc"), limit(3000));
     const u1 = onSnapshot(q1, snap=>{ setDespesas(snap.docs.map(d=>({id:d.id,...d.data()}))); setLoading(false); }, ()=>setLoading(false));
     const u2 = onSnapshot(collection(db,"usuarios"), snap=>setFuncionarios(snap.docs.map(d=>({id:d.id,...d.data()})).filter(f=>f.status==="ATIVO"||!f.status)));
-    return ()=>{u1();u2();};
+    const u3 = onSnapshot(collection(db,"obras"), snap=>setObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    return ()=>{u1();u2();u3();};
   },[]);
 
   const nomesFuncionarios = useMemo(()=>[...new Set(despesas.map(d=>d.funcionarioNome).filter(Boolean))].sort(),[despesas]);
@@ -107,12 +122,13 @@ export default function Despesas() {
   const filtradas = useMemo(()=>{
     const q = search.toLowerCase();
     return despesas.filter(d=>{
-      const mQ = !q || d.descricao?.toLowerCase().includes(q) || d.funcionarioNome?.toLowerCase().includes(q);
+      const mQ = !q || d.descricao?.toLowerCase().includes(q) || d.funcionarioNome?.toLowerCase().includes(q) || d.obraNome?.toLowerCase().includes(q);
       const mPeriodo = dentroPeriodo(d.data, filtros.periodo);
       const mFunc = !filtros.funcionarioNome || d.funcionarioNome===filtros.funcionarioNome;
       const mMetodo = !filtros.metodoPagamento || d.metodoPagamento===filtros.metodoPagamento;
+      const mObra = !filtros.obraId || d.obraId===filtros.obraId;
       const mReemb = filtros.reembolso==="" || (filtros.reembolso===true ? d.reembolso : !d.reembolso);
-      return mQ && mPeriodo && mFunc && mMetodo && mReemb;
+      return mQ && mPeriodo && mFunc && mMetodo && mObra && mReemb;
     });
   },[despesas,search,filtros]);
 
@@ -137,6 +153,7 @@ export default function Despesas() {
       { key:"metodoPagamento", header:"Método" },
       { key:"reembolso", header:"Reembolso", format:v=>v?"Sim":"Não" },
       { key:"funcionarioNome", header:"Funcionário" },
+      { key:"obraNome", header:"Obra (centro de custo)" },
       { key:"obs", header:"Observações" },
     ]);
   }
@@ -173,12 +190,13 @@ export default function Despesas() {
       <FiltroAvancado
         campos={[
           { tipo:"periodo", key:"periodo", label:"Período" },
+          { tipo:"select", key:"obraId", label:"Obra (centro de custo)", opcoes: obras.map(o=>({value:o.id,label:o.nome})) },
           { tipo:"select", key:"funcionarioNome", label:"Funcionário", opcoes: nomesFuncionarios.map(n=>({value:n,label:n})) },
           { tipo:"select", key:"metodoPagamento", label:"Método de pagamento", opcoes: METODOS.map(m=>({value:m,label:m})) },
           { tipo:"bool", key:"reembolso", label:"Necessita reembolso" },
         ]}
         valores={filtros} onChange={setFiltros}
-        onLimpar={()=>setFiltros({ periodo:{de:"",ate:""}, funcionarioNome:"", metodoPagamento:"", reembolso:"" })}
+        onLimpar={()=>setFiltros({ periodo:{de:"",ate:""}, funcionarioNome:"", metodoPagamento:"", obraId:"", reembolso:"" })}
       />
 
       {loading && <div className="spinner"/>}
@@ -191,7 +209,7 @@ export default function Despesas() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Data</th><th>Descrição</th><th>Funcionário</th><th>Método</th>
+                <th>Data</th><th>Descrição</th><th>Funcionário</th><th>Obra</th><th>Método</th>
                 <th>Reembolso</th><th style={{textAlign:"right"}}>Valor</th>
                 {podeEditarDespesas && <th></th>}
               </tr>
@@ -202,6 +220,7 @@ export default function Despesas() {
                   <td>{d.data?.split("-").reverse().join("/")}</td>
                   <td>{d.descricao}</td>
                   <td>{d.funcionarioNome||"–"}</td>
+                  <td>{d.obraNome?<span className="badge badge-blue" style={{fontSize:10}}>🏗️ {d.obraNome}</span>:<span style={{color:"#B8B6AE",fontSize:12}}>Geral</span>}</td>
                   <td>{d.metodoPagamento||"–"}</td>
                   <td>{d.reembolso?<span style={{color:"var(--vermelho)",fontWeight:600}}>Sim</span>:"Não"}</td>
                   <td style={{textAlign:"right",fontWeight:600}}>{fmt(d.valor)}</td>
@@ -224,7 +243,7 @@ export default function Despesas() {
       )}
 
       {modal && (
-        <DespesaModal despesa={modal.despesa} funcionarios={funcionarios} onClose={()=>setModal(null)} addToast={addToast}/>
+        <DespesaModal despesa={modal.despesa} funcionarios={funcionarios} obras={obras} onClose={()=>setModal(null)} addToast={addToast}/>
       )}
     </div>
   );

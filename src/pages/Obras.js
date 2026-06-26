@@ -115,6 +115,13 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   // solicitado. Isso fica disponível pra usar na execução (aba Materiais).
   const [comprasObra, setComprasObra] = useState([]);
   const [transferenciasObra, setTransferenciasObra] = useState([]);
+  const [despesasObra, setDespesasObra] = useState([]);
+  useEffect(() => {
+    if (!obra?.id) return;
+    return onSnapshot(query(collection(db,"despesas"), where("obraId","==",obra.id)), snap => {
+      setDespesasObra(snap.docs.map(d=>({id:d.id,...d.data()})));
+    }, err => console.error("Erro ao buscar despesas da obra:", err));
+  }, [obra?.id]);
   useEffect(() => {
     if (!obra?.id) return;
     // BUG CORRIGIDO: a consulta combinava 2 filtros (demandaTipo + demandaId).
@@ -414,6 +421,36 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
             <div style={{background:"var(--afine-yellow-lt)",borderRadius:8,padding:12,fontSize:13}}>
               💰 Valor do orçamento: <strong>R$ {Number(form.valorOrcamento).toLocaleString("pt-BR",{minimumFractionDigits:2})}</strong>
             </div>
+          )}
+
+          <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>Despesas vinculadas a esta obra</div>
+          {despesasObra.length===0 ? (
+            <div style={{fontSize:12,color:"#7A7A7A"}}>Nenhuma despesa lançada com essa obra como centro de custo ainda.</div>
+          ) : (
+            <>
+              <div style={{background:"var(--cinza-lt)",borderRadius:8,padding:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span style={{fontSize:13,color:"#4A4A4A"}}>Total de {despesasObra.length} despesa(s)</span>
+                <strong style={{fontSize:18,color:"var(--vermelho)"}}>
+                  R$ {despesasObra.reduce((s,d)=>s+(d.valor||0),0).toLocaleString("pt-BR",{minimumFractionDigits:2})}
+                </strong>
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Data</th><th>Descrição</th><th>Funcionário</th><th style={{textAlign:"right"}}>Valor</th></tr></thead>
+                  <tbody>
+                    {despesasObra.sort((a,b)=>(b.data||"").localeCompare(a.data||"")).slice(0,10).map(d=>(
+                      <tr key={d.id}>
+                        <td style={{fontSize:12}}>{d.data?.split("-").reverse().join("/")}</td>
+                        <td style={{fontSize:12}}>{d.descricao}</td>
+                        <td style={{fontSize:12}}>{d.funcionarioNome||"–"}</td>
+                        <td style={{textAlign:"right",fontWeight:600,fontSize:12}}>R$ {Number(d.valor||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {despesasObra.length>10 && <div style={{fontSize:11,color:"#7A7A7A"}}>+{despesasObra.length-10} despesa(s) — veja todas em Financeiro → Despesas, filtrando por esta obra.</div>}
+            </>
           )}
         </div>
       )}
