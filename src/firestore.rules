@@ -8,8 +8,21 @@ service cloud.firestore {
     function isAuth()        { return request.auth != null; }
     function profile()       { return get(/databases/$(database)/documents/usuarios/$(uid())).data; }
     function perfil()        { return profile().perfil; }
-    function isGestor()      { return isAuth() && perfil() == 'gestor'; }
-    function isEncarregado() { return isAuth() && (perfil() == 'encarregado' || perfil() == 'gestor'); }
+    function isAdmUser()     { return isAuth() && profile().adm == true; }
+    // Departamento efetivo: usa "departamento" (sistema novo) se existir,
+    // senão cai para "perfil" (sistema legado) — mesma lógica do app (JS).
+    function dep() {
+      return ('departamento' in profile()) ? profile().departamento : perfil();
+    }
+    // BUG CORRIGIDO: isGestor()/isEncarregado() só reconheciam o perfil legado
+    // ("gestor"/"encarregado"), ignorando o campo "departamento" do sistema
+    // novo e a flag "adm". Isso bloqueava silenciosamente usuários cadastrados
+    // só com departamento (ex: gestao, financeiro, comercial, fiscal, compras)
+    // em praticamente toda escrita do sistema (Obras, Compras, Financeiro,
+    // Agendamentos, Fornecedores, Clientes, etc.).
+    function isGestor()      { return isAuth() && (isAdmUser() || dep() == 'gestao' || dep() == 'gestor' || dep() == 'adm'); }
+    function isEncarregado() { return isAuth() && (isGestor() || dep() == 'encarregado' ||
+                                  dep() == 'financeiro' || dep() == 'comercial' || dep() == 'fiscal' || dep() == 'compras'); }
     function isCampo()       { return isAuth(); }
     // Detecta departamento "campo" considerando tanto o sistema novo (departamento)
     // quanto o legado (perfil) — usado para bloquear criação de manutenções
@@ -87,13 +100,21 @@ service cloud.firestore {
     }
 
     // ── Materiais / Estoque ───────────────────────────────────────
+    // BUG CORRIGIDO: campo precisa registrar saída de estoque ao usar
+    // material durante a execução de obras/manutenções (unificação real do
+    // controle de estoque), mas a regra exigia isEncarregado() pra qualquer
+    // escrita — bloqueando exatamente quem mais usa essa funcionalidade.
     match /materiais_estoque/{id} {
-      allow read:  if isAuth();
-      allow write: if isEncarregado();
+      allow read:   if isAuth();
+      allow create: if isEncarregado();      // só gestão pode criar item novo do zero
+      allow update: if isAuth();             // campo pode debitar/creditar saldo ao usar/devolver material
+      allow delete: if isGestor();
     }
     match /movimentacoes/{id} {
-      allow read:  if isEncarregado();
-      allow write: if isEncarregado();
+      allow read:   if isAuth();
+      allow create: if isAuth();             // qualquer um registra a própria movimentação (uso em campo)
+      allow update: if isEncarregado();
+      allow delete: if isGestor();
     }
 
     // ── FINANCEIRO (apenas gestor) ───────────────────────────────

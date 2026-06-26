@@ -1,7 +1,7 @@
 import { buscarCEP } from "../utils/cep";
 // src/pages/Obras.js — completo com endereço, busca CEP, fotos, medições, subcontratados
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, doc, query, where } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, doc, query, where, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { statusBadge, fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -72,10 +72,39 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   const [matQtd,  setMatQtd]  = useState("");
   const [matUn,   setMatUn]   = useState("un");
 
+  // ── Unificação real de estoque ──────────────────────────────────────────
+  // Lança a saída no estoque central (materiais_estoque) no momento exato do
+  // uso, caso exista um item com esse nome+unidade. Se não existir (material
+  // nunca passou por uma compra recebida nem foi cadastrado manualmente),
+  // não há estoque pra debitar — só fica registrado no histórico da obra.
+  async function lancarSaidaEstoque(nome, qtd, un, origem) {
+    if (!obra?.id) return; // obra ainda não salva — sem demanda pra vincular o movimento
+    try {
+      const snap = await getDocs(collection(db,"materiais_estoque"));
+      const found = snap.docs.map(d=>({id:d.id,...d.data()}))
+        .find(m => m.nome.trim().toLowerCase()===nome.trim().toLowerCase() && m.un===un);
+      if (!found) return; // nada cadastrado pra debitar
+      const ehDevolucao = qtd < 0;
+      const qtdAbs = Math.abs(qtd);
+      await addDoc(collection(db,"movimentacoes"), {
+        itemId: found.id, itemNome: nome, tipo: ehDevolucao ? "entrada" : "saida", qtd: qtdAbs,
+        data: new Date().toISOString().split("T")[0],
+        demandaTipo: "obra", demandaId: obra.id, demandaNome: obra.nome,
+        origem: ehDevolucao ? "devolucao_lancamento" : origem, usuario: nomeUser, createdAt: new Date().toISOString(),
+      });
+      await updateDoc(doc(db,"materiais_estoque",found.id), {
+        saldo: (found.saldo||0) - qtd, // qtd negativo soma de volta
+        [ehDevolucao ? "totalEntradas" : "totalSaidas"]: (found[ehDevolucao?"totalEntradas":"totalSaidas"]||0) + qtdAbs,
+      });
+    } catch(err) { console.error("Erro ao lançar saída de estoque:", err); }
+  }
+
   function toggleCheck(item) { setChecklist(p=>({...p,[item]:!p[item]})); }
   function adicionarMaterial() {
     if(!matNome.trim()||!matQtd){alert("Informe nome e quantidade.");return;}
-    setForm(p=>({...p,materiais:[...p.materiais,{nome:matNome,qtd:Number(matQtd),un:matUn}]}));
+    const qtd = Number(matQtd);
+    setForm(p=>({...p,materiais:[...p.materiais,{nome:matNome,qtd,un:matUn}]}));
+    lancarSaidaEstoque(matNome, qtd, matUn, "execucao_obra_avulso");
     setMatNome("");setMatQtd("");
   }
 
@@ -145,6 +174,7 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
     if (qtd > saldo) { alert(`Saldo disponível é de apenas ${saldo} ${item.un}.`); return; }
     setForm(p=>({...p,materiais:[...p.materiais,{nome:item.nome,qtd,un:item.un,origemCompra:true}]}));
     setUsoQtd(p=>({...p,[key]:""}));
+    lancarSaidaEstoque(item.nome, qtd, item.un, "execucao_obra");
   }
 
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
@@ -485,7 +515,10 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
               <tbody>{form.materiais.map((m,i)=>(
                 <tr key={i}><td style={{fontWeight:500}}>{m.nome}</td><td>{m.qtd}</td><td>{m.un}</td>
                   <td>{m.origemCompra?<span className="badge badge-green" style={{fontSize:9}}>📦 Comprado</span>:<span style={{fontSize:11,color:"#7A7A7A"}}>Avulso</span>}</td>
-                  <td><button className="btn btn-sm" style={{color:"var(--vermelho)"}} onClick={()=>setForm(p=>({...p,materiais:p.materiais.filter((_,j)=>j!==i)}))}>✕</button></td>
+                  <td><button className="btn btn-sm" style={{color:"var(--vermelho)"}} onClick={()=>{
+                    setForm(p=>({...p,materiais:p.materiais.filter((_,j)=>j!==i)}));
+                    lancarSaidaEstoque(m.nome, -m.qtd, m.un, "remocao_lancamento"); // qtd negativa = devolve ao estoque
+                  }}>✕</button></td>
                 </tr>
               ))}</tbody>
             </table></div>

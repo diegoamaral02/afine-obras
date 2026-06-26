@@ -1,6 +1,6 @@
 // src/pages/Compras.js — v5: permissões revisadas + recusa/revisão + rastreio por etapa + PDF
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, doc, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -354,6 +354,43 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
     return base;
   }
 
+  // ── Unificação real de estoque ──────────────────────────────────────────
+  // Disparado uma única vez, exatamente no momento em que o recebimento é
+  // confirmado como "conforme" (transição RECEBIDO → AGUARD. NF). Cria/atualiza
+  // o item no estoque central (materiais_estoque) e registra a entrada.
+  async function lancarEntradaEstoque() {
+    const snap = await getDocs(collection(db,"materiais_estoque"));
+    const existentes = snap.docs.map(d=>({id:d.id,...d.data()}));
+    const demandaNomeAtual = demandaTipo==="geral" ? "" : (demandas.find(d=>d.id===demandaId)?.nome || demandas.find(d=>d.id===demandaId)?.titulo || "");
+
+    for (const it of itens) {
+      const nomeNorm = it.nome.trim().toLowerCase();
+      let found = existentes.find(m => m.nome.trim().toLowerCase()===nomeNorm && m.un===it.un);
+      let itemId, saldoAnterior, entradasAnt;
+
+      if (found) {
+        itemId = found.id; saldoAnterior = found.saldo||0; entradasAnt = found.totalEntradas||0;
+      } else {
+        const novo = { nome: it.nome, un: it.un, categoria: "", saldo: 0, estoqueMin: 0, totalEntradas: 0, totalSaidas: 0, criadoAutomaticamente: true, createdAt: agora() };
+        const ref = await addDoc(collection(db,"materiais_estoque"), novo);
+        itemId = ref.id; saldoAnterior = 0; entradasAnt = 0;
+        existentes.push({ id: itemId, ...novo }); // evita duplicar item se houver 2 linhas iguais na mesma compra
+      }
+
+      await addDoc(collection(db,"movimentacoes"), {
+        itemId, itemNome: it.nome, tipo: "entrada", qtd: Number(it.qtd)||0,
+        data: new Date().toISOString().split("T")[0],
+        demandaTipo, demandaId: demandaTipo==="geral"?"":demandaId, demandaNome: demandaNomeAtual,
+        origem: "compra", compraId: compra.id, usuario: nomeUser, createdAt: agora(),
+        obs: `Recebido conforme — compra "${titulo}"`,
+      });
+      await updateDoc(doc(db,"materiais_estoque",itemId), {
+        saldo: saldoAnterior + (Number(it.qtd)||0),
+        totalEntradas: entradasAnt + (Number(it.qtd)||0),
+      });
+    }
+  }
+
   async function salvar(novoStatus) {
     if (!titulo) { alert("Informe o título."); return; }
     if (isNova && !itens.length) { alert("Adicione pelo menos 1 item."); return; }
@@ -367,8 +404,15 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
     setSaving(true);
     try {
       const data = buildPayload(novoStatus);
+      // Confirma recebimento conforme → lança entrada no estoque central uma única vez
+      const confirmandoRecebimentoConforme =
+        compra?.id && etapaAtual==="RECEBIDO" && novoStatus==="AGUARD. NF" &&
+        tipoReceb==="conforme" && !compra?.estoqueLancado;
+      if (confirmandoRecebimentoConforme) data.estoqueLancado = true;
+
       if (compra?.id) {
         await updateDoc(doc(db,"compras",compra.id), data);
+        if (confirmandoRecebimentoConforme) await lancarEntradaEstoque();
         addToast(novoStatus && novoStatus!==etapaAtual ? `✓ Movido para: ${novoStatus}` : "Salvo!");
       } else {
         data.createdAt = agora();
