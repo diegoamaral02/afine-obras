@@ -9,6 +9,7 @@ import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
+import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 
 const METODOS = ["Cartão","PIX","Transferência","Dinheiro","Boleto","Outro"];
 const fmt  = v => `R$ ${Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}`;
@@ -16,6 +17,8 @@ const hoje = () => new Date().toISOString().split("T")[0];
 
 // ── Modal de Despesa ─────────────────────────────────────────────────────────
 function DespesaModal({ despesa, funcionarios, obras, onClose, addToast }) {
+  const { userProfile, currentUser } = useAuth();
+  const nomeUser = userProfile?.nome || currentUser?.email || "–";
   const [form, setForm] = useState({
     data:            despesa?.data            || hoje(),
     descricao:       despesa?.descricao       || "",
@@ -42,11 +45,10 @@ function DespesaModal({ despesa, funcionarios, obras, onClose, addToast }) {
   async function save() {
     if (!form.descricao || !form.valor || !form.data) { alert("Informe data, descrição e valor."); return; }
     setSaving(true);
-    const agora = new Date().toISOString();
-    const payload = { ...form, valor: Number(form.valor), updatedAt: agora };
+    const payload = { ...form, valor: Number(form.valor) };
     try {
-      if (despesa?.id) { await updateDoc(doc(db,"despesas",despesa.id), payload); addToast("✓ Despesa atualizada!"); }
-      else { payload.createdAt = agora; await addDoc(collection(db,"despesas"), payload); addToast("✓ Despesa registrada!"); }
+      if (despesa?.id) { await updateComAuditoria("despesas", despesa.id, payload, currentUser?.uid, nomeUser); addToast("✓ Despesa atualizada!"); }
+      else { await addComAuditoria("despesas", payload, currentUser?.uid, nomeUser); addToast("✓ Despesa registrada!"); }
       onClose();
     } catch(err) { addToast("Erro: "+err.message, "error"); }
     setSaving(false);
@@ -141,7 +143,7 @@ export default function Despesas() {
 
   async function excluir(d) {
     if (!window.confirm(`Excluir a despesa "${d.descricao}" (${fmt(d.valor)})?`)) return;
-    try { await deleteDoc(doc(db,"despesas",d.id)); addToast("✓ Excluída"); }
+    try { await deleteComAuditoria("despesas", d.id, currentUser?.uid, userProfile?.nome||currentUser?.email, d); addToast("✓ Excluída"); }
     catch(err) { addToast("Erro: "+err.message,"error"); }
   }
 

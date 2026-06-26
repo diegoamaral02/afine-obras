@@ -6,6 +6,7 @@ import { db } from "../firebase";
 import { statusBadge, fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
 import { isCampo, isGestorOuAdm } from "../constants/departamentos";
+import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
 import Modal from "../components/Modal";
 import PhotoUploader from "../components/PhotoUploader";
@@ -228,8 +229,8 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
     const agora = new Date().toISOString();
     const payload = { ...form, progresso: Number(form.progresso)||0, fotos, checklist, osDigital: osDigital||null, updatedAt: agora };
     try {
-      if (obra?.id) { await updateDoc(doc(db,"obras",obra.id),payload); addToast("Obra atualizada!"); }
-      else { payload.createdAt=agora; await addDoc(collection(db,"obras"),payload); addToast("Obra criada!"); }
+      if (obra?.id) { await updateComAuditoria("obras", obra.id, payload, currentUser?.uid, nomeUser); addToast("Obra atualizada!"); }
+      else { await addComAuditoria("obras", payload, currentUser?.uid, nomeUser); addToast("Obra criada!"); }
       onClose();
     } catch(err) { addToast("Erro: "+err.message,"error"); }
     setSaving(false);

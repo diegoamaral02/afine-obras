@@ -13,6 +13,7 @@ import { useToast } from "../hooks/useToast";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
 import { isGestorOuAdm } from "../constants/departamentos";
+import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
 
 const MIN_FOTOS = 15;
 const CHECKLIST_ITENS = [
@@ -168,8 +169,8 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
     // Ao concluir, remove da visão do campo automaticamente
     if(form.status==="CONCLUÍDA") payload.concluidaEm=agora;
     try {
-      if(manut?.id){await updateDoc(doc(db,"manutencoes",manut.id),payload);addToast("✓ Manutenção atualizada!");}
-      else{await addDoc(collection(db,"manutencoes"),payload);addToast("✓ Manutenção criada!");}
+      if(manut?.id){await updateComAuditoria("manutencoes", manut.id, payload, uid, nomeUser);addToast("✓ Manutenção atualizada!");}
+      else{await addComAuditoria("manutencoes", payload, uid, nomeUser);addToast("✓ Manutenção criada!");}
       onClose();
     }catch(err){addToast("Erro: "+err.message,"error");}
     setSaving(false);

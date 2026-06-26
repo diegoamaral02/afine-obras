@@ -133,6 +133,10 @@ service cloud.firestore {
       allow create: if isAuth();
       allow update: if isEncarregado();
       allow delete: if isGestor();
+      match /historico/{hid} {
+        allow read:  if isAuth();
+        allow write: if isAuth();
+      }
     }
 
     // ── Despesas / reembolsos (novo — migrado do controle de planilha) ─
@@ -141,6 +145,10 @@ service cloud.firestore {
       allow create: if isAuth();
       allow update: if isEncarregado();
       allow delete: if isGestor();
+      match /historico/{hid} {
+        allow read:  if isAuth();
+        allow write: if isAuth();
+      }
     }
 
     // ── Transferências de material entre obras ──────────────────────
@@ -149,6 +157,10 @@ service cloud.firestore {
       allow create: if isEncarregado();
       allow update: if isEncarregado();
       allow delete: if isGestor();
+      match /historico/{hid} {
+        allow read:  if isAuth();
+        allow write: if isAuth();
+      }
     }
 
     // ── Fornecedores ──────────────────────────────────────────────

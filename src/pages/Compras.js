@@ -8,6 +8,7 @@ import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 import { getAcesso, isCampo } from "../constants/departamentos";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
+import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
 
 // ── Regras de aprovação ───────────────────────────────────────────────────────
 // Para MANUTENÇÃO: todos menos campo podem aprovar
@@ -303,10 +304,10 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
     const demandaNomeCorrigido = demandaTipo==="geral" ? "" : (demandas.find(d=>d.id===demandaId)?.nome || demandas.find(d=>d.id===demandaId)?.titulo || "");
     setSaving(true);
     try {
-      await updateDoc(doc(db,"compras",compra.id), {
+      await updateComAuditoria("compras", compra.id, {
         demandaTipo, demandaId: demandaTipo==="geral"?"":demandaId, demandaNome: demandaNomeCorrigido,
         vinculoCorrigidoEm: agora(), vinculoCorrigidoPor: nomeUser,
-      });
+      }, currentUser?.uid, nomeUser);
       addToast("✓ Vínculo da demanda corrigido!");
       setEditandoVinculo(false);
     } catch(err) { addToast("Erro: "+err.message,"error"); }
@@ -411,14 +412,13 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
       if (confirmandoRecebimentoConforme) data.estoqueLancado = true;
 
       if (compra?.id) {
-        await updateDoc(doc(db,"compras",compra.id), data);
+        await updateComAuditoria("compras", compra.id, data, currentUser?.uid, nomeUser);
         if (confirmandoRecebimentoConforme) await lancarEntradaEstoque();
         addToast(novoStatus && novoStatus!==etapaAtual ? `✓ Movido para: ${novoStatus}` : "Salvo!");
       } else {
-        data.createdAt = agora();
         data.atorSolicitacao = nomeUser;
         data.solicitadoEm    = agora();
-        await addDoc(collection(db,"compras"), data);
+        await addComAuditoria("compras", data, currentUser?.uid, nomeUser);
         addToast("✓ Solicitação criada!");
       }
       onClose();
@@ -431,13 +431,12 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
     setSaving(true);
     const novoStatus = tipo==="recusa" ? "RECUSADA" : "EM REVISÃO";
     try {
-      await updateDoc(doc(db,"compras",compra.id), {
+      await updateComAuditoria("compras", compra.id, {
         status:       novoStatus,
         motivoRecusa: motivoRecusa,
         atorRecusa:   nomeUser,
         recusadoEm:   agora(),
-        updatedAt:    agora(),
-      });
+      }, currentUser?.uid, nomeUser);
       addToast(tipo==="recusa"?"Compra recusada.":"Enviado para revisão.");
       onClose();
     } catch(err) { addToast("Erro: "+err.message,"error"); }

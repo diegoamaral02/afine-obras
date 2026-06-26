@@ -1,5 +1,5 @@
 // src/services/auditoria.js — versionamento e log de auditoria
-import { collection, addDoc, updateDoc, doc } from "firebase/firestore";
+import { collection, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
 import { db } from "../firebase";
 
 // Atualiza documento COM trilha de auditoria
@@ -43,4 +43,17 @@ export async function addComAuditoria(colecao, payload, userUid, userName) {
   });
 
   return docRef;
+}
+
+// Exclui documento COM trilha de auditoria — guarda um "retrato" do documento
+// antes de apagar, já que depois de excluído não há mais como consultar o
+// dado original (diferente de update/create, que mantêm o doc vivo).
+export async function deleteComAuditoria(colecao, id, userUid, userName, snapshotData) {
+  const agora = new Date().toISOString();
+  await addDoc(collection(db, "audit_log"), {
+    colecao, docId: id, acao: "delete",
+    snapshot: snapshotData || null,
+    alteradoPor: userUid, alteradoPorNome: userName || "–", alteradoEm: agora,
+  });
+  return deleteDoc(doc(db, colecao, id));
 }

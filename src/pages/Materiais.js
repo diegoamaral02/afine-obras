@@ -7,6 +7,7 @@ import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 import { isCampo } from "../constants/departamentos";
+import { addComAuditoria } from "../services/auditoria";
 
 // Modal de movimentação (entrada ou saída)
 function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }) {
@@ -104,7 +105,7 @@ function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }
 
 // Modal de transferência de saldo entre obras
 function TransferenciaModal({ origem, material, obras, onClose, addToast }) {
-  const { userProfile } = useAuth();
+  const { userProfile, currentUser } = useAuth();
   const [destinoId, setDestinoId] = useState("");
   const [qtd, setQtd] = useState("");
   const [obs, setObs] = useState("");
@@ -120,14 +121,13 @@ function TransferenciaModal({ origem, material, obras, onClose, addToast }) {
     setSaving(true);
     const destino = obras.find(o=>o.id===destinoId);
     try {
-      await addDoc(collection(db,"transferencias_material"), {
+      await addComAuditoria("transferencias_material", {
         materialNome: material.nome, un: material.un, qtd: Number(qtd),
         obraOrigemId: origem.obraId, obraOrigemNome: origem.obraNome,
         obraDestinoId: destinoId, obraDestinoNome: destino?.nome||"",
         obs, usuario: userProfile?.nome||"–",
         data: new Date().toISOString().split("T")[0],
-        createdAt: new Date().toISOString(),
-      });
+      }, currentUser?.uid, userProfile?.nome);
       addToast(`✓ ${qtd} ${material.un} de "${material.nome}" transferido(s) para ${destino?.nome}!`);
       onClose();
     } catch(err) { addToast("Erro: "+err.message,"error"); }
