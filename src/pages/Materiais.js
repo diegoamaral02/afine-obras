@@ -6,6 +6,7 @@ import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
+import { isCampo } from "../constants/departamentos";
 
 // Modal de movimentação (entrada ou saída)
 function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }) {
@@ -223,7 +224,7 @@ export default function MateriaisGlobal() {
   const [modalNovo,  setModalNovo]  = useState(false);
   const [modalTransf, setModalTransf] = useState(null); // {origem, material}
 
-  const canEdit = userProfile?.perfil !== "campo";
+  const canEdit = !isCampo(userProfile);
 
   useEffect(() => {
     const u1 = onSnapshot(collection(db,"materiais_estoque"), snap => {

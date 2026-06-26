@@ -12,6 +12,7 @@ import { exportarOSParaPDF } from "../utils/exportPDF";
 import { useToast } from "../hooks/useToast";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
+import { isGestorOuAdm } from "../constants/departamentos";
 
 const MIN_FOTOS = 15;
 const CHECKLIST_ITENS = [
@@ -692,7 +693,7 @@ export default function Manutencao({ obraAtual }) {
 
   const STATUS_MANUT = ["ABERTA","EM ANDAMENTO","CONCLUÍDA","CANCELADA","AGUARDANDO PEÇAS"];
   const clientesNomes = [...new Set(manuts.map(m=>m.cliente).filter(Boolean))].sort();
-  const responsaveisList = funcionarios.filter(f=>f.adm===true||f.departamento==="gestao"||f.perfil==="gestor");
+  const responsaveisList = funcionarios.filter(f=>isGestorOuAdm(f));
   const camposFiltroManut = [
     { tipo:"periodo", key:"periodo", label:"Período de abertura" },
     { tipo:"select", key:"clienteNome", label:"Cliente", opcoes: clientesNomes.map(c=>({value:c,label:c})) },

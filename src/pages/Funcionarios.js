@@ -8,7 +8,7 @@ import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import { DEPARTAMENTOS } from "../constants/departamentos";
+import { DEPARTAMENTOS, isGestorOuAdm } from "../constants/departamentos";
 
 function getSecAuth() {
   const config = getApps()[0].options;
@@ -343,8 +343,7 @@ export default function Funcionarios() {
   const [modalSenha,   setModalSenha]   = useState(null);
   const [modalExcluir, setModalExcluir] = useState(null);
 
-  const isGestor = userProfile?.perfil==="gestor" || userProfile?.adm ||
-    ["gestao","adm"].includes(userProfile?.departamento);
+  const isGestor = isGestorOuAdm(userProfile);
 
   useEffect(()=>{
     const u1=onSnapshot(collection(db,"usuarios"),snap=>{setFuncs(snap.docs.map(d=>({id:d.id,...d.data()}))); setLoading(false);});

@@ -8,7 +8,7 @@ import { AgendaProvider, useAgenda } from "./contexts/AgendaContext";
 import { useNotificacoes } from "./hooks/useNotificacoes";
 import { initials } from "./utils/helpers";
 import { LOGO_BASE64 } from "./utils/assets";
-import { getAcesso, podeVer, isCampo } from "./constants/departamentos";
+import { getAcesso, podeVer, isCampo, resolverPerfilMenu } from "./constants/departamentos";
 
 import Login           from "./pages/Login";
 import PainelGerencial from "./pages/PainelGerencial";
@@ -176,18 +176,9 @@ const DEP_LABEL = {
   encarregado:{ label:"Encarregado",icone:"🔍", cor:"#C9A200" },
 };
 
-// Resolve o perfil efetivo para controle de menu
-// ADM e Gestão → "gestor" (acesso total ao menu)
-// Financeiro, Comercial, Fiscal, Compras → "encarregado" (acesso intermediário)
-// Campo → "campo"
-function resolverPerfilMenu(userProfile) {
-  if (!userProfile) return "campo";
-  if (userProfile.adm === true) return "gestor";
-  const dep = userProfile.departamento || userProfile.perfil || "campo";
-  if (["adm","gestao"].includes(dep) || dep === "gestor") return "gestor";
-  if (["financeiro","comercial","fiscal","compras","encarregado"].includes(dep)) return "encarregado";
-  return "campo";
-}
+// Resolve o perfil efetivo para controle de menu — agora centralizado em
+// departamentos.js (resolverPerfilMenu), única fonte de verdade compartilhada
+// com as páginas, em vez de App.js ter sua própria lógica duplicada.
 
 function Sidebar({ obraAtual, badges, sideOpen, setSideOpen }) {
   const { currentUser, userProfile, logout } = useAuth();

@@ -6,6 +6,7 @@ import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 import { buscarCEP, formatarCNPJ, formatarTelefone } from "../utils/cep";
+import { isCampo } from "../constants/departamentos";
 
 function FornecedorModal({ forn, onClose, addToast }) {
   const [form, setForm] = useState({
@@ -114,7 +115,7 @@ export default function Fornecedores() {
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState("");
   const [modal,   setModal]   = useState(null);
-  const canEdit = userProfile?.perfil==="gestor"||userProfile?.perfil==="encarregado";
+  const canEdit = !isCampo(userProfile);
 
   useEffect(()=>{
     return onSnapshot(collection(db,"fornecedores"), snap=>{

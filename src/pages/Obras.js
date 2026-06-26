@@ -5,7 +5,7 @@ import { collection, onSnapshot, addDoc, updateDoc, doc, query, where, getDocs }
 import { db } from "../firebase";
 import { statusBadge, fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
-import { isCampo } from "../constants/departamentos";
+import { isCampo, isGestorOuAdm } from "../constants/departamentos";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
 import Modal from "../components/Modal";
 import PhotoUploader from "../components/PhotoUploader";
@@ -326,7 +326,7 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
                 style={{background:form.responsavelNome?"rgba(24,95,165,.06)":""}}>
                 <option value="">Selecione o gestor responsável...</option>
                 {(funcionarios||[])
-                  .filter(f=>f.adm===true || ["gestao","adm"].includes(f.departamento) || f.perfil==="gestor")
+                  .filter(f=>isGestorOuAdm(f))
                   .map(f=><option key={f.id} value={f.id}>{f.nome}</option>)}
               </select>
               {form.responsavelNome&&<span style={{fontSize:11,color:"#185FA5",fontWeight:600}}>✓ {form.responsavelNome}</span>}
@@ -647,7 +647,7 @@ export default function Obras({ onObraSelect }) {
   const [modal,   setModal]   = useState(null);
   const [obraAberta, setObraAberta] = useState(null);
   const [abaDrawer, setAbaDrawer]   = useState("ocorrencias");
-  const isGestor = userProfile?.perfil==="gestor";
+  const isGestor = isGestorOuAdm(userProfile);
 
   useEffect(() => {
     return onSnapshot(collection(db,"obras"), snap => {
@@ -684,7 +684,7 @@ export default function Obras({ onObraSelect }) {
   });
 
   const statusList=["EM ANDAMENTO","CONCLUÍDA","PARALISADA","PLANEJAMENTO","AGUARDANDO APROVAÇÃO"];
-  const gestoresList = funcionarios.filter(f=>f.adm===true||f.departamento==="gestao"||f.perfil==="gestor");
+  const gestoresList = funcionarios.filter(f=>isGestorOuAdm(f));
 
   const camposFiltro = [
     { tipo:"periodo", key:"periodo", label:"Período de início" },

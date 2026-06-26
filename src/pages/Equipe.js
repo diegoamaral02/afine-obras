@@ -8,7 +8,7 @@ import { useAgenda } from "../contexts/AgendaContext";
 import Modal from "../components/Modal";
 import PhotoUploader from "../components/PhotoUploader";
 import { useToast } from "../hooks/useToast";
-import { DEPARTAMENTOS } from "../constants/departamentos";
+import { DEPARTAMENTOS, isGestorOuAdm, isCampo } from "../constants/departamentos";
 
 // ── Modal: editar dados do colaborador (perfil básico) ────────────────────────
 function ColaboradorInfoModal({ colaborador, onClose }) {
@@ -216,7 +216,7 @@ export function Equipe() {
   const [modalInfo,     setModalInfo]    = useState(null);
   const [modalReatrib,  setModalReatrib] = useState(null);
 
-  const canEdit = userProfile?.adm || ["gestao","adm"].includes(userProfile?.departamento) || userProfile?.perfil==="gestor";
+  const canEdit = isGestorOuAdm(userProfile);
 
   useEffect(()=>{
     const u1=onSnapshot(collection(db,"usuarios"),snap=>{
@@ -417,8 +417,7 @@ export function Ocorrencias({ obraAtual }) {
   const [filtro,  setFiltro]  = useState("todas");
   const [modal,   setModal]   = useState(null);
 
-  const perfil = userProfile?.perfil||"campo";
-  const canCreate = perfil==="gestor"||perfil==="encarregado";
+  const canCreate = !isCampo(userProfile);
 
   useEffect(()=>{
     if (!obraAtual) return;

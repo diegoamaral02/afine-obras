@@ -160,3 +160,23 @@ export function agendaPrivadaPorPadrao(userProfile) {
 export function temFiltroSoMinhaAgenda(userProfile) {
   return ["fiscal","gestao","adm"].includes(getDepartamentoEfetivo(userProfile));
 }
+
+// ─── Classificação em 3 "baldes" usada para organizar o MENU (App.js) ───────
+// Fonte única de verdade: tanto o menu quanto as páginas usam estas funções,
+// em vez de cada lugar reimplementar sua própria leitura de departamento/perfil
+// (foi exatamente essa duplicação que causou bugs como "gestor" não bater com
+// "gestao" em telas diferentes).
+export function isGestorOuAdm(userProfile) {
+  const dep = getDepartamentoEfetivo(userProfile);
+  return dep === "gestao" || dep === "adm";
+}
+export function isNivelIntermediario(userProfile) {
+  const dep = getDepartamentoEfetivo(userProfile);
+  return ["financeiro","comercial","fiscal","compras","encarregado"].includes(dep);
+}
+// "gestor" | "encarregado" | "campo" — usado para visibilidade de itens de menu
+export function resolverPerfilMenu(userProfile) {
+  if (isGestorOuAdm(userProfile)) return "gestor";
+  if (isNivelIntermediario(userProfile)) return "encarregado";
+  return "campo";
+}
