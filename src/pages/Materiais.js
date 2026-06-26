@@ -288,6 +288,18 @@ export default function MateriaisGlobal() {
     return mapa;
   }, [estoqueComprasPorObra]);
 
+  // Cruza por nome com o estoque "vindo de compras de obra" — unifica a
+  // visibilidade dos dois sistemas (manual e por compras) sem alterar como
+  // cada um é escrito, evitando reescrever os dois fluxos já em uso.
+  function saldoEmObrasPara(nomeMaterial) {
+    const alvo = (nomeMaterial||"").trim().toLowerCase();
+    let total = 0;
+    Object.values(estoqueComprasGlobal).forEach(item => {
+      if (item.nome.trim().toLowerCase() === alvo) total += (item.comprado - item.usado);
+    });
+    return total;
+  }
+
   const categorias = ["todas", ...new Set(materiais.map(m=>m.categoria).filter(Boolean))];
 
   const filtered = materiais.filter(m => {
@@ -350,11 +362,12 @@ export default function MateriaisGlobal() {
           {!loading && filtered.length>0 && (
             <div className="table-wrap">
               <table>
-                <thead><tr><th>Material</th><th>Categoria</th><th>Un.</th><th>Saldo</th><th>Mínimo</th><th>Total entradas</th><th>Total saídas</th><th>Status</th>{canEdit&&<th></th>}</tr></thead>
+                <thead><tr><th>Material</th><th>Categoria</th><th>Un.</th><th>Saldo</th><th>Mínimo</th><th>Total entradas</th><th>Total saídas</th><th>Sobra em obras</th><th>Status</th>{canEdit&&<th></th>}</tr></thead>
                 <tbody>
                   {filtered.map(m=>{
                     const critico = m.estoqueMin>0 && m.saldo<=m.estoqueMin;
                     const zerado  = m.saldo<=0;
+                    const sobraObras = saldoEmObrasPara(m.nome);
                     return (
                       <tr key={m.id}>
                         <td><strong>{m.nome}</strong></td>
@@ -364,6 +377,14 @@ export default function MateriaisGlobal() {
                         <td style={{fontSize:12,color:"var(--cinza-med)"}}>{m.estoqueMin||"–"}</td>
                         <td style={{fontSize:12}}>{m.totalEntradas||0}</td>
                         <td style={{fontSize:12}}>{m.totalSaidas||0}</td>
+                        <td style={{fontSize:12}}>
+                          {sobraObras>0 ? (
+                            <button className="btn btn-sm" style={{color:"var(--verde)",fontWeight:700,background:"none",border:"none",padding:0}}
+                              onClick={()=>{setAba("comprasObras");setSearchCompras(m.nome);}} title="Ver detalhe em Comprado em Obras">
+                              📦 +{sobraObras}
+                            </button>
+                          ) : <span style={{color:"#B8B6AE"}}>–</span>}
+                        </td>
                         <td>
                           {zerado ? <span className="badge badge-red">Zerado</span>
                            : critico ? <span className="badge badge-amber">Crítico</span>
@@ -487,10 +508,11 @@ export default function MateriaisGlobal() {
           ) : (
             <div className="table-wrap" style={{marginBottom:24}}>
               <table>
-                <thead><tr><th>Material</th><th>Un.</th><th>Comprado</th><th>Usado</th><th>Saldo total</th></tr></thead>
+                <thead><tr><th>Material</th><th>Un.</th><th>Comprado</th><th>Usado</th><th>Saldo total</th><th>Estoque manual</th></tr></thead>
                 <tbody>
                   {Object.values(estoqueComprasGlobal).sort((a,b)=>a.nome.localeCompare(b.nome)).map((item,i)=>{
                     const saldo = item.comprado-item.usado;
+                    const manual = materiais.find(m=>m.nome.trim().toLowerCase()===item.nome.trim().toLowerCase());
                     return (
                       <tr key={i}>
                         <td style={{fontWeight:600}}>{item.nome}</td>
@@ -498,6 +520,11 @@ export default function MateriaisGlobal() {
                         <td style={{fontSize:12}}>{item.comprado}</td>
                         <td style={{fontSize:12}}>{item.usado}</td>
                         <td style={{fontWeight:700,fontSize:14,color:saldo>0?"var(--verde)":saldo<0?"var(--vermelho)":"#7A7A7A"}}>{saldo}</td>
+                        <td style={{fontSize:12}}>
+                          {manual
+                            ? <button className="btn btn-sm" style={{background:"none",border:"none",color:"var(--cinza-med)",padding:0}} onClick={()=>{setAba("estoque");setSearch(item.nome);}} title="Ver no estoque manual">📋 {manual.saldo} (manual)</button>
+                            : <span style={{color:"#B8B6AE"}}>não cadastrado</span>}
+                        </td>
                       </tr>
                     );
                   })}
