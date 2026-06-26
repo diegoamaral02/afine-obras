@@ -14,6 +14,15 @@ import { exportarExcel, BtnExcel } from "../utils/exportExcel";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
 import { isGestorOuAdm } from "../constants/departamentos";
 import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
+import { salvarComFallbackOffline } from "../utils/offlineQueue";
+import { registrarExecutorOffline } from "../hooks/useFilaOffline";
+
+registrarExecutorOffline("manutencao:update", async ({ id, payload, uid, nome }) => {
+  await updateComAuditoria("manutencoes", id, payload, uid, nome);
+});
+registrarExecutorOffline("manutencao:create", async ({ payload, uid, nome }) => {
+  await addComAuditoria("manutencoes", payload, uid, nome);
+});
 
 const MIN_FOTOS = 15;
 const CHECKLIST_ITENS = [
@@ -169,10 +178,22 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
     // Ao concluir, remove da visão do campo automaticamente
     if(form.status==="CONCLUÍDA") payload.concluidaEm=agora;
     try {
-      if(manut?.id){await updateComAuditoria("manutencoes", manut.id, payload, uid, nomeUser);addToast("✓ Manutenção atualizada!");}
-      else{await addComAuditoria("manutencoes", payload, uid, nomeUser);addToast("✓ Manutenção criada!");}
-      onClose();
-    }catch(err){addToast("Erro: "+err.message,"error");}
+      const resultado = await salvarComFallbackOffline(
+        manut?.id ? "manutencao:update" : "manutencao:create",
+        { id: manut?.id, payload, uid, nome: nomeUser },
+        async ({ id, payload, uid, nome }) => {
+          if (id) await updateComAuditoria("manutencoes", id, payload, uid, nome);
+          else    await addComAuditoria("manutencoes", payload, uid, nome);
+        }
+      );
+      if (resultado.ok) {
+        addToast(manut?.id ? "✓ Manutenção atualizada!" : "✓ Manutenção criada!");
+        onClose();
+      } else if (resultado.enfileirado) {
+        addToast("📡 Sem conexão — salvo no dispositivo. Será enviado automaticamente quando a internet voltar.", "warning");
+        onClose();
+      }
+    } catch(err) { addToast("Erro: "+err.message,"error"); }
     setSaving(false);
   }
 

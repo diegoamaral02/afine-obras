@@ -323,6 +323,7 @@ textarea { resize: vertical; min-height: 80px; }
 @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .toast-success { background: var(--afine-black); color: var(--afine-yellow); }
 .toast-error   { background: var(--vermelho); color: #fff; }
+.toast-warning { background: #7A5400; color: #FDF3C7; }
 
 /* ── Misc ────────────────────────────────────────────── */
 .divider     { height: 1px; background: var(--border); margin: 16px 0; }

@@ -6,6 +6,7 @@ import { db } from "./firebase";
 import { useAuth } from "./contexts/AuthContext";
 import { AgendaProvider, useAgenda } from "./contexts/AgendaContext";
 import { useNotificacoes } from "./hooks/useNotificacoes";
+import { useFilaOffline } from "./hooks/useFilaOffline";
 import { initials } from "./utils/helpers";
 import { LOGO_BASE64 } from "./utils/assets";
 import { getAcesso, podeVer, isCampo, resolverPerfilMenu } from "./constants/departamentos";
@@ -250,6 +251,7 @@ function AppShell() {
   const [showNotifs,   setShowNotifs]   = useState(false);
   const { agendamentosDodia } = useAgenda();
   const { notifs, naoLidas, marcarLida, marcarTodasLidas } = useNotificacoes(currentUser?.uid);
+  const filaOffline = useFilaOffline();
 
   const hoje = new Date().toISOString().split("T")[0];
   const agsHoje = agendamentosDodia(hoje).length;
@@ -282,6 +284,15 @@ function AppShell() {
             )}
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:"auto"}}>
+            {/* Fila offline pendente */}
+            {filaOffline.pendentes>0 && (
+              <button onClick={filaOffline.tentarSincronizar} disabled={filaOffline.sincronizando}
+                title="Há dados salvos no dispositivo aguardando conexão para sincronizar. Clique para tentar agora."
+                style={{display:"flex",alignItems:"center",gap:6,background:"#FDF2D9",border:"1px solid rgba(184,145,10,.3)",
+                  borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:700,color:"#7A5400",cursor:"pointer"}}>
+                {filaOffline.sincronizando ? "🔄 Sincronizando..." : `📡 ${filaOffline.pendentes} pendente(s) — sincronizar`}
+              </button>
+            )}
             {/* Sino de notificações */}
             <button onClick={()=>setShowNotifs(!showNotifs)}
               style={{position:"relative",background:"none",border:"none",cursor:"pointer",fontSize:20,padding:"4px",lineHeight:1}}>

@@ -7,6 +7,18 @@ import { statusBadge, fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
 import { isCampo, isGestorOuAdm } from "../constants/departamentos";
 import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
+import { salvarComFallbackOffline } from "../utils/offlineQueue";
+import { registrarExecutorOffline } from "../hooks/useFilaOffline";
+
+// Registra como reenviar uma obra que ficou pendente na fila offline —
+// fica fora do componente pra continuar disponível mesmo se a tela de Obras
+// não estiver mais montada quando a internet voltar.
+registrarExecutorOffline("obra:update", async ({ id, payload, uid, nome }) => {
+  await updateComAuditoria("obras", id, payload, uid, nome);
+});
+registrarExecutorOffline("obra:create", async ({ payload, uid, nome }) => {
+  await addComAuditoria("obras", payload, uid, nome);
+});
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
 import Modal from "../components/Modal";
 import PhotoUploader from "../components/PhotoUploader";
@@ -228,11 +240,23 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
     setSaving(true);
     const agora = new Date().toISOString();
     const payload = { ...form, progresso: Number(form.progresso)||0, fotos, checklist, osDigital: osDigital||null, updatedAt: agora };
-    try {
-      if (obra?.id) { await updateComAuditoria("obras", obra.id, payload, currentUser?.uid, nomeUser); addToast("Obra atualizada!"); }
-      else { await addComAuditoria("obras", payload, currentUser?.uid, nomeUser); addToast("Obra criada!"); }
+
+    const resultado = await salvarComFallbackOffline(
+      obra?.id ? "obra:update" : "obra:create",
+      { id: obra?.id, payload, uid: currentUser?.uid, nome: nomeUser },
+      async ({ id, payload, uid, nome }) => {
+        if (id) await updateComAuditoria("obras", id, payload, uid, nome);
+        else    await addComAuditoria("obras", payload, uid, nome);
+      }
+    );
+
+    if (resultado.ok) {
+      addToast(obra?.id ? "Obra atualizada!" : "Obra criada!");
       onClose();
-    } catch(err) { addToast("Erro: "+err.message,"error"); }
+    } else if (resultado.enfileirado) {
+      addToast("📡 Sem conexão — salvo no dispositivo. Será enviado automaticamente quando a internet voltar.", "warning");
+      onClose();
+    }
     setSaving(false);
   }
 
