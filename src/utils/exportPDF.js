@@ -163,3 +163,167 @@ ${rdoHTML}
 </div></body></html>`);
   w.document.close();
 }
+
+
+// Estilos base compartilhados pelos novos relatórios (Obra/Financeiro/Despesas)
+const BASE_STYLE = `
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:13px;color:#1a1a1a;padding:20px}
+  .header{background:#1A1A1A;color:#fff;padding:14px 18px;border-radius:8px 8px 0 0}
+  .header h1{font-size:18px;font-weight:700}
+  .header p{font-size:11px;opacity:.65;margin-top:2px}
+  .yellow-bar{background:#F5C800;height:4px;margin-bottom:16px;border-radius:0 0 4px 4px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;margin-bottom:14px}
+  .field label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.04em}
+  .field p{font-size:13px;font-weight:500;border-bottom:1px solid #e0e0e0;padding-bottom:3px;margin-top:2px}
+  h3{font-size:13px;font-weight:700;color:#1A1A1A;margin:16px 0 8px;border-bottom:2px solid #F5C800;padding-bottom:4px;display:inline-block}
+  table{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:10px}
+  thead tr{background:#1A1A1A}
+  thead th{color:#fff;text-align:left;padding:6px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.03em}
+  tbody td{padding:6px 8px;border-bottom:1px solid #eee}
+  tbody tr:nth-child(even){background:#fafafa}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px}
+  .kpi{border:1px solid #e0e0e0;border-radius:6px;padding:10px}
+  .kpi label{font-size:9px;color:#888;text-transform:uppercase;letter-spacing:.04em}
+  .kpi .v{font-size:18px;font-weight:700;margin-top:2px}
+  .v.green{color:#2A6B3F}.v.red{color:#BD3838}.v.yellow{color:#B8910A}
+  .footer{text-align:center;font-size:10px;color:#aaa;margin-top:20px;padding-top:12px;border-top:1px solid #eee}
+  @media print{body{padding:10px}.no-print{display:none!important}}
+`;
+const BOTOES_PDF = `
+<br><div class="no-print" style="text-align:center">
+<button onclick="window.print()" style="background:#1A1A1A;color:#F5C800;border:none;padding:10px 28px;border-radius:6px;font-size:14px;cursor:pointer;margin-right:10px">🖨️ Imprimir / PDF</button>
+<button onclick="window.close()" style="background:#eee;border:none;padding:10px 20px;border-radius:6px;font-size:14px;cursor:pointer">Fechar</button>
+</div>`;
+function fmtMoeda(v) { return `R$ ${Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}`; }
+function fmtDataBR(iso) { return iso ? iso.split("-").reverse().join("/") : "–"; }
+
+// ── Relatório de Obra (ficha completa) ──────────────────────────────────────
+export function exportarObraParaPDF(obra, funcionariosMap = {}) {
+  const w = window.open("", "_blank");
+  if (!w) { alert("Permita pop-ups para exportar o PDF."); return; }
+  const data = new Date().toLocaleString("pt-BR");
+  const equipe = (obra.equipeIds||[]).map(id => funcionariosMap[id]?.nome || id).join(", ") || "–";
+  const materiais = obra.materiais||[];
+  const checklistOk = Object.values(obra.checklist||{}).filter(Boolean).length;
+  const checklistTotal = Object.keys(obra.checklist||{}).length;
+
+  w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+<title>Ficha da Obra — ${obra.nome}</title><style>${BASE_STYLE}</style></head><body>
+<div class="header"><h1>FICHA DA OBRA — ${obra.nome}</h1><p>AFINE A.F. Nery Arquitetura e Construção · Emissão: ${data}</p></div>
+<div class="yellow-bar"></div>
+
+<div class="grid">
+  <div class="field"><label>Cliente</label><p>${obra.cliente||"–"}</p></div>
+  <div class="field"><label>Agência / Local</label><p>${obra.agenciaNome||"–"}</p></div>
+  <div class="field"><label>Endereço</label><p>${[obra.logradouro,obra.numero,obra.bairro,obra.cidade,obra.uf].filter(Boolean).join(", ")||"–"}</p></div>
+  <div class="field"><label>Tipo de obra</label><p>${obra.tipo||"–"}</p></div>
+  <div class="field"><label>Responsável técnico</label><p>${obra.responsavelNome||"–"}</p></div>
+  <div class="field"><label>Contrato Nº</label><p>${obra.contrato||"–"}</p></div>
+  <div class="field"><label>Status</label><p>${obra.status||"–"} (${obra.progresso||0}%)</p></div>
+  <div class="field"><label>Equipe alocada</label><p>${equipe}</p></div>
+  <div class="field"><label>Início</label><p>${fmtDataBR(obra.inicio)}</p></div>
+  <div class="field"><label>Término previsto</label><p>${fmtDataBR(obra.termino)}</p></div>
+  <div class="field"><label>Data de vistoria</label><p>${fmtDataBR(obra.dataVistoria)}</p></div>
+  <div class="field"><label>Conclusão real</label><p>${fmtDataBR(obra.conclusaoReal)}</p></div>
+</div>
+
+<h3>Financeiro</h3>
+<div class="kpis">
+  <div class="kpi"><label>Orçamento</label><div class="v">${fmtMoeda(obra.valorOrcamento)}</div></div>
+  <div class="kpi"><label>Orçamento enviado?</label><div class="v" style="font-size:13px">${obra.orcamentoEnviado||"–"}</div></div>
+  <div class="kpi"><label>Relatório enviado?</label><div class="v" style="font-size:13px">${obra.relatorioEnviado||"–"}</div></div>
+</div>
+
+<h3>Materiais utilizados (${materiais.length})</h3>
+${materiais.length ? `<table><thead><tr><th>Material</th><th>Qtd.</th><th>Un.</th><th>Origem</th></tr></thead>
+<tbody>${materiais.map(m=>`<tr><td>${m.nome}</td><td>${m.qtd}</td><td>${m.un}</td><td>${m.origemCompra?"Comprado":"Avulso"}</td></tr>`).join("")}</tbody></table>`
+: `<p style="font-size:12px;color:#888">${obra.semMaterial?`Sem materiais — motivo: ${obra.motivoSemMaterial||"–"}`:"Nenhum material registrado."}</p>`}
+
+<h3>Checklist de vistoria</h3>
+<p style="font-size:12px">${checklistOk} de ${checklistTotal} itens conferidos.</p>
+
+<h3>Subcontratados / empresas envolvidas</h3>
+<p style="font-size:12px">${obra.subcontratados||"–"}</p>
+
+${obra.obs ? `<h3>Observações</h3><p style="font-size:12px;white-space:pre-wrap">${obra.obs}</p>` : ""}
+
+<div class="footer">AFINE — Documento gerado automaticamente · ${data}</div>
+${BOTOES_PDF}
+</body></html>`);
+  w.document.close();
+}
+
+// ── Relatório Financeiro Consolidado ────────────────────────────────────────
+export function exportarFinanceiroParaPDF(lancamentos, kpis, periodoLabel = "") {
+  const w = window.open("", "_blank");
+  if (!w) { alert("Permita pop-ups para exportar o PDF."); return; }
+  const data = new Date().toLocaleString("pt-BR");
+
+  w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+<title>Relatório Financeiro Consolidado</title><style>${BASE_STYLE}</style></head><body>
+<div class="header"><h1>RELATÓRIO FINANCEIRO CONSOLIDADO</h1><p>AFINE A.F. Nery Arquitetura e Construção · Emissão: ${data}${periodoLabel?` · ${periodoLabel}`:""}</p></div>
+<div class="yellow-bar"></div>
+
+<div class="kpis">
+  <div class="kpi"><label>A receber</label><div class="v green">${fmtMoeda(kpis?.aReceber)}</div></div>
+  <div class="kpi"><label>A pagar</label><div class="v red">${fmtMoeda(kpis?.aPagar)}</div></div>
+  <div class="kpi"><label>Saldo</label><div class="v ${(kpis?.saldo||0)>=0?"green":"red"}">${fmtMoeda(kpis?.saldo)}</div></div>
+  <div class="kpi"><label>Vencido</label><div class="v red">${fmtMoeda(kpis?.vencido)}</div></div>
+  <div class="kpi"><label>Lançamentos</label><div class="v">${lancamentos.length}</div></div>
+</div>
+
+<h3>Lançamentos (${lancamentos.length})</h3>
+<table><thead><tr><th>Vencimento</th><th>Tipo</th><th>Descrição</th><th>Obra</th><th>Categoria</th><th>Status</th><th>Valor</th></tr></thead>
+<tbody>${lancamentos.map(l=>`<tr>
+  <td>${fmtDataBR(l.vencimento)}</td>
+  <td>${l.tipo==="PAGAR"?"A Pagar":"A Receber"}</td>
+  <td>${l.descricao||"–"}</td>
+  <td>${l.obraNome||"–"}</td>
+  <td>${l.categoria||"–"}</td>
+  <td>${l.status||"–"}</td>
+  <td style="font-weight:700">${fmtMoeda(l.valor)}</td>
+</tr>`).join("")}</tbody></table>
+
+<div class="footer">AFINE — Documento gerado automaticamente · ${data}</div>
+${BOTOES_PDF}
+</body></html>`);
+  w.document.close();
+}
+
+// ── Relatório de Despesas ────────────────────────────────────────────────────
+export function exportarDespesasParaPDF(despesas, periodoLabel = "") {
+  const w = window.open("", "_blank");
+  if (!w) { alert("Permita pop-ups para exportar o PDF."); return; }
+  const data = new Date().toLocaleString("pt-BR");
+  const total = despesas.reduce((s,d)=>s+(d.valor||0),0);
+  const aReembolsar = despesas.filter(d=>d.reembolso).reduce((s,d)=>s+(d.valor||0),0);
+
+  w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+<title>Relatório de Despesas</title><style>${BASE_STYLE}</style></head><body>
+<div class="header"><h1>RELATÓRIO DE DESPESAS</h1><p>AFINE A.F. Nery Arquitetura e Construção · Emissão: ${data}${periodoLabel?` · ${periodoLabel}`:""}</p></div>
+<div class="yellow-bar"></div>
+
+<div class="kpis">
+  <div class="kpi"><label>Total no período</label><div class="v">${fmtMoeda(total)}</div></div>
+  <div class="kpi"><label>A reembolsar</label><div class="v red">${fmtMoeda(aReembolsar)}</div></div>
+  <div class="kpi"><label>Lançamentos</label><div class="v">${despesas.length}</div></div>
+</div>
+
+<h3>Despesas (${despesas.length})</h3>
+<table><thead><tr><th>Data</th><th>Descrição</th><th>Funcionário</th><th>Obra</th><th>Método</th><th>Reembolso</th><th>Valor</th></tr></thead>
+<tbody>${despesas.map(d=>`<tr>
+  <td>${fmtDataBR(d.data)}</td>
+  <td>${d.descricao||"–"}</td>
+  <td>${d.funcionarioNome||"–"}</td>
+  <td>${d.obraNome||"Geral"}</td>
+  <td>${d.metodoPagamento||"–"}</td>
+  <td>${d.reembolso?"Sim":"Não"}</td>
+  <td style="font-weight:700">${fmtMoeda(d.valor)}</td>
+</tr>`).join("")}</tbody></table>
+
+<div class="footer">AFINE — Documento gerado automaticamente · ${data}</div>
+${BOTOES_PDF}
+</body></html>`);
+  w.document.close();
+}

@@ -8,6 +8,7 @@ import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
+import { exportarFinanceiroParaPDF } from "../utils/exportPDF";
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 const CATS_PAGAR   = ["Materiais","Mão de obra","Subempreiteiro","Aluguel equipamentos","Serviços terceiros","Despesas viagem","Impressos","Combustível","Despesas administrativas","Impostos / Taxas","Honorários","Outros"];
@@ -305,6 +306,12 @@ function AbaLancamentos({ lancs, obras, addToast }) {
           ))}
         </div>
         <BtnExcel onClick={()=>exportarExcel(filtered,"Lancamentos",excelCols)}/>
+        <button className="btn btn-sm" onClick={()=>{
+          const aReceberPdf = filtered.filter(l=>l.tipo==="RECEBER"&&["ABERTO","VENCIDO","PARCIAL"].includes(l.status)).reduce((s,l)=>s+(l.valor||0),0);
+          const aPagarPdf   = filtered.filter(l=>l.tipo==="PAGAR"&&["ABERTO","VENCIDO","PARCIAL"].includes(l.status)).reduce((s,l)=>s+(l.valor||0),0);
+          const vencidoPdf  = filtered.filter(l=>l.status==="VENCIDO"||(l.status==="ABERTO"&&l.vencimento<hj)).reduce((s,l)=>s+(l.valor||0),0);
+          exportarFinanceiroParaPDF(filtered, { aReceber:aReceberPdf, aPagar:aPagarPdf, saldo:aReceberPdf-aPagarPdf, vencido:vencidoPdf });
+        }}>📄 PDF</button>
       </div>
 
       {/* Filtros secundários */}

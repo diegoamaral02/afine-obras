@@ -8,6 +8,7 @@ import { podeEditar } from "../constants/departamentos";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
+import { exportarDespesasParaPDF } from "../utils/exportPDF";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
 import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 
@@ -171,6 +172,7 @@ export default function Despesas() {
         </div>
         <div style={{display:"flex",gap:8}}>
           <BtnExcel onClick={exportar} disabled={filtradas.length===0}/>
+          <button className="btn btn-sm" disabled={filtradas.length===0} onClick={()=>exportarDespesasParaPDF(filtradas)}>📄 PDF</button>
           {podeEditarDespesas && <button className="btn btn-primary" onClick={()=>setModal({despesa:null})}>+ Nova despesa</button>}
         </div>
       </div>

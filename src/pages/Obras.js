@@ -8,6 +8,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { isCampo, isGestorOuAdm } from "../constants/departamentos";
 import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
 import { salvarComFallbackOffline } from "../utils/offlineQueue";
+import { exportarObraParaPDF } from "../utils/exportPDF";
 import { registrarExecutorOffline } from "../hooks/useFilaOffline";
 
 // Registra como reenviar uma obra que ficou pendente na fila offline —
@@ -269,13 +270,19 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
     <Modal title={obra?.id?"Editar obra":"Nova obra"} onClose={onClose}
       footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving?"Salvando...":"Salvar"}</button></>}>
 
-      <div style={{display:"flex",gap:4,marginBottom:16,flexWrap:"wrap"}}>
+      <div style={{display:"flex",gap:4,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
         {ABAS.map((a,i)=>(
           <button key={a} onClick={()=>setAba(a)} className="btn btn-sm"
             style={{background:aba===a?"var(--afine-yellow)":"",borderColor:aba===a?"var(--afine-yellow)":"",fontWeight:aba===a?700:400,color:aba===a?"var(--afine-black)":""}}>
             {LABELS[a]}
           </button>
         ))}
+        {obra?.id && (
+          <button className="btn btn-sm" style={{marginLeft:"auto"}}
+            onClick={()=>exportarObraParaPDF({...obra,...form,fotos,checklist,osDigital}, Object.fromEntries(funcionarios.map(f=>[f.id,f])))}>
+            📄 PDF
+          </button>
+        )}
       </div>
 
       {aba==="dados" && (
