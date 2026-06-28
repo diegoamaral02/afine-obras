@@ -21,6 +21,7 @@ registrarExecutorOffline("obra:create", async ({ payload, uid, nome }) => {
   await addComAuditoria("obras", payload, uid, nome);
 });
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
+import { exportarExcel, BtnExcel } from "../utils/exportExcel";
 import Modal from "../components/Modal";
 import PhotoUploader from "../components/PhotoUploader";
 import OSDigital from "../components/OSDigital";
@@ -733,7 +734,25 @@ export default function Obras({ onObraSelect }) {
           <div className="panel-title">Obras</div>
           <div style={{fontSize:12,color:"#7A7A7A"}}>{obrasVisiveis.length} obra(s){souCampo?" em que você está alocado":""} · {obrasVisiveis.filter(o=>o.status==="EM ANDAMENTO").length} em andamento</div>
         </div>
-        {isGestor && <button className="btn btn-primary" onClick={()=>setModal({obra:null})}>+ Nova obra</button>}
+        <div style={{display:"flex",gap:8}}>
+          <BtnExcel onClick={()=>exportarExcel(filtered,"Obras",[
+            { key:"nome", header:"Obra" },
+            { key:"tipo", header:"Tipo" },
+            { key:"cliente", header:"Cliente" },
+            { key:"responsavelNome", header:"Responsável" },
+            { key:"logradouro", header:"Endereço" },
+            { key:"numero", header:"Nº" },
+            { key:"cidade", header:"Cidade" },
+            { key:"uf", header:"UF" },
+            { key:"inicio", header:"Início", format:v=>v?v.split("-").reverse().join("/"):"" },
+            { key:"termino", header:"Término previsto", format:v=>v?v.split("-").reverse().join("/"):"" },
+            { key:"conclusaoReal", header:"Conclusão real", format:v=>v?v.split("-").reverse().join("/"):"" },
+            { key:"valorOrcamento", header:"Valor orçamento", format:v=>Number(v||0).toFixed(2) },
+            { key:"progresso", header:"Progresso (%)" },
+            { key:"status", header:"Status" },
+          ])} disabled={filtered.length===0}/>
+          {isGestor && <button className="btn btn-primary" onClick={()=>setModal({obra:null})}>+ Nova obra</button>}
+        </div>
       </div>
 
       <FiltroAvancado campos={camposFiltro} valores={filtros} onChange={setFiltros}
