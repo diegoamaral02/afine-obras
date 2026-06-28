@@ -22,11 +22,20 @@ const fmt  = v => `R$ ${Number(v||0).toLocaleString("pt-BR",{minimumFractionDigi
 const hoje = () => new Date().toISOString().split("T")[0];
 
 // ── Modal de Despesa ─────────────────────────────────────────────────────────
-function DespesaModal({ despesa, funcionarios, obras, onClose, addToast }) {
+function DespesaModal({ despesa, funcionarios, obras, manutencoes, onClose, addToast }) {
   const { userProfile, currentUser } = useAuth();
   const isCampoUser = isCampo(userProfile);
   const nomeUser = userProfile?.nome || currentUser?.email || "–";
   const podeRevisar = !isCampoUser; // Gestão/Financeiro/ADM podem marcar como revisado
+
+  // ANEXO3: vínculo passa a ser uma escolha explícita e obrigatória —
+  // Obra / Manutenção / Nenhum vínculo — em vez de só "obra ou geral".
+  function vinculoInicial() {
+    if (despesa?.manutencaoId) return "manutencao";
+    if (despesa?.obraId) return "obra";
+    if (despesa?.id) return "nenhum"; // já existia e não tinha vínculo
+    return ""; // nova despesa: força escolha
+  }
 
   const [form, setForm] = useState({
     data:            despesa?.data            || hoje(),
@@ -34,41 +43,87 @@ function DespesaModal({ despesa, funcionarios, obras, onClose, addToast }) {
     descricao:       despesa?.descricao       || "",
     valor:           despesa?.valor           || "",
     metodoPagamento: despesa?.metodoPagamento || "Cartão",
-    reembolso:       despesa?.reembolso       || false,
+    cartao:          despesa?.cartao          || "",
+    cartaoPessoal:   despesa?.cartaoPessoal   || false,
+    // ANEXO4: reembolso passa a ser uma escolha explícita obrigatória, sem
+    // valor padrão — "" força o usuário a decidir sim ou não.
+    reembolsoEscolha: despesa?.id ? (despesa?.reembolso ? "sim" : "nao") : "",
     reembolsado:     despesa?.reembolsado     || false,
     dataReembolso:   despesa?.dataReembolso   || "",
     revisado:        despesa?.revisado        || false,
-    // Campo só lança a própria despesa — identidade travada no próprio usuário
-    funcionarioId:   despesa?.funcionarioId   || (isCampoUser ? currentUser?.uid||"" : ""),
-    funcionarioNome: despesa?.funcionarioNome || (isCampoUser ? nomeUser : ""),
+    // ANEXO2: funcionário já vem preenchido com quem está logado (Campo fica
+    // travado nisso; os demais podem trocar, por ex. ao lançar em nome de outro)
+    funcionarioId:   despesa?.funcionarioId   || currentUser?.uid || "",
+    funcionarioNome: despesa?.funcionarioNome || nomeUser,
+    vinculoTipo:     vinculoInicial(),
     obraId:          despesa?.obraId          || "",
     obraNome:        despesa?.obraNome        || "",
+    manutencaoId:    despesa?.manutencaoId    || "",
+    manutencaoTitulo:despesa?.manutencaoTitulo|| "",
     obs:             despesa?.obs             || "",
   });
   const [saving, setSaving] = useState(false);
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
-  function handleFunc(id) {
-    const f = funcionarios.find(x=>x.id===id);
-    set("funcionarioId", id); set("funcionarioNome", f?.nome||"");
+
+  function handleCategoria(cat) {
+    // ANEXO1: a descrição sempre acompanha a categoria escolhida (não só quando vazia)
+    setForm(p=>({...p, categoria:cat, descricao:cat}));
   }
+
+  function handleFuncComCartao(id) {
+    const f = funcionarios.find(x=>x.id===id);
+    setForm(p=>({
+      ...p, funcionarioId: id, funcionarioNome: f?.nome||"",
+      cartao: (p.metodoPagamento==="Cartão" && !p.cartaoPessoal) ? (f?.cartaoCorporativo||"") : p.cartao,
+    }));
+  }
+
+  function handleMetodo(metodo) {
+    setForm(p=>{
+      const f = funcionarios.find(x=>x.id===p.funcionarioId);
+      const novoCartao = (metodo==="Cartão" && !p.cartaoPessoal) ? (f?.cartaoCorporativo||"") : "";
+      return { ...p, metodoPagamento: metodo, cartao: novoCartao };
+    });
+  }
+
+  function toggleCartaoPessoal(checked) {
+    setForm(p=>{
+      const f = funcionarios.find(x=>x.id===p.funcionarioId);
+      return { ...p, cartaoPessoal: checked, cartao: checked ? "" : (f?.cartaoCorporativo||"") };
+    });
+  }
+
   function handleObra(id) {
     const o = obras.find(x=>x.id===id);
     set("obraId", id); set("obraNome", o?.nome||"");
   }
-  function handleCategoria(cat) {
-    set("categoria", cat);
-    // Auto-preenche a descrição com a categoria se ainda estiver vazia (agiliza o lançamento)
-    if (!form.descricao.trim()) set("descricao", cat);
+  function handleManutencao(id) {
+    const m = manutencoes.find(x=>x.id===id);
+    set("manutencaoId", id); set("manutencaoTitulo", m?.titulo||"");
   }
 
   async function save() {
     if (!form.descricao || !form.valor || !form.data) { alert("Informe data, descrição e valor."); return; }
+    // ANEXO3 — obrigatório escolher o vínculo
+    if (!form.vinculoTipo) { alert("Escolha o vínculo: Obra, Manutenção ou Nenhum vínculo."); return; }
+    if (form.vinculoTipo==="obra" && !form.obraId) { alert("Selecione a obra."); return; }
+    if (form.vinculoTipo==="manutencao" && !form.manutencaoId) { alert("Selecione a manutenção."); return; }
+    // ANEXO4 — obrigatório decidir sobre reembolso
+    if (!form.reembolsoEscolha) { alert("Escolha se necessita reembolso ao funcionário ou não."); return; }
+
     setSaving(true);
+    const reembolso = form.reembolsoEscolha === "sim";
     const payload = {
       ...form, valor: Number(form.valor),
-      reembolsado: form.reembolso ? form.reembolsado : false,
-      dataReembolso: (form.reembolso && form.reembolsado) ? (form.dataReembolso || hoje()) : "",
+      reembolso,
+      reembolsado: reembolso ? form.reembolsado : false,
+      dataReembolso: (reembolso && form.reembolsado) ? (form.dataReembolso || hoje()) : "",
+      obraId: form.vinculoTipo==="obra" ? form.obraId : "",
+      obraNome: form.vinculoTipo==="obra" ? form.obraNome : "",
+      manutencaoId: form.vinculoTipo==="manutencao" ? form.manutencaoId : "",
+      manutencaoTitulo: form.vinculoTipo==="manutencao" ? form.manutencaoTitulo : "",
     };
+    delete payload.reembolsoEscolha;
     try {
       // Lançamento livre: não há etapa de aprovação para salvar — qualquer
       // usuário pode registrar sua própria despesa. O controle acontece depois,
@@ -116,7 +171,7 @@ function DespesaModal({ despesa, funcionarios, obras, onClose, addToast }) {
             <input value={form.funcionarioNome} disabled style={{background:"var(--cinza-lt)"}}/>
           ) : (
             <>
-              <select value={form.funcionarioId} onChange={e=>handleFunc(e.target.value)}>
+              <select value={form.funcionarioId} onChange={e=>handleFuncComCartao(e.target.value)}>
                 <option value="">Selecione...</option>
                 {funcionarios.map(f=><option key={f.id} value={f.id}>{f.nome}</option>)}
               </select>
@@ -128,25 +183,74 @@ function DespesaModal({ despesa, funcionarios, obras, onClose, addToast }) {
         </div>
         <div className="form-group">
           <label>Método de pagamento</label>
-          <select value={form.metodoPagamento} onChange={e=>set("metodoPagamento",e.target.value)}>
+          <select value={form.metodoPagamento} onChange={e=>handleMetodo(e.target.value)}>
             {METODOS.map(m=><option key={m}>{m}</option>)}
           </select>
         </div>
-        <div className="form-group">
-          <label>Obra (centro de custo)</label>
-          <select value={form.obraId} onChange={e=>handleObra(e.target.value)}>
-            <option value="">Geral / Administrativo (sem obra)</option>
-            {obras.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}
-          </select>
+
+        {form.metodoPagamento==="Cartão" && (
+          <div className="form-group span-2" style={{background:"var(--cinza-lt)",borderRadius:8,padding:10}}>
+            <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginBottom:8}}>
+              <input type="checkbox" checked={form.cartaoPessoal} onChange={e=>toggleCartaoPessoal(e.target.checked)} style={{width:"auto"}}/>
+              Foi usado cartão pessoal (não o corporativo)
+            </label>
+            <input value={form.cartao} onChange={e=>set("cartao",e.target.value)}
+              placeholder={form.cartaoPessoal?"Ex: cartão pessoal do funcionário":"Cartão corporativo cadastrado para este funcionário"}/>
+            {!form.cartaoPessoal && !form.cartao && (
+              <div style={{fontSize:11,color:"var(--afine-yellow-dk)",marginTop:4}}>
+                ⚠️ Este funcionário não tem cartão corporativo cadastrado. Cadastre em Funcionários, ou marque "cartão pessoal".
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ANEXO3 — vínculo obrigatório: Obra, Manutenção ou Nenhum */}
+        <div className="form-group span-2">
+          <label className="required">Vínculo (centro de custo)</label>
+          <div style={{display:"flex",gap:6,marginBottom:form.vinculoTipo?8:0}}>
+            {[["obra","🏗️ Obra"],["manutencao","🔧 Manutenção"],["nenhum","— Nenhum vínculo"]].map(([v,l])=>(
+              <button key={v} type="button" onClick={()=>set("vinculoTipo",v)}
+                style={{
+                  flex:1, padding:"8px 6px", fontSize:12, borderRadius:8, cursor:"pointer",
+                  border:`1px solid ${form.vinculoTipo===v?"var(--afine-yellow-dk)":"var(--border)"}`,
+                  background:form.vinculoTipo===v?"var(--afine-yellow-lt)":"#fff",
+                  fontWeight:form.vinculoTipo===v?700:400,
+                }}>{l}</button>
+            ))}
+          </div>
+          {!form.vinculoTipo && <div style={{fontSize:11,color:"var(--vermelho)"}}>Escolha uma opção — campo obrigatório.</div>}
+          {form.vinculoTipo==="obra" && (
+            <select value={form.obraId} onChange={e=>handleObra(e.target.value)}>
+              <option value="">Selecione a obra...</option>
+              {obras.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}
+            </select>
+          )}
+          {form.vinculoTipo==="manutencao" && (
+            <select value={form.manutencaoId} onChange={e=>handleManutencao(e.target.value)}>
+              <option value="">Selecione a manutenção...</option>
+              {manutencoes.map(m=><option key={m.id} value={m.id}>{m.titulo}</option>)}
+            </select>
+          )}
         </div>
 
+        {/* ANEXO4 — reembolso obrigatório, sem valor padrão */}
         <div className="form-group span-2" style={{background:"var(--cinza-lt)",borderRadius:8,padding:10}}>
-          <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
-            <input type="checkbox" checked={form.reembolso} onChange={e=>set("reembolso",e.target.checked)} style={{width:"auto"}}/>
-            Necessita reembolso ao funcionário
-          </label>
-          {form.reembolso && (
-            <div style={{marginTop:8,paddingLeft:24,display:"flex",flexDirection:"column",gap:6}}>
+          <label className="required" style={{display:"block",marginBottom:8}}>Necessita reembolso ao funcionário?</label>
+          <div style={{display:"flex",gap:6}}>
+            {[["sim","Sim, necessita reembolso"],["nao","Não necessita reembolso"]].map(([v,l])=>(
+              <button key={v} type="button" onClick={()=>set("reembolsoEscolha",v)}
+                style={{
+                  flex:1, padding:"8px 6px", fontSize:12, borderRadius:8, cursor:"pointer",
+                  border:`1px solid ${form.reembolsoEscolha===v?"var(--afine-yellow-dk)":"var(--border)"}`,
+                  background:form.reembolsoEscolha===v?"var(--afine-yellow-lt)":"#fff",
+                  fontWeight:form.reembolsoEscolha===v?700:400,
+                }}>{l}</button>
+            ))}
+          </div>
+          {!form.reembolsoEscolha && <div style={{fontSize:11,color:"var(--vermelho)",marginTop:6}}>Escolha uma opção — campo obrigatório.</div>}
+
+          {form.reembolsoEscolha==="sim" && (
+            <div style={{marginTop:10,paddingLeft:4,display:"flex",flexDirection:"column",gap:6}}>
               <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
                 <input type="checkbox" checked={form.reembolsado} onChange={e=>set("reembolsado",e.target.checked)} style={{width:"auto"}}/>
                 <span style={{color:form.reembolsado?"var(--verde)":"var(--vermelho)",fontWeight:600}}>
@@ -187,6 +291,7 @@ export default function Despesas() {
   const [despesas,     setDespesas]     = useState([]);
   const [funcionarios, setFuncionarios] = useState([]);
   const [obras,        setObras]        = useState([]);
+  const [manutencoes,  setManutencoes]  = useState([]);
   const [loading,       setLoading]      = useState(true);
   const [search,        setSearch]       = useState("");
   const [filtros,       setFiltros]      = useState({ periodo:{de:"",ate:""}, funcionarioNome:"", metodoPagamento:"", obraId:"", categoria:"", statusReembolso:"", revisado:"" });
@@ -198,7 +303,8 @@ export default function Despesas() {
     const u1 = onSnapshot(q1, snap=>{ setDespesas(snap.docs.map(d=>({id:d.id,...d.data()}))); setLoading(false); }, ()=>setLoading(false));
     const u2 = onSnapshot(collection(db,"usuarios"), snap=>setFuncionarios(snap.docs.map(d=>({id:d.id,...d.data()})).filter(f=>f.status==="ATIVO"||!f.status)));
     const u3 = onSnapshot(collection(db,"obras"), snap=>setObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    return ()=>{u1();u2();u3();};
+    const u4 = onSnapshot(collection(db,"manutencoes"), snap=>setManutencoes(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    return ()=>{u1();u2();u3();u4();};
   },[]);
 
   const nomesFuncionarios = useMemo(()=>[...new Set(despesas.map(d=>d.funcionarioNome).filter(Boolean))].sort(),[despesas]);
@@ -211,7 +317,7 @@ export default function Despesas() {
   const filtradas = useMemo(()=>{
     const q = search.toLowerCase();
     return despesas.filter(d=>{
-      const mQ = !q || d.descricao?.toLowerCase().includes(q) || d.funcionarioNome?.toLowerCase().includes(q) || d.obraNome?.toLowerCase().includes(q);
+      const mQ = !q || d.descricao?.toLowerCase().includes(q) || d.funcionarioNome?.toLowerCase().includes(q) || d.obraNome?.toLowerCase().includes(q) || d.manutencaoTitulo?.toLowerCase().includes(q);
       const mPeriodo = dentroPeriodo(d.data, filtros.periodo);
       const mFunc = !filtros.funcionarioNome || d.funcionarioNome===filtros.funcionarioNome;
       const mMetodo = !filtros.metodoPagamento || d.metodoPagamento===filtros.metodoPagamento;
@@ -249,11 +355,13 @@ export default function Despesas() {
       { key:"descricao", header:"Descrição" },
       { key:"valor", header:"Valor", format:v=>Number(v||0).toFixed(2) },
       { key:"metodoPagamento", header:"Método" },
+      { key:"cartao", header:"Cartão" },
       { key:"reembolso", header:"Necessita reembolso", format:v=>v?"Sim":"Não" },
       { key:"reembolsado", header:"Já reembolsado", format:v=>v?"Sim":"Não" },
       { key:"revisado", header:"Revisado", format:v=>v?"Sim":"Não" },
       { key:"funcionarioNome", header:"Funcionário" },
       { key:"obraNome", header:"Obra (centro de custo)" },
+      { key:"manutencaoTitulo", header:"Manutenção" },
       { key:"obs", header:"Observações" },
     ]);
   }
@@ -293,7 +401,7 @@ export default function Despesas() {
       </div>
 
       {/* Filtros */}
-      <div className="search-bar" style={{marginBottom:8}}>🔍<input placeholder="Buscar por descrição ou funcionário..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
+      <div className="search-bar" style={{marginBottom:8}}>🔍<input placeholder="Buscar por descrição, funcionário, obra ou manutenção..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
 
       <FiltroAvancado
         campos={[
@@ -321,7 +429,7 @@ export default function Despesas() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Data</th><th>Categoria</th><th>Descrição</th><th>Funcionário</th><th>Obra</th><th>Método</th>
+                <th>Data</th><th>Categoria</th><th>Descrição</th><th>Funcionário</th><th>Vínculo</th><th>Método</th>
                 <th>Reembolso</th>{podeEditarDespesas && <th>Revisado</th>}<th style={{textAlign:"right"}}>Valor</th>
                 <th></th>
               </tr>
@@ -335,8 +443,12 @@ export default function Despesas() {
                   <td>{d.categoria?<span className="badge badge-gray" style={{fontSize:10}}>{d.categoria}</span>:"–"}</td>
                   <td>{d.descricao}</td>
                   <td>{d.funcionarioNome||"–"}</td>
-                  <td>{d.obraNome?<span className="badge badge-blue" style={{fontSize:10}}>🏗️ {d.obraNome}</span>:<span style={{color:"#B8B6AE",fontSize:12}}>Geral</span>}</td>
-                  <td>{d.metodoPagamento||"–"}</td>
+                  <td>
+                    {d.obraNome && <span className="badge badge-blue" style={{fontSize:10}}>🏗️ {d.obraNome}</span>}
+                    {d.manutencaoTitulo && <span className="badge badge-amber" style={{fontSize:10}}>🔧 {d.manutencaoTitulo}</span>}
+                    {!d.obraNome && !d.manutencaoTitulo && <span style={{color:"#B8B6AE",fontSize:12}}>Sem vínculo</span>}
+                  </td>
+                  <td>{d.metodoPagamento||"–"}{d.cartao&&<div style={{fontSize:10,color:"#7A7A7A"}}>{d.cartaoPessoal?"💳 pessoal: ":"💳 "}{d.cartao}</div>}</td>
                   <td>
                     {stReemb==="nao_precisa" && "Não"}
                     {stReemb==="pendente" && <span style={{color:"var(--vermelho)",fontWeight:600}}>⏳ Pendente</span>}
@@ -372,7 +484,7 @@ export default function Despesas() {
       )}
 
       {modal && (
-        <DespesaModal despesa={modal.despesa} funcionarios={funcionarios} obras={obras} onClose={()=>setModal(null)} addToast={addToast}/>
+        <DespesaModal despesa={modal.despesa} funcionarios={funcionarios} obras={obras} manutencoes={manutencoes} onClose={()=>setModal(null)} addToast={addToast}/>
       )}
     </div>
   );

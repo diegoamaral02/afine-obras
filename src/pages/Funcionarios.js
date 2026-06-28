@@ -141,6 +141,7 @@ function FuncionarioModal({ func, obras, onClose, addToast }) {
     status:       func?.status       || "ATIVO",
     entrada:      func?.entrada      || new Date().toISOString().split("T")[0],
     obras:        func?.obras        || [],
+    cartaoCorporativo: func?.cartaoCorporativo || "",
   });
   const [senha,     setSenha]     = useState("");
   const [modoSenha, setModoSenha] = useState("criar");
@@ -209,6 +210,7 @@ function FuncionarioModal({ func, obras, onClose, addToast }) {
           <div className="form-group"><label>Empresa</label><input value={form.empresa} onChange={e=>set("empresa",e.target.value)}/></div>
           <div className="form-group"><label>Telefone / WhatsApp</label><input value={form.tel} onChange={e=>set("tel",e.target.value)} placeholder="(11) 9xxxx-xxxx"/></div>
           <div className="form-group"><label>CPF / RG</label><input value={form.cpf} onChange={e=>set("cpf",e.target.value)}/></div>
+          <div className="form-group"><label>Cartão corporativo</label><input value={form.cartaoCorporativo} onChange={e=>set("cartaoCorporativo",e.target.value)} placeholder="Ex: Final 4827 (PagBank)"/></div>
           <div className="form-group"><label>Data de entrada</label><input type="date" value={form.entrada} onChange={e=>set("entrada",e.target.value)}/></div>
         </div>
 
