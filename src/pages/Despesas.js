@@ -286,6 +286,7 @@ function DespesaModal({ despesa, funcionarios, obras, manutencoes, onClose, addT
 export default function Despesas() {
   const { userProfile, currentUser } = useAuth();
   const podeEditarDespesas = podeEditar(userProfile, "despesas"); // editar/excluir/revisar = gestão/financeiro/adm
+  const souCampo = isCampo(userProfile);
   const nomeUser = userProfile?.nome || currentUser?.email || "–";
   const { toasts, addToast } = useToast();
   const [despesas,     setDespesas]     = useState([]);
@@ -309,6 +310,13 @@ export default function Despesas() {
 
   const nomesFuncionarios = useMemo(()=>[...new Set(despesas.map(d=>d.funcionarioNome).filter(Boolean))].sort(),[despesas]);
 
+  // Campo só vê as próprias despesas (compatível com registros antigos sem
+  // funcionarioId, via nome) — mesmo padrão usado em Compras/Calendário.
+  const despesasVisiveis = useMemo(()=>{
+    if (!souCampo) return despesas;
+    return despesas.filter(d => d.funcionarioId ? d.funcionarioId===currentUser?.uid : d.funcionarioNome===nomeUser);
+  },[despesas, souCampo, currentUser, nomeUser]);
+
   function statusReembolsoDe(d) {
     if (!d.reembolso) return "nao_precisa";
     return d.reembolsado ? "reembolsado" : "pendente";
@@ -316,7 +324,7 @@ export default function Despesas() {
 
   const filtradas = useMemo(()=>{
     const q = search.toLowerCase();
-    return despesas.filter(d=>{
+    return despesasVisiveis.filter(d=>{
       const mQ = !q || d.descricao?.toLowerCase().includes(q) || d.funcionarioNome?.toLowerCase().includes(q) || d.obraNome?.toLowerCase().includes(q) || d.manutencaoTitulo?.toLowerCase().includes(q);
       const mPeriodo = dentroPeriodo(d.data, filtros.periodo);
       const mFunc = !filtros.funcionarioNome || d.funcionarioNome===filtros.funcionarioNome;
@@ -373,7 +381,7 @@ export default function Despesas() {
       <div className="panel-header">
         <div>
           <div className="panel-title">Despesas</div>
-          <div style={{fontSize:12,color:"#7A7A7A"}}>{despesas.length} registro(s) · {filtradas.length} exibido(s) no filtro atual</div>
+          <div style={{fontSize:12,color:"#7A7A7A"}}>{despesasVisiveis.length} registro(s){souCampo?" seu(s)":""} · {filtradas.length} exibido(s) no filtro atual</div>
         </div>
         <div style={{display:"flex",gap:8}}>
           <BtnExcel onClick={exportar} disabled={filtradas.length===0}/>
