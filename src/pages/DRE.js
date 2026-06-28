@@ -54,14 +54,21 @@ function KPI({ label, valor, cor="#1A1A1A", sub, icon, destaque }) {
 }
 
 // ── Sub-aba: Resultado por Projeto ────────────────────────────────────────────
-function AbaResultadoProjeto({ lancs, obras, compras }) {
+function AbaResultadoProjeto({ lancs, obras, compras, despesas }) {
   const [obraFiltro, setObraFiltro] = useState("");
 
   function calcObra(obraId) {
     const l = obraId ? lancs.filter(x=>x.obraId===obraId) : lancs;
     const c = obraId ? compras.filter(x=>x.demandaId===obraId) : compras;
+    const d = obraId ? despesas.filter(x=>x.obraId===obraId) : despesas;
     const receita       = l.filter(x=>x.tipo==="RECEBER"&&(x.status==="PAGO"||x.status==="RECEBIDO")).reduce((s,x)=>s+(x.valor||0),0);
-    const custoMatMO    = l.filter(x=>x.tipo==="PAGAR"&&(x.status==="PAGO")&&["Materiais","Mão de obra","Subempreiteiro"].includes(x.categoria)).reduce((s,x)=>s+(x.valor||0),0);
+    const custoLanc      = l.filter(x=>x.tipo==="PAGAR"&&(x.status==="PAGO")&&["Materiais","Mão de obra","Subempreiteiro"].includes(x.categoria)).reduce((s,x)=>s+(x.valor||0),0);
+    // NOVO: compras já recebidas/faturadas (não apenas "comprometido") e despesas
+    // vinculadas à obra também contam como custo direto realizado — antes
+    // desapareciam do relatório assim que a compra saía de "Aprovada/OC".
+    const custoCompras  = c.filter(x=>["RECEBIDO","AGUARD. NF","NF VINCULADA"].includes(x.status)).reduce((s,x)=>s+(x.valorAprovado||x.valorCotado||0),0);
+    const custoDespesas = d.reduce((s,x)=>s+(x.valor||0),0);
+    const custoMatMO    = custoLanc + custoCompras + custoDespesas;
     const custosAdmin   = l.filter(x=>x.tipo==="PAGAR"&&(x.status==="PAGO")&&!["Materiais","Mão de obra","Subempreiteiro"].includes(x.categoria)).reduce((s,x)=>s+(x.valor||0),0);
     const comprometido  = c.filter(x=>["APROVADA","ORDEM DE COMPRA"].includes(x.status)).reduce((s,x)=>s+(x.valorAprovado||0),0);
     const aReceber      = l.filter(x=>x.tipo==="RECEBER"&&x.status==="ABERTO").reduce((s,x)=>s+(x.valor||0),0);
@@ -70,10 +77,10 @@ function AbaResultadoProjeto({ lancs, obras, compras }) {
     const margLiq       = margBruta - custosAdmin;
     const margBrutaPct  = pctN(margBruta, receita);
     const margLiqPct    = pctN(margLiq, receita);
-    return { receita, custoMatMO, custosAdmin, margBruta, margLiq, comprometido, aReceber, aPagar, margBrutaPct, margLiqPct };
+    return { receita, custoMatMO, custoLanc, custoCompras, custoDespesas, custosAdmin, margBruta, margLiq, comprometido, aReceber, aPagar, margBrutaPct, margLiqPct };
   }
 
-  const d = useMemo(()=>calcObra(obraFiltro),[lancs,compras,obraFiltro]);
+  const d = useMemo(()=>calcObra(obraFiltro),[lancs,compras,despesas,obraFiltro]);
   const obraAtual = obras.find(o=>o.id===obraFiltro);
   const lucro = d.margLiq >= 0;
 
@@ -108,6 +115,14 @@ function AbaResultadoProjeto({ lancs, obras, compras }) {
         <KPI label="Margem líquida"        valor={fmt(d.margLiq)}      cor={lucro?"var(--verde)":"var(--vermelho)"} icon="🎯"/>
         <KPI label="Comprometido (OC)"     valor={fmt(d.comprometido)} cor="var(--afine-yellow-dk)" icon="🔒"/>
       </div>
+      {(d.custoCompras>0||d.custoDespesas>0) && (
+        <div style={{fontSize:11,color:"#7A7A7A",marginTop:-12,marginBottom:16,display:"flex",gap:10,flexWrap:"wrap"}}>
+          <span>Composição do custo direto:</span>
+          <span>📋 Lançamentos {fmt(d.custoLanc)}</span>
+          {d.custoCompras>0 && <span>🛒 Compras {fmt(d.custoCompras)}</span>}
+          {d.custoDespesas>0 && <span>🧾 Despesas {fmt(d.custoDespesas)}</span>}
+        </div>
+      )}
 
       {/* DRE visual */}
       <div className="card" style={{marginBottom:16}}>
@@ -156,17 +171,24 @@ function AbaResultadoProjeto({ lancs, obras, compras }) {
 }
 
 // ── Sub-aba: Comparativo de Obras ─────────────────────────────────────────────
-function AbaComparativo({ lancs, obras, compras }) {
+function AbaComparativo({ lancs, obras, compras, despesas }) {
   const dreObras = useMemo(()=>{
     return obras.map(o=>{
       const l = lancs.filter(x=>x.obraId===o.id);
+      const c = compras.filter(x=>x.demandaId===o.id);
+      const d = despesas.filter(x=>x.obraId===o.id);
       const rec = l.filter(x=>x.tipo==="RECEBER"&&(x.status==="PAGO"||x.status==="RECEBIDO")).reduce((s,x)=>s+(x.valor||0),0);
-      const cusD= l.filter(x=>x.tipo==="PAGAR"&&x.status==="PAGO"&&["Materiais","Mão de obra","Subempreiteiro"].includes(x.categoria)).reduce((s,x)=>s+(x.valor||0),0);
+      const cusDLanc = l.filter(x=>x.tipo==="PAGAR"&&x.status==="PAGO"&&["Materiais","Mão de obra","Subempreiteiro"].includes(x.categoria)).reduce((s,x)=>s+(x.valor||0),0);
+      // NOVO: inclui compras recebidas/faturadas + despesas vinculadas, mesma
+      // correção aplicada em Resultado por Projeto e Custo por Obra.
+      const cusDCompras = c.filter(x=>["RECEBIDO","AGUARD. NF","NF VINCULADA"].includes(x.status)).reduce((s,x)=>s+(x.valorAprovado||x.valorCotado||0),0);
+      const cusDDespesas = d.reduce((s,x)=>s+(x.valor||0),0);
+      const cusD = cusDLanc + cusDCompras + cusDDespesas;
       const cusI= l.filter(x=>x.tipo==="PAGAR"&&x.status==="PAGO"&&!["Materiais","Mão de obra","Subempreiteiro"].includes(x.categoria)).reduce((s,x)=>s+(x.valor||0),0);
       const mb=rec-cusD, ml=mb-cusI;
       return { ...o, receita:rec, custoDir:cusD, custInd:cusI, margBruta:mb, margLiq:ml, mbPct:pctN(mb,rec), mlPct:pctN(ml,rec) };
     }).sort((a,b)=>b.margLiq-a.margLiq);
-  },[lancs,obras]);
+  },[lancs,obras,compras,despesas]);
 
   const totais = dreObras.reduce((s,o)=>({
     receita:s.receita+(o.receita||0),
@@ -434,6 +456,7 @@ export default function DRE() {
   const [movs,    setMovs]    = useState([]);
   const [compras, setCompras] = useState([]);
   const [manuts,  setManuts]  = useState([]);
+  const [despesas,setDespesas]= useState([]);
   const [loading, setLoading] = useState(true);
   const [aba,     setAba]     = useState("resultado");
 
@@ -444,7 +467,8 @@ export default function DRE() {
     const u4=onSnapshot(collection(db,"movimentacoes"),               snap=>setMovs(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u5=onSnapshot(query(collection(db,"compras"),limit(300)),   snap=>setCompras(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u6=onSnapshot(collection(db,"manutencoes"),                 snap=>setManuts(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    return()=>{u1();u2();u3();u4();u5();u6();};
+    const u7=onSnapshot(collection(db,"despesas"),                    snap=>setDespesas(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    return()=>{u1();u2();u3();u4();u5();u6();u7();};
   },[]);
 
   const ABAS = [
@@ -481,8 +505,8 @@ export default function DRE() {
       {loading&&<div className="spinner"/>}
       {!loading&&(
         <>
-          {aba==="resultado"  &&<AbaResultadoProjeto lancs={lancs} obras={obras} compras={compras}/>}
-          {aba==="comparativo"&&<AbaComparativo      lancs={lancs} obras={obras} compras={compras}/>}
+          {aba==="resultado"  &&<AbaResultadoProjeto lancs={lancs} obras={obras} compras={compras} despesas={despesas}/>}
+          {aba==="comparativo"&&<AbaComparativo      lancs={lancs} obras={obras} compras={compras} despesas={despesas}/>}
           {aba==="clientes"   &&<AbaCliente          lancs={lancs} obras={obras}/>}
           {aba==="indicadores"&&<AbaIndicadores      lancs={lancs} obras={obras} compras={compras} manuts={manuts}/>}
           {aba==="abc"        &&<AbaCurvaABC         movs={movs} mats={mats}/>}

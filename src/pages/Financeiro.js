@@ -1,6 +1,6 @@
 // src/pages/Financeiro.js — v3: rico em informações para equipe financeira
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, limit } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, limit, where } from "firebase/firestore";
 import { db } from "../firebase";
 import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -704,7 +704,7 @@ function AbaFluxoCaixa({ lancs }) {
 }
 
 // ── Sub-aba: Custo por Obra ───────────────────────────────────────────────────
-function AbaCustoObra({ lancs, obras, addToast }) {
+function AbaCustoObra({ lancs, obras, compras, despesas, addToast }) {
   const hj=hoje();
   const [modal, setModal] = useState(null);
   const custoObras = useMemo(()=>{
@@ -712,19 +712,32 @@ function AbaCustoObra({ lancs, obras, addToast }) {
       const l=lancs.filter(x=>x.obraId===o.id);
       const orcado      =l.filter(x=>x.tipoValor==="orcado"&&x.tipo==="PAGAR").reduce((s,x)=>s+(x.valor||0),0);
       const comprometido=l.filter(x=>x.tipoValor==="comprometido"&&x.tipo==="PAGAR").reduce((s,x)=>s+(x.valor||0),0);
-      const realizado   =l.filter(x=>x.tipoValor==="realizado"&&x.tipo==="PAGAR"&&x.status==="PAGO").reduce((s,x)=>s+(x.valor||0),0);
+      const realizadoLanc=l.filter(x=>x.tipoValor==="realizado"&&x.tipo==="PAGAR"&&x.status==="PAGO").reduce((s,x)=>s+(x.valor||0),0);
+      // NOVO: soma Compras já recebidas/faturadas e Despesas vinculadas a esta
+      // obra — dinheiro já gasto de verdade, mesmo que ninguém tenha digitado
+      // de novo manualmente como lançamento no Financeiro.
+      const realizadoCompras = compras
+        .filter(c=>c.demandaId===o.id && ["RECEBIDO","AGUARD. NF","NF VINCULADA"].includes(c.status))
+        .reduce((s,c)=>s+(c.valorAprovado||c.valorCotado||0),0);
+      const realizadoDespesas = despesas
+        .filter(d=>d.obraId===o.id)
+        .reduce((s,d)=>s+(d.valor||0),0);
+      const realizado = realizadoLanc + realizadoCompras + realizadoDespesas;
       const recebido    =l.filter(x=>x.tipo==="RECEBER"&&x.status==="RECEBIDO").reduce((s,x)=>s+(x.valor||0),0);
       const aReceber    =l.filter(x=>x.tipo==="RECEBER"&&["ABERTO","VENCIDO"].includes(x.status)).reduce((s,x)=>s+(x.valor||0),0);
       const vencido     =l.filter(x=>x.tipo==="RECEBER"&&["ABERTO","VENCIDO"].includes(x.status)&&x.vencimento<hj).reduce((s,x)=>s+(x.valor||0),0);
       const margem      =recebido-realizado;
-      return {...o,orcado,comprometido,realizado,recebido,aReceber,vencido,margem,pctReal:orcado>0?pctN(realizado,orcado):0,pctMarg:recebido>0?pctN(margem,recebido):0};
+      return {...o,orcado,comprometido,realizado,realizadoLanc,realizadoCompras,realizadoDespesas,recebido,aReceber,vencido,margem,pctReal:orcado>0?pctN(realizado,orcado):0,pctMarg:recebido>0?pctN(margem,recebido):0};
     }).filter(o=>o.realizado>0||o.orcado>0||o.aReceber>0||o.recebido>0);
-  },[lancs,obras,hj]);
+  },[lancs,obras,compras,despesas,hj]);
 
   const excelCols=[
     {key:"nome",header:"Obra"},{key:"cliente",header:"Cliente"},
     {key:"orcado",header:"Orçado",format:v=>fmt(v)},{key:"comprometido",header:"Comprometido",format:v=>fmt(v)},
-    {key:"realizado",header:"Realizado",format:v=>fmt(v)},{key:"recebido",header:"Recebido",format:v=>fmt(v)},
+    {key:"realizadoLanc",header:"Realizado (lançamentos)",format:v=>fmt(v)},
+    {key:"realizadoCompras",header:"Realizado (compras)",format:v=>fmt(v)},
+    {key:"realizadoDespesas",header:"Realizado (despesas)",format:v=>fmt(v)},
+    {key:"realizado",header:"Realizado (total)",format:v=>fmt(v)},{key:"recebido",header:"Recebido",format:v=>fmt(v)},
     {key:"aReceber",header:"A receber",format:v=>fmt(v)},{key:"margem",header:"Margem",format:v=>fmt(v)},
     {key:"pctMarg",header:"Margem %",format:v=>`${v}%`},
   ];
@@ -751,7 +764,7 @@ function AbaCustoObra({ lancs, obras, addToast }) {
                 <span className={`badge ${desvio>0?"badge-red":desvio<0?"badge-green":"badge-gray"}`} style={{fontSize:10}}>{desvio>0?"⚠ Acima":"✓ Dentro"} do orçado</span>
               </div>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:8,marginBottom:12}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:8,marginBottom:8}}>
               {[["Orçado",o.orcado,"#7A7A7A"],["Comprometido",o.comprometido,"#BA7517"],["Realizado (custo)",o.realizado,desvio>0?"var(--vermelho)":"var(--verde)"],["A receber",o.aReceber,"var(--afine-yellow-dk)"],["Recebido",o.recebido,"var(--verde)"],["Vencido",o.vencido,o.vencido>0?"var(--vermelho)":"var(--verde)"]].map(([l,v,c])=>(
                 <div key={l} style={{textAlign:"center",padding:"8px",background:"var(--cinza-lt)",borderRadius:8}}>
                   <div style={{fontSize:10,color:"#7A7A7A",marginBottom:2}}>{l}</div>
@@ -759,6 +772,14 @@ function AbaCustoObra({ lancs, obras, addToast }) {
                 </div>
               ))}
             </div>
+            {(o.realizadoCompras>0||o.realizadoDespesas>0) && (
+              <div style={{fontSize:11,color:"#7A7A7A",marginBottom:12,display:"flex",gap:10,flexWrap:"wrap"}}>
+                <span>Composição do realizado:</span>
+                <span>📋 Lançamentos {fmt(o.realizadoLanc)}</span>
+                {o.realizadoCompras>0 && <span>🛒 Compras {fmt(o.realizadoCompras)}</span>}
+                {o.realizadoDespesas>0 && <span>🧾 Despesas {fmt(o.realizadoDespesas)}</span>}
+              </div>
+            )}
             {o.orcado>0&&(
               <>
                 <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#7A7A7A",marginBottom:3}}>
@@ -853,6 +874,8 @@ export default function Financeiro() {
   const { toasts, addToast } = useToast();
   const [lancs,   setLancs]   = useState([]);
   const [obras,   setObras]   = useState([]);
+  const [compras, setCompras] = useState([]);
+  const [despesas,setDespesas]= useState([]);
   const [loading, setLoading] = useState(true);
   const [aba,     setAba]     = useState("lancamentos");
   const [modal,   setModal]   = useState(null);
@@ -861,7 +884,9 @@ export default function Financeiro() {
     const u1=onSnapshot(query(collection(db,"financeiro"),orderBy("vencimento","asc"),limit(500)),
       snap=>{setLancs(snap.docs.map(x=>({id:x.id,...x.data()})));setLoading(false);});
     const u2=onSnapshot(collection(db,"obras"),snap=>setObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    return()=>{u1();u2();};
+    const u3=onSnapshot(query(collection(db,"compras"),where("demandaTipo","==","obra")),snap=>setCompras(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u4=onSnapshot(collection(db,"despesas"),snap=>setDespesas(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    return()=>{u1();u2();u3();u4();};
   },[]);
 
   const hj = hoje();
@@ -930,7 +955,7 @@ export default function Financeiro() {
           {aba==="contas_pagar"  &&<AbaContasPagar    lancs={lancs} obras={obras} addToast={addToast}/>}
           {aba==="contas_receber"&&<AbaContasReceber  lancs={lancs} obras={obras} addToast={addToast}/>}
           {aba==="fluxo"         &&<AbaFluxoCaixa     lancs={lancs}/>}
-          {aba==="custo_obra"    &&<AbaCustoObra      lancs={lancs} obras={obras} addToast={addToast}/>}
+          {aba==="custo_obra"    &&<AbaCustoObra      lancs={lancs} obras={obras} compras={compras} despesas={despesas} addToast={addToast}/>}
           {aba==="aging"         &&<AbaAging          lancs={lancs} obras={obras} addToast={addToast}/>}
         </>
       )}
