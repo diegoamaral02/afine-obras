@@ -1,11 +1,12 @@
 // src/pages/Calendario.js — Hub de agendamento visual
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useAgenda } from "../contexts/AgendaContext";
 import { useAuth } from "../contexts/AuthContext";
 import { isCampo, agendaPrivadaPorPadrao, temFiltroSoMinhaAgenda } from "../constants/departamentos";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 import { initials } from "../utils/helpers";
+import { useIsMobile } from "../hooks/useIsMobile";
 
 // Paleta de cores por tipo de demanda
 const CORES_DEMANDA = [
@@ -285,6 +286,7 @@ export default function Calendario() {
   const { agendamentos, obras, manutencoes, funcionarios, loading } = useAgenda();
   const { userProfile, currentUser } = useAuth();
   const souCampo = isCampo(userProfile);
+  const isMobile = useIsMobile();
   const { toasts, addToast } = useToast();
   const hoje = new Date();
   const [mes,  setMes]  = useState(hoje.getMonth());
@@ -429,8 +431,48 @@ export default function Calendario() {
 
       {loading && <div className="spinner"/>}
 
-      {/* Grade do calendário */}
-      {!loading && (
+      {/* Grade do calendário (desktop) ou lista por dia (celular) */}
+      {!loading && isMobile && (
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {dias.map(dia=>{
+            const dISO = toISO(dia);
+            const ags  = agsNoDia(dISO);
+            const isHoje = dISO===hojeISO;
+            const isFDS  = dia.getDay()===0||dia.getDay()===6;
+            return (
+              <div key={dISO} onClick={()=>setModalVer({dia:dISO})}
+                style={{
+                  display:"flex", gap:10, padding:"10px 12px", borderRadius:10, cursor:"pointer",
+                  border:`1px solid ${isHoje?"var(--afine-yellow-dk)":"var(--border)"}`,
+                  background: isHoje?"rgba(245,200,0,.08)":ags.length>0?"var(--afine-white)":"var(--n-50)",
+                }}>
+                <div style={{width:40,flexShrink:0,textAlign:"center"}}>
+                  <div style={{fontSize:9,fontWeight:700,color:isFDS?"var(--vermelho)":"#7A7A7A",textTransform:"uppercase"}}>{SEMANA[dia.getDay()]}</div>
+                  <div style={{
+                    fontSize:16,fontWeight:isHoje?700:600, lineHeight:1.4,
+                    color:isHoje?"#fff":"#1A1A1A",
+                    background:isHoje?"#1A1A1A":"transparent",
+                    borderRadius:"50%", width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",margin:"2px auto 0",
+                  }}>{dia.getDate()}</div>
+                </div>
+                <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:3,justifyContent:"center"}}>
+                  {ags.length===0
+                    ? <span style={{fontSize:12,color:"#B8B6AE"}}>Sem eventos</span>
+                    : ags.slice(0,3).map(ag=>(
+                        <div key={ag.id} style={{fontSize:12,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:"#1A1A1A"}}>
+                          {ag.origem==="obra"?"🏗️ ":ag.origem==="manutencao"?"🔧 ":"📅 "}{ag.demandaNome||ag.titulo}
+                        </div>
+                      ))
+                  }
+                  {ags.length>3 && <div style={{fontSize:11,color:"#7A7A7A"}}>+{ags.length-3} mais</div>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {!loading && !isMobile && (
         <div style={{background:"var(--afine-white)",border:"1px solid var(--border)",borderRadius:12,overflow:"hidden"}}>
           {/* Cabeçalho dias da semana */}
           <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",background:"#1A1A1A"}}>

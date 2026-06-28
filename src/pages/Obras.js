@@ -22,6 +22,7 @@ registrarExecutorOffline("obra:create", async ({ payload, uid, nome }) => {
 });
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
+import { useIsMobile } from "../hooks/useIsMobile";
 import Modal from "../components/Modal";
 import PhotoUploader from "../components/PhotoUploader";
 import OSDigital from "../components/OSDigital";
@@ -670,6 +671,7 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
 export default function Obras({ onObraSelect }) {
   const { userProfile, currentUser } = useAuth();
   const souCampo = isCampo(userProfile);
+  const isMobile = useIsMobile();
   const { toasts, addToast } = useToast();
   const [obras,   setObras]   = useState([]);
   const [funcionarios, setFuncionarios] = useState([]);
@@ -766,7 +768,61 @@ export default function Obras({ onObraSelect }) {
           <p>{souCampo?"Você não está alocado em nenhuma obra no momento":"Nenhuma obra encontrada"}</p>
         </div>
       )}
-      {!loading && filtered.length>0 && (
+      {!loading && filtered.length>0 && isMobile && (
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {filtered.map(o=>{
+            const temEndereco = o.logradouro&&o.numero;
+            const equipeIds = o.equipeIds||[];
+            const nomesEquipe = equipeIds.map(id=>funcionarios.find(f=>f.id===id)?.nome).filter(Boolean);
+            return (
+              <div key={o.id} className="card" style={{padding:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:8}}>
+                  <div style={{minWidth:0}}>
+                    <div style={{fontWeight:700,fontSize:14}}>{o.nome}</div>
+                    <div style={{fontSize:11,color:"#7A7A7A"}}>{o.cliente}{o.agenciaNome&&` · ${o.agenciaNome}`}</div>
+                  </div>
+                  <span className={`badge ${statusBadge(o.status)}`} style={{flexShrink:0}}>{o.status}</span>
+                </div>
+
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+                  <span className="badge badge-gray" style={{fontSize:10}}>{o.tipo||"–"}</span>
+                  {o.responsavelNome && <span style={{fontSize:11,color:"#7A7A7A"}}>👤 {o.responsavelNome}</span>}
+                  {nomesEquipe.length>0 && <span style={{fontSize:11,color:"var(--afine-yellow-dk)",fontWeight:600}}>👷 {nomesEquipe.length}</span>}
+                </div>
+
+                {temEndereco && (
+                  <button onClick={()=>{
+                    const enc=encodeURIComponent(`${o.logradouro}, ${o.numero}, ${o.cidade}`);
+                    window.open(`https://www.google.com/maps/search/?api=1&query=${enc}`,"_blank");
+                  }} style={{background:"none",border:"none",color:"var(--afine-yellow-dk)",cursor:"pointer",fontSize:12,padding:0,textAlign:"left",marginBottom:8,display:"block"}}>
+                    🗺️ {o.logradouro}, {o.numero}
+                  </button>
+                )}
+
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                  <div className="progress-bar" style={{flex:1}}><div className={`progress-fill ${o.progresso>=100?"green":"blue"}`} style={{width:`${o.progresso||0}%`}}/></div>
+                  <span style={{fontSize:11,fontWeight:600,flexShrink:0}}>{o.progresso||0}%</span>
+                </div>
+
+                <div style={{display:"flex",gap:6,fontSize:11,color:"#7A7A7A",marginBottom:10,flexWrap:"wrap"}}>
+                  <span>Término: {fmtDate(o.conclusaoReal||o.termino)}</span>
+                  <span className={`badge ${o.orcamentoEnviado==="SIM"?"badge-green":"badge-red"}`} style={{fontSize:9}}>Orç. {o.orcamentoEnviado||"NÃO"}</span>
+                  <span className={`badge ${o.relatorioEnviado==="SIM"?"badge-green":"badge-red"}`} style={{fontSize:9}}>Rel. {o.relatorioEnviado||"NÃO"}</span>
+                </div>
+
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  <button className="btn btn-primary btn-sm" onClick={()=>setModal({obra:o})} style={{flex:1}}>▶ Executar</button>
+                  {isGestor && <button className="btn btn-sm btn-icon" onClick={()=>setModal({obra:o})}>✏️</button>}
+                  <button className="btn btn-sm btn-icon" title="Ocorrências" onClick={()=>{setObraAberta(o);setAbaDrawer("ocorrencias");}}>⚠️</button>
+                  <button className="btn btn-sm btn-icon" title="Acompanhamento" onClick={()=>{setObraAberta(o);setAbaDrawer("acompanhamento");}}>📐</button>
+                  <button className="btn btn-sm btn-icon" title="Diário de Obra"  onClick={()=>{setObraAberta(o);setAbaDrawer("diario");}}>📓</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {!loading && filtered.length>0 && !isMobile && (
         <div className="table-wrap">
           <table>
             <thead><tr><th>Obra</th><th>Tipo</th><th>Cliente</th><th>Responsável</th><th>Equipe</th><th>Endereço</th><th>Vistoria</th><th>Término</th><th>Orçamento</th><th>Relatório</th><th>Progresso</th><th>Status</th><th></th></tr></thead>
