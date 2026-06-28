@@ -108,8 +108,11 @@ export const ACESSO = {
 // Helper: retorna acesso de um usuário
 export function getAcesso(userProfile) {
   if (!userProfile) return ACESSO.campo;
-  const dep = userProfile.departamento || userProfile.perfil || "campo";
-  if (userProfile.adm === true) return ACESSO.adm;
+  // BUG CORRIGIDO: usava userProfile.departamento||userProfile.perfil direto,
+  // sem mapear o legado "gestor"→"gestao". Como ACESSO não tem chave "gestor",
+  // contas antigas caíam no fallback ACESSO.campo — perdendo silenciosamente
+  // toda permissão de edição (Despesas, Financeiro, etc.), mesmo sendo Gestão.
+  const dep = getDepartamentoEfetivo(userProfile);
   return ACESSO[dep] || ACESSO.campo;
 }
 
