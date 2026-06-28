@@ -4,7 +4,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
-import { podeEditar } from "../constants/departamentos";
+import { podeEditar, isCampo } from "../constants/departamentos";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
@@ -13,21 +13,34 @@ import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
 import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 
 const METODOS = ["Cartão","PIX","Transferência","Dinheiro","Boleto","Outro"];
+// Gastos recorrentes — categorias rápidas para acelerar o lançamento
+const CATEGORIAS = [
+  "Pedágio","Gasolina","Alimentação","Compra para escritório","Estacionamento",
+  "Zona azul","Hospedagem em atendimento","Manutenção do carro","Uniforme e EPI","Caçamba","Outro",
+];
 const fmt  = v => `R$ ${Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}`;
 const hoje = () => new Date().toISOString().split("T")[0];
 
 // ── Modal de Despesa ─────────────────────────────────────────────────────────
 function DespesaModal({ despesa, funcionarios, obras, onClose, addToast }) {
   const { userProfile, currentUser } = useAuth();
+  const isCampoUser = isCampo(userProfile);
   const nomeUser = userProfile?.nome || currentUser?.email || "–";
+  const podeRevisar = !isCampoUser; // Gestão/Financeiro/ADM podem marcar como revisado
+
   const [form, setForm] = useState({
     data:            despesa?.data            || hoje(),
+    categoria:       despesa?.categoria       || "",
     descricao:       despesa?.descricao       || "",
     valor:           despesa?.valor           || "",
     metodoPagamento: despesa?.metodoPagamento || "Cartão",
     reembolso:       despesa?.reembolso       || false,
-    funcionarioId:   despesa?.funcionarioId   || "",
-    funcionarioNome: despesa?.funcionarioNome || "",
+    reembolsado:     despesa?.reembolsado     || false,
+    dataReembolso:   despesa?.dataReembolso   || "",
+    revisado:        despesa?.revisado        || false,
+    // Campo só lança a própria despesa — identidade travada no próprio usuário
+    funcionarioId:   despesa?.funcionarioId   || (isCampoUser ? currentUser?.uid||"" : ""),
+    funcionarioNome: despesa?.funcionarioNome || (isCampoUser ? nomeUser : ""),
     obraId:          despesa?.obraId          || "",
     obraNome:        despesa?.obraNome        || "",
     obs:             despesa?.obs             || "",
@@ -42,12 +55,24 @@ function DespesaModal({ despesa, funcionarios, obras, onClose, addToast }) {
     const o = obras.find(x=>x.id===id);
     set("obraId", id); set("obraNome", o?.nome||"");
   }
+  function handleCategoria(cat) {
+    set("categoria", cat);
+    // Auto-preenche a descrição com a categoria se ainda estiver vazia (agiliza o lançamento)
+    if (!form.descricao.trim()) set("descricao", cat);
+  }
 
   async function save() {
     if (!form.descricao || !form.valor || !form.data) { alert("Informe data, descrição e valor."); return; }
     setSaving(true);
-    const payload = { ...form, valor: Number(form.valor) };
+    const payload = {
+      ...form, valor: Number(form.valor),
+      reembolsado: form.reembolso ? form.reembolsado : false,
+      dataReembolso: (form.reembolso && form.reembolsado) ? (form.dataReembolso || hoje()) : "",
+    };
     try {
+      // Lançamento livre: não há etapa de aprovação para salvar — qualquer
+      // usuário pode registrar sua própria despesa. O controle acontece depois,
+      // via revisão (campo "revisado"), não como bloqueio na hora de lançar.
       if (despesa?.id) { await updateComAuditoria("despesas", despesa.id, payload, currentUser?.uid, nomeUser); addToast("✓ Despesa atualizada!"); }
       else { await addComAuditoria("despesas", payload, currentUser?.uid, nomeUser); addToast("✓ Despesa registrada!"); }
       onClose();
@@ -62,17 +87,43 @@ function DespesaModal({ despesa, funcionarios, obras, onClose, addToast }) {
         <button className="btn btn-primary" onClick={save} disabled={saving}>{saving?"Salvando...":"Salvar"}</button>
       </>}>
       <div className="form-grid">
+        <div className="form-group span-2">
+          <label>Categoria (gastos recorrentes)</label>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {CATEGORIAS.map(cat=>{
+              const ativo = form.categoria===cat;
+              return (
+                <button key={cat} type="button" onClick={()=>handleCategoria(cat)}
+                  style={{
+                    fontSize:11, padding:"5px 10px", borderRadius:14, cursor:"pointer",
+                    border:`1px solid ${ativo?"var(--afine-yellow-dk)":"var(--border)"}`,
+                    background:ativo?"var(--afine-yellow-lt)":"var(--cinza-lt)",
+                    fontWeight:ativo?700:400,
+                  }}>
+                  {ativo?"✓ ":""}{cat}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <div className="form-group"><label className="required">Data</label><input type="date" value={form.data} onChange={e=>set("data",e.target.value)}/></div>
         <div className="form-group"><label className="required">Valor (R$)</label><input type="number" step="0.01" value={form.valor} onChange={e=>set("valor",e.target.value)} placeholder="0,00"/></div>
         <div className="form-group span-2"><label className="required">Descrição</label><input value={form.descricao} onChange={e=>set("descricao",e.target.value)} placeholder="Ex: Material, Combustível, Gasolina..."/></div>
+
         <div className="form-group">
           <label>Funcionário</label>
-          <select value={form.funcionarioId} onChange={e=>handleFunc(e.target.value)}>
-            <option value="">Selecione...</option>
-            {funcionarios.map(f=><option key={f.id} value={f.id}>{f.nome}</option>)}
-          </select>
-          {!form.funcionarioId && (
-            <input value={form.funcionarioNome} onChange={e=>set("funcionarioNome",e.target.value)} placeholder="Ou digite o nome (não cadastrado)" style={{marginTop:6}}/>
+          {isCampoUser ? (
+            <input value={form.funcionarioNome} disabled style={{background:"var(--cinza-lt)"}}/>
+          ) : (
+            <>
+              <select value={form.funcionarioId} onChange={e=>handleFunc(e.target.value)}>
+                <option value="">Selecione...</option>
+                {funcionarios.map(f=><option key={f.id} value={f.id}>{f.nome}</option>)}
+              </select>
+              {!form.funcionarioId && (
+                <input value={form.funcionarioNome} onChange={e=>set("funcionarioNome",e.target.value)} placeholder="Ou digite o nome (não cadastrado)" style={{marginTop:6}}/>
+              )}
+            </>
           )}
         </div>
         <div className="form-group">
@@ -88,10 +139,39 @@ function DespesaModal({ despesa, funcionarios, obras, onClose, addToast }) {
             {obras.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}
           </select>
         </div>
-        <div className="form-group span-2" style={{display:"flex",alignItems:"center",gap:8}}>
-          <input type="checkbox" checked={form.reembolso} onChange={e=>set("reembolso",e.target.checked)} id="chk-reembolso" style={{width:"auto"}}/>
-          <label htmlFor="chk-reembolso" style={{margin:0}}>Necessita reembolso ao funcionário</label>
+
+        <div className="form-group span-2" style={{background:"var(--cinza-lt)",borderRadius:8,padding:10}}>
+          <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+            <input type="checkbox" checked={form.reembolso} onChange={e=>set("reembolso",e.target.checked)} style={{width:"auto"}}/>
+            Necessita reembolso ao funcionário
+          </label>
+          {form.reembolso && (
+            <div style={{marginTop:8,paddingLeft:24,display:"flex",flexDirection:"column",gap:6}}>
+              <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+                <input type="checkbox" checked={form.reembolsado} onChange={e=>set("reembolsado",e.target.checked)} style={{width:"auto"}}/>
+                <span style={{color:form.reembolsado?"var(--verde)":"var(--vermelho)",fontWeight:600}}>
+                  {form.reembolsado ? "✓ Já foi reembolsado" : "⏳ Ainda pendente de reembolso"}
+                </span>
+              </label>
+              {form.reembolsado && (
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <label style={{margin:0,fontSize:12}}>Data do reembolso</label>
+                  <input type="date" value={form.dataReembolso||hoje()} onChange={e=>set("dataReembolso",e.target.value)} style={{width:160}}/>
+                </div>
+              )}
+            </div>
+          )}
         </div>
+
+        {podeRevisar && despesa?.id && (
+          <div className="form-group span-2">
+            <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+              <input type="checkbox" checked={form.revisado} onChange={e=>set("revisado",e.target.checked)} style={{width:"auto"}}/>
+              ✓ Revisado/conferido pela gestão
+            </label>
+          </div>
+        )}
+
         <div className="form-group span-2"><label>Observações</label><textarea rows={2} value={form.obs} onChange={e=>set("obs",e.target.value)}/></div>
       </div>
     </Modal>
@@ -100,15 +180,16 @@ function DespesaModal({ despesa, funcionarios, obras, onClose, addToast }) {
 
 // ── Página principal ─────────────────────────────────────────────────────────
 export default function Despesas() {
-  const { userProfile } = useAuth();
-  const podeEditarDespesas = podeEditar(userProfile, "despesas");
+  const { userProfile, currentUser } = useAuth();
+  const podeEditarDespesas = podeEditar(userProfile, "despesas"); // editar/excluir/revisar = gestão/financeiro/adm
+  const nomeUser = userProfile?.nome || currentUser?.email || "–";
   const { toasts, addToast } = useToast();
   const [despesas,     setDespesas]     = useState([]);
   const [funcionarios, setFuncionarios] = useState([]);
   const [obras,        setObras]        = useState([]);
   const [loading,       setLoading]      = useState(true);
   const [search,        setSearch]       = useState("");
-  const [filtros,       setFiltros]      = useState({ periodo:{de:"",ate:""}, funcionarioNome:"", metodoPagamento:"", obraId:"", reembolso:"" });
+  const [filtros,       setFiltros]      = useState({ periodo:{de:"",ate:""}, funcionarioNome:"", metodoPagamento:"", obraId:"", categoria:"", statusReembolso:"", revisado:"" });
   const [qtdMostrar,    setQtdMostrar]   = useState(100);
   const [modal,         setModal]        = useState(null);
 
@@ -122,6 +203,11 @@ export default function Despesas() {
 
   const nomesFuncionarios = useMemo(()=>[...new Set(despesas.map(d=>d.funcionarioNome).filter(Boolean))].sort(),[despesas]);
 
+  function statusReembolsoDe(d) {
+    if (!d.reembolso) return "nao_precisa";
+    return d.reembolsado ? "reembolsado" : "pendente";
+  }
+
   const filtradas = useMemo(()=>{
     const q = search.toLowerCase();
     return despesas.filter(d=>{
@@ -130,31 +216,42 @@ export default function Despesas() {
       const mFunc = !filtros.funcionarioNome || d.funcionarioNome===filtros.funcionarioNome;
       const mMetodo = !filtros.metodoPagamento || d.metodoPagamento===filtros.metodoPagamento;
       const mObra = !filtros.obraId || d.obraId===filtros.obraId;
-      const mReemb = filtros.reembolso==="" || (filtros.reembolso===true ? d.reembolso : !d.reembolso);
-      return mQ && mPeriodo && mFunc && mMetodo && mObra && mReemb;
+      const mCategoria = !filtros.categoria || d.categoria===filtros.categoria;
+      const mReemb = !filtros.statusReembolso || statusReembolsoDe(d)===filtros.statusReembolso;
+      const mRevisado = filtros.revisado==="" || (filtros.revisado===true ? !!d.revisado : !d.revisado);
+      return mQ && mPeriodo && mFunc && mMetodo && mObra && mCategoria && mReemb && mRevisado;
     });
   },[despesas,search,filtros]);
 
   const kpis = useMemo(()=>({
     total: filtradas.reduce((s,d)=>s+(d.valor||0),0),
     qtd: filtradas.length,
-    pendentesReembolso: filtradas.filter(d=>d.reembolso).reduce((s,d)=>s+(d.valor||0),0),
-    qtdPendentes: filtradas.filter(d=>d.reembolso).length,
+    pendentesReembolso: filtradas.filter(d=>d.reembolso&&!d.reembolsado).reduce((s,d)=>s+(d.valor||0),0),
+    qtdPendentes: filtradas.filter(d=>d.reembolso&&!d.reembolsado).length,
+    naoRevisadas: filtradas.filter(d=>!d.revisado).length,
   }),[filtradas]);
 
   async function excluir(d) {
     if (!window.confirm(`Excluir a despesa "${d.descricao}" (${fmt(d.valor)})?`)) return;
-    try { await deleteComAuditoria("despesas", d.id, currentUser?.uid, userProfile?.nome||currentUser?.email, d); addToast("✓ Excluída"); }
+    try { await deleteComAuditoria("despesas", d.id, currentUser?.uid, nomeUser, d); addToast("✓ Excluída"); }
+    catch(err) { addToast("Erro: "+err.message,"error"); }
+  }
+
+  async function alternarRevisado(d) {
+    try { await updateComAuditoria("despesas", d.id, { revisado: !d.revisado }, currentUser?.uid, nomeUser); }
     catch(err) { addToast("Erro: "+err.message,"error"); }
   }
 
   function exportar() {
     exportarExcel(filtradas, "despesas", [
       { key:"data", header:"Data" },
+      { key:"categoria", header:"Categoria" },
       { key:"descricao", header:"Descrição" },
       { key:"valor", header:"Valor", format:v=>Number(v||0).toFixed(2) },
       { key:"metodoPagamento", header:"Método" },
-      { key:"reembolso", header:"Reembolso", format:v=>v?"Sim":"Não" },
+      { key:"reembolso", header:"Necessita reembolso", format:v=>v?"Sim":"Não" },
+      { key:"reembolsado", header:"Já reembolsado", format:v=>v?"Sim":"Não" },
+      { key:"revisado", header:"Revisado", format:v=>v?"Sim":"Não" },
       { key:"funcionarioNome", header:"Funcionário" },
       { key:"obraNome", header:"Obra (centro de custo)" },
       { key:"obs", header:"Observações" },
@@ -173,7 +270,8 @@ export default function Despesas() {
         <div style={{display:"flex",gap:8}}>
           <BtnExcel onClick={exportar} disabled={filtradas.length===0}/>
           <button className="btn btn-sm" disabled={filtradas.length===0} onClick={()=>exportarDespesasParaPDF(filtradas)}>📄 PDF</button>
-          {podeEditarDespesas && <button className="btn btn-primary" onClick={()=>setModal({despesa:null})}>+ Nova despesa</button>}
+          {/* Qualquer usuário pode lançar sua própria despesa — sem aprovação prévia */}
+          <button className="btn btn-primary" onClick={()=>setModal({despesa:null})}>+ Nova despesa</button>
         </div>
       </div>
 
@@ -182,10 +280,16 @@ export default function Despesas() {
         <div className="kpi-card"><div className="kpi-label">TOTAL NO FILTRO</div><div className="kpi-value">{fmt(kpis.total)}</div></div>
         <div className="kpi-card"><div className="kpi-label">LANÇAMENTOS</div><div className="kpi-value">{kpis.qtd}</div></div>
         <div className="kpi-card" style={{borderLeftColor:"var(--vermelho)"}}>
-          <div className="kpi-label">A REEMBOLSAR</div>
+          <div className="kpi-label">A REEMBOLSAR (PENDENTE)</div>
           <div className="kpi-value" style={{color:"var(--vermelho)"}}>{fmt(kpis.pendentesReembolso)}</div>
           <div style={{fontSize:11,color:"#7A7A7A"}}>{kpis.qtdPendentes} lançamento(s)</div>
         </div>
+        {podeEditarDespesas && (
+          <div className="kpi-card" style={{borderLeftColor:"var(--afine-yellow-dk)"}}>
+            <div className="kpi-label">AINDA NÃO REVISADAS</div>
+            <div className="kpi-value" style={{color:"var(--afine-yellow-dk)"}}>{kpis.naoRevisadas}</div>
+          </div>
+        )}
       </div>
 
       {/* Filtros */}
@@ -196,11 +300,15 @@ export default function Despesas() {
           { tipo:"periodo", key:"periodo", label:"Período" },
           { tipo:"select", key:"obraId", label:"Obra (centro de custo)", opcoes: obras.map(o=>({value:o.id,label:o.nome})) },
           { tipo:"select", key:"funcionarioNome", label:"Funcionário", opcoes: nomesFuncionarios.map(n=>({value:n,label:n})) },
+          { tipo:"select", key:"categoria", label:"Categoria", opcoes: CATEGORIAS.map(c=>({value:c,label:c})) },
           { tipo:"select", key:"metodoPagamento", label:"Método de pagamento", opcoes: METODOS.map(m=>({value:m,label:m})) },
-          { tipo:"bool", key:"reembolso", label:"Necessita reembolso" },
+          { tipo:"select", key:"statusReembolso", label:"Status do reembolso", opcoes: [
+              {value:"nao_precisa",label:"Não precisa"},{value:"pendente",label:"Pendente"},{value:"reembolsado",label:"Já reembolsado"},
+          ]},
+          ...(podeEditarDespesas ? [{ tipo:"bool", key:"revisado", label:"Revisado" }] : []),
         ]}
         valores={filtros} onChange={setFiltros}
-        onLimpar={()=>setFiltros({ periodo:{de:"",ate:""}, funcionarioNome:"", metodoPagamento:"", obraId:"", reembolso:"" })}
+        onLimpar={()=>setFiltros({ periodo:{de:"",ate:""}, funcionarioNome:"", metodoPagamento:"", obraId:"", categoria:"", statusReembolso:"", revisado:"" })}
       />
 
       {loading && <div className="spinner"/>}
@@ -213,29 +321,46 @@ export default function Despesas() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Data</th><th>Descrição</th><th>Funcionário</th><th>Obra</th><th>Método</th>
-                <th>Reembolso</th><th style={{textAlign:"right"}}>Valor</th>
-                {podeEditarDespesas && <th></th>}
+                <th>Data</th><th>Categoria</th><th>Descrição</th><th>Funcionário</th><th>Obra</th><th>Método</th>
+                <th>Reembolso</th>{podeEditarDespesas && <th>Revisado</th>}<th style={{textAlign:"right"}}>Valor</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
-              {filtradas.slice(0,qtdMostrar).map(d=>(
+              {filtradas.slice(0,qtdMostrar).map(d=>{
+                const stReemb = statusReembolsoDe(d);
+                return (
                 <tr key={d.id}>
                   <td>{d.data?.split("-").reverse().join("/")}</td>
+                  <td>{d.categoria?<span className="badge badge-gray" style={{fontSize:10}}>{d.categoria}</span>:"–"}</td>
                   <td>{d.descricao}</td>
                   <td>{d.funcionarioNome||"–"}</td>
                   <td>{d.obraNome?<span className="badge badge-blue" style={{fontSize:10}}>🏗️ {d.obraNome}</span>:<span style={{color:"#B8B6AE",fontSize:12}}>Geral</span>}</td>
                   <td>{d.metodoPagamento||"–"}</td>
-                  <td>{d.reembolso?<span style={{color:"var(--vermelho)",fontWeight:600}}>Sim</span>:"Não"}</td>
-                  <td style={{textAlign:"right",fontWeight:600}}>{fmt(d.valor)}</td>
+                  <td>
+                    {stReemb==="nao_precisa" && "Não"}
+                    {stReemb==="pendente" && <span style={{color:"var(--vermelho)",fontWeight:600}}>⏳ Pendente</span>}
+                    {stReemb==="reembolsado" && <span style={{color:"var(--verde)",fontWeight:600}}>✓ Reembolsado</span>}
+                  </td>
                   {podeEditarDespesas && (
-                    <td style={{whiteSpace:"nowrap"}}>
-                      <button className="btn btn-sm" onClick={()=>setModal({despesa:d})}>✏️</button>
-                      <button className="btn btn-sm" onClick={()=>excluir(d)} style={{color:"var(--vermelho)"}}>🗑️</button>
+                    <td>
+                      <button className="btn btn-sm" onClick={()=>alternarRevisado(d)}
+                        style={{background:d.revisado?"var(--verde-lt)":"var(--cinza-lt)",color:d.revisado?"var(--verde)":"#7A7A7A",border:"none"}}>
+                        {d.revisado?"✓ Revisado":"Revisar"}
+                      </button>
                     </td>
                   )}
+                  <td style={{textAlign:"right",fontWeight:600}}>{fmt(d.valor)}</td>
+                  <td style={{whiteSpace:"nowrap"}}>
+                    {podeEditarDespesas && (
+                      <>
+                        <button className="btn btn-sm" onClick={()=>setModal({despesa:d})}>✏️</button>
+                        <button className="btn btn-sm" onClick={()=>excluir(d)} style={{color:"var(--vermelho)"}}>🗑️</button>
+                      </>
+                    )}
+                  </td>
                 </tr>
-              ))}
+              );})}
             </tbody>
           </table>
           {filtradas.length>qtdMostrar && (

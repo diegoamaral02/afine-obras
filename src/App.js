@@ -55,10 +55,10 @@ const MENU = [
     { to:"/compras",   icon:"🛒", label:"Compras",    roles:["gestor","encarregado","campo"] },
     { to:"/materiais", icon:"📦", label:"Materiais",  roles:["gestor","encarregado"] },
   ]},
-  { id:"financeiro", label:"Financeiro", roles:["gestor","encarregado"], items:[
+  { id:"financeiro", label:"Financeiro", roles:["gestor","encarregado","campo"], items:[
     { to:"/financeiro", icon:"💰", label:"Lançamentos",      roles:["gestor"] },
     { to:"/dre",        icon:"📈", label:"Resultados",         roles:["gestor"] },
-    { to:"/despesas",   icon:"🧾", label:"Despesas",           roles:["gestor","encarregado"] },
+    { to:"/despesas",   icon:"🧾", label:"Despesas",           roles:["gestor","encarregado","campo"] },
   ]},
   { id:"pessoas", label:"Pessoas", roles:["gestor","encarregado"], items:[
     { to:"/equipe",       icon:"👷", label:"Equipe",       roles:["gestor","encarregado"] },
