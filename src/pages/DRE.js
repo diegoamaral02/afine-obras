@@ -54,6 +54,125 @@ function KPI({ label, valor, cor="#1A1A1A", sub, icon, destaque }) {
 }
 
 // ── Sub-aba: Resultado por Projeto ────────────────────────────────────────────
+// ── Visão Mensal — DRE consolidado da empresa toda, mês a mês ─────────────
+// Junta lançamentos do Financeiro + Compras recebidas/faturadas + Despesas
+// (mesma lógica de custo real já usada em Resultado por Projeto), mas
+// agregado globalmente (todas as obras) e quebrado por mês.
+function AbaVisaoMensal({ lancs, compras, despesas }) {
+  const [qtdMeses, setQtdMeses] = useState(12);
+
+  const dadosMensais = useMemo(() => {
+    const hj = new Date();
+    const meses = Array.from({length: qtdMeses}, (_, i) => {
+      const d = new Date(hj.getFullYear(), hj.getMonth() - (qtdMeses-1) + i, 1);
+      return d.toISOString().slice(0,7); // YYYY-MM
+    });
+
+    return meses.map(m => {
+      const lMes = lancs.filter(x => (x.vencimento||"").startsWith(m) || (x.pagamento||"").startsWith(m));
+      const receita = lMes.filter(x=>x.tipo==="RECEBER"&&(x.status==="PAGO"||x.status==="RECEBIDO")&&(x.pagamento||x.vencimento||"").startsWith(m))
+        .reduce((s,x)=>s+(x.valor||0),0);
+      const custoLanc = lMes.filter(x=>x.tipo==="PAGAR"&&x.status==="PAGO"&&["Materiais","Mão de obra","Subempreiteiro"].includes(x.categoria)&&(x.pagamento||x.vencimento||"").startsWith(m))
+        .reduce((s,x)=>s+(x.valor||0),0);
+      const custosAdmin = lMes.filter(x=>x.tipo==="PAGAR"&&x.status==="PAGO"&&!["Materiais","Mão de obra","Subempreiteiro"].includes(x.categoria)&&(x.pagamento||x.vencimento||"").startsWith(m))
+        .reduce((s,x)=>s+(x.valor||0),0);
+      const custoCompras = compras.filter(c=>["RECEBIDO","AGUARD. NF","NF VINCULADA"].includes(c.status)&&(c.dataRecebimento||"").startsWith(m))
+        .reduce((s,c)=>s+(c.valorAprovado||c.valorCotado||0),0);
+      const custoDespesas = despesas.filter(d=>(d.data||"").startsWith(m)).reduce((s,d)=>s+(d.valor||0),0);
+      const custoDireto = custoLanc + custoCompras + custoDespesas;
+      const lucroBruto = receita - custoDireto;
+      const lucroLiq   = lucroBruto - custosAdmin;
+      const [ano,mesNum] = m.split("-");
+      const label = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][Number(mesNum)-1] + "/" + ano.slice(2);
+      return { m, label, receita, custoLanc, custoCompras, custoDespesas, custoDireto, custosAdmin, lucroBruto, lucroLiq,
+        margBrutaPct: pctN(lucroBruto, receita), margLiqPct: pctN(lucroLiq, receita) };
+    });
+  }, [lancs, compras, despesas, qtdMeses]);
+
+  const totais = useMemo(() => dadosMensais.reduce((acc, m) => ({
+    receita: acc.receita + m.receita, custoDireto: acc.custoDireto + m.custoDireto,
+    custosAdmin: acc.custosAdmin + m.custosAdmin, lucroBruto: acc.lucroBruto + m.lucroBruto, lucroLiq: acc.lucroLiq + m.lucroLiq,
+  }), {receita:0,custoDireto:0,custosAdmin:0,lucroBruto:0,lucroLiq:0}), [dadosMensais]);
+
+  const maxVal = Math.max(...dadosMensais.map(m=>Math.max(m.receita,m.custoDireto+m.custosAdmin)), 1);
+  const H = 110;
+
+  return (
+    <div>
+      <div className="panel-header">
+        <div>
+          <div className="panel-title">Visão Mensal — DRE consolidado</div>
+          <div style={{fontSize:12,color:"#7A7A7A"}}>Toda a empresa, mês a mês — receita, custo direto (lançamentos + compras + despesas), custos administrativos e lucro</div>
+        </div>
+        <select value={qtdMeses} onChange={e=>setQtdMeses(Number(e.target.value))} style={{width:140}}>
+          <option value={6}>Últimos 6 meses</option>
+          <option value={12}>Últimos 12 meses</option>
+          <option value={24}>Últimos 24 meses</option>
+        </select>
+      </div>
+
+      {/* KPIs consolidados do período */}
+      <div className="metrics-grid">
+        <KPI label="Receita total"      valor={fmt(totais.receita)}    cor="var(--verde)" icon="💰"/>
+        <KPI label="Custo direto total" valor={fmt(totais.custoDireto)} cor="var(--vermelho)" icon="📦"/>
+        <KPI label="Custos admin. total" valor={fmt(totais.custosAdmin)} cor="#BA7517" icon="🏢"/>
+        <KPI label="Lucro líquido total" valor={fmt(totais.lucroLiq)} cor={totais.lucroLiq>=0?"var(--verde)":"var(--vermelho)"} icon={totais.lucroLiq>=0?"📈":"📉"} destaque/>
+      </div>
+
+      {/* Gráfico de barras: receita vs custo vs lucro, mês a mês */}
+      <div className="card" style={{marginBottom:16}}>
+        <div style={{fontWeight:600,fontSize:14,marginBottom:12}}>📊 Receita × Custo × Lucro líquido</div>
+        <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:6}}>
+          {dadosMensais.map(m=>(
+            <div key={m.m} style={{flex:"0 0 56px",display:"flex",flexDirection:"column",alignItems:"center"}}>
+              <div style={{display:"flex",gap:2,alignItems:"flex-end",height:H,marginBottom:4}}>
+                <div title={`Receita: ${fmt(m.receita)}`} style={{width:14,background:"var(--verde)",borderRadius:"3px 3px 0 0",height:`${Math.max(2,m.receita/maxVal*H)}px`}}/>
+                <div title={`Custo direto: ${fmt(m.custoDireto)}`} style={{width:14,background:"var(--vermelho)",borderRadius:"3px 3px 0 0",height:`${Math.max(2,m.custoDireto/maxVal*H)}px`}}/>
+                <div title={`Custos admin.: ${fmt(m.custosAdmin)}`} style={{width:14,background:"#D9A03B",borderRadius:"3px 3px 0 0",height:`${Math.max(2,m.custosAdmin/maxVal*H)}px`}}/>
+              </div>
+              <div style={{fontSize:9,color:"#7A7A7A",textAlign:"center"}}>{m.label}</div>
+              <div style={{fontSize:8,fontWeight:700,color:m.lucroLiq>=0?"var(--verde)":"var(--vermelho)",marginTop:2}}>
+                {m.lucroLiq>=0?"+":""}{fmtK(m.lucroLiq)}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{display:"flex",gap:14,marginTop:10,flexWrap:"wrap",fontSize:11}}>
+          {[["var(--verde)","Receita"],["var(--vermelho)","Custo direto"],["#D9A03B","Custos administrativos"]].map(([cor,label])=>(
+            <span key={label} style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:10,height:10,background:cor,borderRadius:2,display:"inline-block"}}/>{label}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* Tabela detalhada por mês */}
+      <div className="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Mês</th><th>Receita</th><th>Custo (lanç.)</th><th>Custo (compras)</th><th>Custo (despesas)</th>
+            <th>Custo direto</th><th>Custos admin.</th><th>Lucro bruto</th><th>Lucro líquido</th><th>Margem líq.</th>
+          </tr></thead>
+          <tbody>
+            {dadosMensais.map(m=>(
+              <tr key={m.m}>
+                <td style={{fontWeight:600}}>{m.label}</td>
+                <td style={{color:"var(--verde)"}}>{fmt(m.receita)}</td>
+                <td style={{fontSize:12,color:"#7A7A7A"}}>{fmt(m.custoLanc)}</td>
+                <td style={{fontSize:12,color:"#7A7A7A"}}>{fmt(m.custoCompras)}</td>
+                <td style={{fontSize:12,color:"#7A7A7A"}}>{fmt(m.custoDespesas)}</td>
+                <td style={{color:"var(--vermelho)"}}>{fmt(m.custoDireto)}</td>
+                <td style={{color:"#BA7517"}}>{fmt(m.custosAdmin)}</td>
+                <td>{fmt(m.lucroBruto)}</td>
+                <td style={{fontWeight:700,color:m.lucroLiq>=0?"var(--verde)":"var(--vermelho)"}}>{fmt(m.lucroLiq)}</td>
+                <td style={{fontWeight:600}}>{m.margLiqPct}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function AbaResultadoProjeto({ lancs, obras, compras, despesas }) {
   const [obraFiltro, setObraFiltro] = useState("");
 
@@ -458,7 +577,7 @@ export default function DRE() {
   const [manuts,  setManuts]  = useState([]);
   const [despesas,setDespesas]= useState([]);
   const [loading, setLoading] = useState(true);
-  const [aba,     setAba]     = useState("resultado");
+  const [aba,     setAba]     = useState("mensal");
 
   useEffect(()=>{
     const u1=onSnapshot(query(collection(db,"obras"),limit(200)),    snap=>{setObras(snap.docs.map(d=>({id:d.id,...d.data()})));setLoading(false);});
@@ -472,6 +591,7 @@ export default function DRE() {
   },[]);
 
   const ABAS = [
+    {id:"mensal",       label:"📅 Visão Mensal"},
     {id:"resultado",    label:"📈 Resultado por projeto"},
     {id:"comparativo",  label:"⚖️ Comparativo de obras"},
     {id:"clientes",     label:"🏢 Por cliente"},
@@ -505,6 +625,7 @@ export default function DRE() {
       {loading&&<div className="spinner"/>}
       {!loading&&(
         <>
+          {aba==="mensal"     &&<AbaVisaoMensal       lancs={lancs} compras={compras} despesas={despesas}/>}
           {aba==="resultado"  &&<AbaResultadoProjeto lancs={lancs} obras={obras} compras={compras} despesas={despesas}/>}
           {aba==="comparativo"&&<AbaComparativo      lancs={lancs} obras={obras} compras={compras} despesas={despesas}/>}
           {aba==="clientes"   &&<AbaCliente          lancs={lancs} obras={obras}/>}
