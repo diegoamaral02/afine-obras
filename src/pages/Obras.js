@@ -109,8 +109,7 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
     motivoSemMaterial: obra?.motivoSemMaterial||"",
     // Descaracterização/Devolução de imóvel — dados gerais do encerramento
     descaract: obra?.descaract || {
-      enderecoAgencia: "", numeroProcesso: "", empresaSAP: "", coordenador: "",
-      nomeAreaSolicitante: "", localizacao: "", inicioDesocupacao: "", terminoDesocupacao: "",
+      numeroProcesso: "", coordenador: "", inicioDesocupacao: "", terminoDesocupacao: "",
     },
   });
   const [fotos, setFotos] = useState(obra?.fotos||[]);
@@ -157,18 +156,26 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   function setAvaliacaoItem(item, avaliacao) {
     setChecklistDescaract(p=>({...p, [item]:{...p[item], avaliacao}}));
   }
-  function setFotoItem(item, file) {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setChecklistDescaract(p=>({...p, [item]:{...p[item], foto: reader.result}}));
-    };
-    reader.readAsDataURL(file);
+  const MIN_FOTOS_ITEM_DESCARACT = 5;
+  function adicionarFotosItem(item, files) {
+    if (!files || !files.length) return;
+    Array.from(files).forEach(file=>{
+      const reader = new FileReader();
+      reader.onload = () => {
+        setChecklistDescaract(p=>({...p, [item]:{...p[item], fotos:[...(p[item]?.fotos||[]), reader.result]}}));
+      };
+      reader.readAsDataURL(file);
+    });
   }
+  function removerFotoItem(item, idx) {
+    setChecklistDescaract(p=>({...p, [item]:{...p[item], fotos:(p[item]?.fotos||[]).filter((_,i)=>i!==idx)}}));
+  }
+  // Farol de cores por avaliação: Bom=verde, Regular=amarelo, N/A=vermelho
+  const CORES_AVALIACAO = { bom:"var(--verde)", regular:"#D9A03B", na:"var(--vermelho)" };
   const isDescaracterizacao = form.tipo === TIPO_DESCARACTERIZACAO;
   const itensDescaractTotal = Object.values(CHECKLIST_DESCARACTERIZACAO).flat().length + PERGUNTAS_COLETAS.length;
   const itensDescaractPreenchidos =
-    Object.values(CHECKLIST_DESCARACTERIZACAO).flat().filter(item=>checklistDescaract[item]?.avaliacao && checklistDescaract[item]?.foto).length +
+    Object.values(CHECKLIST_DESCARACTERIZACAO).flat().filter(item=>checklistDescaract[item]?.avaliacao && (checklistDescaract[item]?.fotos||[]).length>=MIN_FOTOS_ITEM_DESCARACT).length +
     PERGUNTAS_COLETAS.filter(item=>checklistDescaract[item]?.avaliacao).length;
   function adicionarMaterial() {
     if(!matNome.trim()||!matQtd){alert("Informe nome e quantidade.");return;}
@@ -684,12 +691,8 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
               Encerramento / Desocupação e Devolução de Bem
             </div>
             <div className="form-grid">
-              <div className="form-group span-2"><label>Endereço da Agência</label><input value={form.descaract.enderecoAgencia} onChange={e=>setDescaract("enderecoAgencia",e.target.value)}/></div>
               <div className="form-group"><label>Nº do Processo / Protocolo</label><input value={form.descaract.numeroProcesso} onChange={e=>setDescaract("numeroProcesso",e.target.value)}/></div>
-              <div className="form-group"><label>Empresa SAP</label><input value={form.descaract.empresaSAP} onChange={e=>setDescaract("empresaSAP",e.target.value)}/></div>
               <div className="form-group"><label>Coordenador</label><input value={form.descaract.coordenador} onChange={e=>setDescaract("coordenador",e.target.value)}/></div>
-              <div className="form-group"><label>Nome da Área / Solicitante</label><input value={form.descaract.nomeAreaSolicitante} onChange={e=>setDescaract("nomeAreaSolicitante",e.target.value)}/></div>
-              <div className="form-group span-2"><label>Localização</label><input value={form.descaract.localizacao} onChange={e=>setDescaract("localizacao",e.target.value)}/></div>
               <div className="form-group"><label>Início da desocupação</label><input type="date" value={form.descaract.inicioDesocupacao} onChange={e=>setDescaract("inicioDesocupacao",e.target.value)}/></div>
               <div className="form-group"><label>Término da desocupação</label><input type="date" value={form.descaract.terminoDesocupacao} onChange={e=>setDescaract("terminoDesocupacao",e.target.value)}/></div>
             </div>
@@ -704,42 +707,65 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
                 {itens.map(item=>{
                   const dado = checklistDescaract[item]||{};
-                  const temComentario = item==="Demais Áreas";
+                  const fotos = dado.fotos||[];
+                  const fotosOk = fotos.length>=MIN_FOTOS_ITEM_DESCARACT;
                   return (
                     <div key={item} style={{border:"1px solid var(--border)",borderRadius:8,padding:10}}>
                       <div style={{fontSize:13,fontWeight:600,marginBottom:8}}>{item}</div>
                       <div style={{display:"flex",gap:6,marginBottom:8}}>
-                        {AVALIACOES_DESCARACT.map(op=>(
-                          <button key={op.v} type="button" onClick={()=>setAvaliacaoItem(item,op.v)}
-                            style={{
-                              flex:1, padding:"8px 4px", borderRadius:6, cursor:"pointer", fontSize:12,
-                              border:`1px solid ${dado.avaliacao===op.v?"var(--afine-yellow-dk)":"var(--border)"}`,
-                              background:dado.avaliacao===op.v?"var(--afine-yellow-lt)":"var(--cinza-lt)",
-                              fontWeight:dado.avaliacao===op.v?700:400,
-                            }}>
-                            <div style={{fontSize:16}}>{op.icone}</div>{op.label}
-                          </button>
-                        ))}
+                        {AVALIACOES_DESCARACT.map(op=>{
+                          const ativo = dado.avaliacao===op.v;
+                          const cor = CORES_AVALIACAO[op.v];
+                          return (
+                            <button key={op.v} type="button" onClick={()=>setAvaliacaoItem(item,op.v)}
+                              style={{
+                                flex:1, padding:"8px 4px", borderRadius:6, cursor:"pointer", fontSize:12,
+                                border:`1px solid ${ativo?cor:"var(--border)"}`,
+                                background:ativo?cor:"var(--cinza-lt)",
+                                color:ativo?"#fff":"#4A4A4A",
+                                fontWeight:ativo?700:400,
+                              }}>
+                              <div style={{fontSize:16}}>{op.icone}</div>{op.label}
+                            </button>
+                          );
+                        })}
                       </div>
-                      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                        {dado.foto ? (
-                          <div style={{position:"relative",display:"inline-block"}}>
-                            <img src={dado.foto} alt={item} style={{maxHeight:90,borderRadius:6,border:"1px solid var(--border)"}}/>
-                            <button onClick={()=>setChecklistDescaract(p=>({...p,[item]:{...p[item],foto:null}}))}
-                              style={{position:"absolute",top:-6,right:-6,background:"var(--vermelho)",color:"#fff",border:"none",borderRadius:"50%",width:20,height:20,cursor:"pointer",fontSize:11}}>✕</button>
-                          </div>
-                        ) : (
-                          <label style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:12,padding:"6px 12px",border:"1px dashed var(--border)",borderRadius:6,cursor:"pointer",color:"#7A7A7A"}}>
-                            📎 Anexar
-                            <input type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>setFotoItem(item, e.target.files?.[0])}/>
-                          </label>
-                        )}
-                        {temComentario && (
-                          <input value={dado.comentario||""} onChange={e=>setChecklistDescaract(p=>({...p,[item]:{...p[item],comentario:e.target.value}}))}
-                            placeholder="💬 Comentar (opcional)" style={{flex:1,minWidth:160}}/>
-                        )}
+
+                      {/* Fotos: mínimo 5, com botões de Tirar foto e Anexar */}
+                      <div style={{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap"}}>
+                        <label style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:12,padding:"6px 12px",border:"1px dashed var(--afine-yellow-dk)",borderRadius:6,cursor:"pointer",color:"var(--afine-yellow-dk)"}}>
+                          📷 Tirar foto
+                          <input type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>{adicionarFotosItem(item, e.target.files); e.target.value="";}}/>
+                        </label>
+                        <label style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:12,padding:"6px 12px",border:"1px dashed var(--border)",borderRadius:6,cursor:"pointer",color:"#7A7A7A"}}>
+                          📎 Anexar
+                          <input type="file" accept="image/*" multiple style={{display:"none"}} onChange={e=>{adicionarFotosItem(item, e.target.files); e.target.value="";}}/>
+                        </label>
+                        <span style={{fontSize:11,fontWeight:700,color:fotosOk?"var(--verde)":"var(--vermelho)",alignSelf:"center"}}>
+                          {fotosOk?"✅":"📷"} {fotos.length}/{MIN_FOTOS_ITEM_DESCARACT} fotos
+                        </span>
                       </div>
-                      {!dado.avaliacao && <div style={{fontSize:11,color:"var(--vermelho)",marginTop:4}}>Avaliação pendente</div>}
+                      {fotos.length>0 && (
+                        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+                          {fotos.map((f,idx)=>(
+                            <div key={idx} style={{position:"relative"}}>
+                              <img src={f} alt={`${item} ${idx+1}`} style={{height:64,width:64,objectFit:"cover",borderRadius:6,border:"1px solid var(--border)"}}/>
+                              <button onClick={()=>removerFotoItem(item,idx)}
+                                style={{position:"absolute",top:-6,right:-6,background:"var(--vermelho)",color:"#fff",border:"none",borderRadius:"50%",width:18,height:18,cursor:"pointer",fontSize:10}}>✕</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Comentário em todos os itens */}
+                      <input value={dado.comentario||""} onChange={e=>setChecklistDescaract(p=>({...p,[item]:{...p[item],comentario:e.target.value}}))}
+                        placeholder="💬 Comentar (opcional)"/>
+
+                      {(!dado.avaliacao||!fotosOk) && (
+                        <div style={{fontSize:11,color:"var(--vermelho)",marginTop:4}}>
+                          {!dado.avaliacao && "Avaliação pendente. "}{!fotosOk && `Faltam ${MIN_FOTOS_ITEM_DESCARACT-fotos.length} foto(s).`}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -759,17 +785,22 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
                   <div key={pergunta} style={{border:"1px solid var(--border)",borderRadius:8,padding:10}}>
                     <div style={{fontSize:13,fontWeight:600,marginBottom:8}}>{pergunta}</div>
                     <div style={{display:"flex",gap:6,marginBottom:8}}>
-                      {[{v:"regular",icone:"😐",label:"Não"},{v:"bom",icone:"😊",label:"Sim"}].map(op=>(
-                        <button key={op.v} type="button" onClick={()=>setAvaliacaoItem(pergunta,op.v)}
-                          style={{
-                            flex:1, padding:"8px 4px", borderRadius:6, cursor:"pointer", fontSize:12,
-                            border:`1px solid ${dado.avaliacao===op.v?"var(--afine-yellow-dk)":"var(--border)"}`,
-                            background:dado.avaliacao===op.v?"var(--afine-yellow-lt)":"var(--cinza-lt)",
-                            fontWeight:dado.avaliacao===op.v?700:400,
-                          }}>
-                          <div style={{fontSize:16}}>{op.icone}</div>{op.label}
-                        </button>
-                      ))}
+                      {[{v:"regular",icone:"😐",label:"Não"},{v:"bom",icone:"😊",label:"Sim"}].map(op=>{
+                        const ativo = dado.avaliacao===op.v;
+                        const cor = CORES_AVALIACAO[op.v];
+                        return (
+                          <button key={op.v} type="button" onClick={()=>setAvaliacaoItem(pergunta,op.v)}
+                            style={{
+                              flex:1, padding:"8px 4px", borderRadius:6, cursor:"pointer", fontSize:12,
+                              border:`1px solid ${ativo?cor:"var(--border)"}`,
+                              background:ativo?cor:"var(--cinza-lt)",
+                              color:ativo?"#fff":"#4A4A4A",
+                              fontWeight:ativo?700:400,
+                            }}>
+                            <div style={{fontSize:16}}>{op.icone}</div>{op.label}
+                          </button>
+                        );
+                      })}
                     </div>
                     <input value={dado.comentario||""} onChange={e=>setChecklistDescaract(p=>({...p,[pergunta]:{...p[pergunta],comentario:e.target.value}}))}
                       placeholder="💬 Comentar (opcional)"/>
