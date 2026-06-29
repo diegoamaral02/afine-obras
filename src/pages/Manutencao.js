@@ -8,7 +8,8 @@ import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
 import PhotoUploader from "../components/PhotoUploader";
 import OSDigital from "../components/OSDigital";
-import { exportarOSParaPDF } from "../utils/exportPDF";
+import AssinaturaDigital from "../components/AssinaturaDigital";
+import { exportarOSParaPDF, exportarTermoChavesParaPDF } from "../utils/exportPDF";
 import { useToast } from "../hooks/useToast";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
@@ -86,6 +87,10 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
     descExtra:    manut?.descExtra    || "",
     obs:          manut?.obs          || "",
     camposCustom: manut?.camposCustom || {},
+    // Termo de Entrega de Chaves — disponível para qualquer tipo de manutenção
+    termoChaves: manut?.termoChaves || {
+      quantidadeChaves: "", nomeRecebeu: "", cpf: "", rg: "", assinatura: "", dataDocumento: "",
+    },
     materiais:    manut?.materiais    || [],
     semMaterial:       manut?.semMaterial       || false,
     motivoSemMaterial: manut?.motivoSemMaterial || "",
@@ -102,6 +107,7 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
 
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
   function setCustom(f,v) { setForm(p=>({...p,camposCustom:{...p.camposCustom,[f]:v}})); }
+  function setTermoChaves(campo,v) { setForm(p=>({...p, termoChaves:{...p.termoChaves,[campo]:v}})); }
   function toggleDesc(s) { setForm(p=>({...p,descProntas:p.descProntas.includes(s)?p.descProntas.filter(x=>x!==s):[...p.descProntas,s]})); }
   function toggleCheck(item) { setChecklist(p=>({...p,[item]:!p[item]})); }
 
@@ -198,8 +204,8 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
   }
 
   const PASSOS = isCampo
-    ? ["Materiais","Fotos & Checklist","OS Digital"]
-    : ["Dados","Endereço","Materiais","Fotos & Checklist","OS Digital"];
+    ? ["Materiais","Fotos & Checklist","OS Digital","Termo de Chaves"]
+    : ["Dados","Endereço","Materiais","Fotos & Checklist","OS Digital","Termo de Chaves"];
   const PASSO_BASE = isCampo ? 3 : 1;
   const passoVisual = passo - PASSO_BASE + 1;
   const totalPassos = PASSOS.length;
@@ -589,6 +595,59 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
                 {!otOk&&<li>Número da OT ou S/OT</li>}
               </ul>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ── PASSO 6 — TERMO DE ENTREGA DE CHAVES ──────────── */}
+      {passo===6 && (
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          <div style={{background:"var(--cinza-lt)",borderRadius:8,padding:12,fontSize:12}}>
+            <div style={{fontWeight:700,marginBottom:4}}>Imóvel (extraído automaticamente)</div>
+            <div>{form.logradouro?`${form.logradouro}, ${form.numero}`:"Endereço não cadastrado"}{form.bairro&&` — ${form.bairro}`}</div>
+            <div>{form.agencia&&`${form.agencia} · `}{form.cidade||"–"} - {form.uf||"–"}</div>
+          </div>
+
+          <div className="form-grid">
+            <div className="form-group"><label className="required">Quantidade de chaves</label>
+              <input type="number" min="1" value={form.termoChaves.quantidadeChaves} onChange={e=>setTermoChaves("quantidadeChaves",e.target.value)}/>
+            </div>
+            <div className="form-group"><label>Data do documento</label>
+              <input type="date" value={form.termoChaves.dataDocumento||new Date().toISOString().split("T")[0]} onChange={e=>setTermoChaves("dataDocumento",e.target.value)}/>
+            </div>
+            <div className="form-group span-2"><label className="required">Nome de quem recebeu a(s) chave(s)</label>
+              <input value={form.termoChaves.nomeRecebeu} onChange={e=>setTermoChaves("nomeRecebeu",e.target.value)}/>
+            </div>
+            <div className="form-group"><label>CPF</label>
+              <input value={form.termoChaves.cpf} onChange={e=>setTermoChaves("cpf",e.target.value)} placeholder="000.000.000-00"/>
+            </div>
+            <div className="form-group"><label>RG</label>
+              <input value={form.termoChaves.rg} onChange={e=>setTermoChaves("rg",e.target.value)} placeholder="00.000.000-0"/>
+            </div>
+          </div>
+
+          <AssinaturaDigital
+            label="Assinatura de quem recebeu as chaves"
+            assinatura={form.termoChaves.assinatura}
+            onChange={(b64)=>setTermoChaves("assinatura",b64)}
+          />
+
+          <button className="btn btn-primary" style={{padding:14,fontSize:14}}
+            disabled={!form.termoChaves.nomeRecebeu||!form.termoChaves.quantidadeChaves}
+            onClick={()=>exportarTermoChavesParaPDF({
+              enderecoCompleto: form.logradouro?`${form.logradouro}, ${form.numero}${form.bairro?` — ${form.bairro}`:""}`:"",
+              agenciaNome: form.agencia||"",
+              cidade: form.cidade, estado: form.uf,
+              quantidadeChaves: form.termoChaves.quantidadeChaves,
+              nomeRecebeu: form.termoChaves.nomeRecebeu,
+              cpf: form.termoChaves.cpf, rg: form.termoChaves.rg,
+              assinatura: form.termoChaves.assinatura,
+              dataDocumento: form.termoChaves.dataDocumento,
+            })}>
+            📄 Gerar PDF do Termo de Entrega de Chaves
+          </button>
+          {(!form.termoChaves.nomeRecebeu||!form.termoChaves.quantidadeChaves) && (
+            <div style={{fontSize:11,color:"var(--vermelho)"}}>Preencha quantidade de chaves e nome de quem recebeu para gerar o PDF.</div>
           )}
         </div>
       )}

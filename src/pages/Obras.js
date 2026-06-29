@@ -26,6 +26,8 @@ import { useIsMobile } from "../hooks/useIsMobile";
 import Modal from "../components/Modal";
 import PhotoUploader from "../components/PhotoUploader";
 import OSDigital from "../components/OSDigital";
+import AssinaturaDigital from "../components/AssinaturaDigital";
+import { exportarTermoChavesParaPDF } from "../utils/exportPDF";
 import { useToast } from "../hooks/useToast";
 import { Ocorrencias } from "./Equipe";
 import Medicao from "./Medicao";
@@ -111,6 +113,10 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
     descaract: obra?.descaract || {
       numeroProcesso: "", coordenador: "", inicioDesocupacao: "", terminoDesocupacao: "",
     },
+    // Termo de Entrega de Chaves — disponível para qualquer tipo de obra
+    termoChaves: obra?.termoChaves || {
+      quantidadeChaves: "", nomeRecebeu: "", cpf: "", rg: "", assinatura: "", dataDocumento: "",
+    },
   });
   const [fotos, setFotos] = useState(obra?.fotos||[]);
   const [checklist, setChecklist] = useState(obra?.checklist||{});
@@ -153,6 +159,7 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
 
   function toggleCheck(item) { setChecklist(p=>({...p,[item]:!p[item]})); }
   function setDescaract(campo,v) { setForm(p=>({...p, descaract:{...p.descaract,[campo]:v}})); }
+  function setTermoChaves(campo,v) { setForm(p=>({...p, termoChaves:{...p.termoChaves,[campo]:v}})); }
   function setAvaliacaoItem(item, avaliacao) {
     setChecklistDescaract(p=>({...p, [item]:{...p[item], avaliacao}}));
   }
@@ -330,9 +337,9 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   }
 
   const ABAS = isCampoUser
-    ? ["materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"os_digital"]
-    : ["dados","endereço","financeiro","materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"os_digital"];
-  const LABELS = { dados:"Dados", "endereço":"Endereço", financeiro:"Financeiro", materiais:"Materiais", fotos_checklist:"Fotos & Checklist", os_digital:"OS Digital", descaracterizacao:"📋 Descaracterização" };
+    ? ["materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"os_digital","termo_chaves"]
+    : ["dados","endereço","financeiro","materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"os_digital","termo_chaves"];
+  const LABELS = { dados:"Dados", "endereço":"Endereço", financeiro:"Financeiro", materiais:"Materiais", fotos_checklist:"Fotos & Checklist", os_digital:"OS Digital", descaracterizacao:"📋 Descaracterização", termo_chaves:"🔑 Termo de Chaves" };
 
   return (
     <Modal title={obra?.id?"Editar obra":"Nova obra"} onClose={onClose}
@@ -870,6 +877,58 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
               onClick={()=>{set("status","CONCLUÍDA");setTimeout(save,100);}}>
               🏁 Concluir obra
             </button>
+          )}
+        </div>
+      )}
+
+      {aba==="termo_chaves" && (
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          <div style={{background:"var(--cinza-lt)",borderRadius:8,padding:12,fontSize:12}}>
+            <div style={{fontWeight:700,marginBottom:4}}>Imóvel (extraído automaticamente)</div>
+            <div>{form.logradouro?`${form.logradouro}, ${form.numero}`:"Endereço não cadastrado"}{form.bairro&&` — ${form.bairro}`}</div>
+            <div>{form.agenciaNome&&`${form.agenciaNome} · `}{form.cidade||"–"} - {form.uf||"–"}</div>
+          </div>
+
+          <div className="form-grid">
+            <div className="form-group"><label className="required">Quantidade de chaves</label>
+              <input type="number" min="1" value={form.termoChaves.quantidadeChaves} onChange={e=>setTermoChaves("quantidadeChaves",e.target.value)}/>
+            </div>
+            <div className="form-group"><label>Data do documento</label>
+              <input type="date" value={form.termoChaves.dataDocumento||new Date().toISOString().split("T")[0]} onChange={e=>setTermoChaves("dataDocumento",e.target.value)}/>
+            </div>
+            <div className="form-group span-2"><label className="required">Nome de quem recebeu a(s) chave(s)</label>
+              <input value={form.termoChaves.nomeRecebeu} onChange={e=>setTermoChaves("nomeRecebeu",e.target.value)}/>
+            </div>
+            <div className="form-group"><label>CPF</label>
+              <input value={form.termoChaves.cpf} onChange={e=>setTermoChaves("cpf",e.target.value)} placeholder="000.000.000-00"/>
+            </div>
+            <div className="form-group"><label>RG</label>
+              <input value={form.termoChaves.rg} onChange={e=>setTermoChaves("rg",e.target.value)} placeholder="00.000.000-0"/>
+            </div>
+          </div>
+
+          <AssinaturaDigital
+            label="Assinatura de quem recebeu as chaves"
+            assinatura={form.termoChaves.assinatura}
+            onChange={(b64)=>setTermoChaves("assinatura",b64)}
+          />
+
+          <button className="btn btn-primary" style={{padding:14,fontSize:14}}
+            disabled={!form.termoChaves.nomeRecebeu||!form.termoChaves.quantidadeChaves}
+            onClick={()=>exportarTermoChavesParaPDF({
+              enderecoCompleto: form.logradouro?`${form.logradouro}, ${form.numero}${form.bairro?` — ${form.bairro}`:""}`:"",
+              agenciaNome: form.agenciaNome||"",
+              cidade: form.cidade, estado: form.uf,
+              quantidadeChaves: form.termoChaves.quantidadeChaves,
+              nomeRecebeu: form.termoChaves.nomeRecebeu,
+              cpf: form.termoChaves.cpf, rg: form.termoChaves.rg,
+              assinatura: form.termoChaves.assinatura,
+              dataDocumento: form.termoChaves.dataDocumento,
+            })}>
+            📄 Gerar PDF do Termo de Entrega de Chaves
+          </button>
+          {(!form.termoChaves.nomeRecebeu||!form.termoChaves.quantidadeChaves) && (
+            <div style={{fontSize:11,color:"var(--vermelho)"}}>Preencha quantidade de chaves e nome de quem recebeu para gerar o PDF.</div>
           )}
         </div>
       )}

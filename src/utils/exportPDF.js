@@ -327,3 +327,69 @@ ${BOTOES_PDF}
 </body></html>`);
   w.document.close();
 }
+
+// Termo de Entrega de Chaves — usado em Obras (todos os tipos) e Manutenção (todos os tipos)
+export function exportarTermoChavesParaPDF(termo) {
+  const w = window.open("", "_blank");
+  if (!w) { alert("Permita pop-ups para exportar o PDF."); return; }
+
+  const MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+  const dataDoc = termo.dataDocumento ? new Date(termo.dataDocumento+"T12:00:00") : new Date();
+  const dia = dataDoc.getDate();
+  const mes = MESES[dataDoc.getMonth()];
+  const ano = dataDoc.getFullYear();
+
+  w.document.write(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Termo de Entrega de Chaves</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:14px;color:#1a1a1a;padding:40px;line-height:1.7}
+  .header{text-align:center;margin-bottom:30px}
+  .header h1{font-size:18px;font-weight:700;letter-spacing:.02em;text-transform:uppercase}
+  .header .sub{font-size:11px;color:#888;margin-top:4px}
+  .corpo{font-size:14px;text-align:justify;margin-bottom:40px}
+  .corpo p{margin-bottom:16px}
+  .corpo strong{font-weight:700}
+  .data-local{text-align:right;margin:40px 0 60px}
+  .assinatura-area{text-align:center;margin-top:10px}
+  .assinatura-area img{max-height:90px;max-width:280px;object-fit:contain;display:block;margin:0 auto 6px}
+  .linha-assinatura{border-top:1px solid #1a1a1a;width:320px;margin:0 auto 6px}
+  .nome-recebeu{font-size:13px;font-weight:700;margin-top:4px}
+  .doc-info{font-size:12px;color:#444;margin-top:2px}
+  .footer{text-align:center;font-size:10px;color:#aaa;margin-top:50px;padding-top:12px;border-top:1px solid #eee}
+  @media print{body{padding:20px}button{display:none!important}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Termo de Entrega de Chaves</h1>
+  <div class="sub">AFINE — A.F. Nery Arquitetura e Construção</div>
+</div>
+
+<div class="corpo">
+  <p><strong>Imóvel:</strong> ${termo.enderecoCompleto||"–"}${termo.agenciaNome?` — ${termo.agenciaNome}`:""} — ${termo.cidade||"–"} - ${termo.estado||"–"}</p>
+
+  <p>Neste ato, o representante do imóvel acima citado recebe as chaves, <strong>${termo.quantidadeChaves||"–"} chave(s)</strong>, do imóvel.</p>
+
+  <p>Com a entrega da posse, a partir desta data, consequentemente a AFINE — Arquitetura &amp; Construção, não será responsável por qualquer dano posterior que possa vir a ocorrer.</p>
+</div>
+
+<div class="data-local">${termo.cidade||"–"}, ${dia} de ${mes} de ${ano}</div>
+
+<div class="assinatura-area">
+  ${termo.assinatura ? `<img src="${termo.assinatura}" alt="assinatura">` : ""}
+  <div class="linha-assinatura"></div>
+  <div style="font-size:11px;color:#888">(assinatura)</div>
+  <div class="nome-recebeu">${termo.nomeRecebeu||"–"}</div>
+  <div class="doc-info">CPF: ${termo.cpf||"–"}</div>
+  <div class="doc-info">RG: ${termo.rg||"–"}</div>
+</div>
+
+<div class="footer">Documento gerado automaticamente pelo sistema AFINE</div>
+${BOTOES_PDF}
+</body></html>`);
+  w.document.close();
+}
