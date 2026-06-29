@@ -571,6 +571,8 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
                 descritivos={form.descProntas}
                 descExtra={form.descExtra}
                 funcionario={{ nome: nomeUser, funcao: userProfile?.departamento||userProfile?.perfil||"" }}
+                loja={form.agencia||""}
+                otTicket={form.semOT?"S/OT":(form.numeroOT||"")}
                 onSalvar={(os)=>{setOsDigital(os);setShowOS(false);}}
                 onFechar={()=>setShowOS(false)}
               />

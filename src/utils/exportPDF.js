@@ -3,16 +3,24 @@
 // Sem bibliotecas externas — funciona 100% no browser
 import { LOGO_BASE64 } from "./assets";
 
-export function exportarOSParaPDF(os, manut) {
+export function exportarOSParaPDF(os, contexto) {
   const w = window.open("", "_blank");
   if (!w) { alert("Permita pop-ups para exportar o PDF."); return; }
 
   const servicos = [
     ...(os.servicos || []),
-    ...(manut?.descProntas || []),
+    ...(contexto?.descProntas || []),
   ].filter(Boolean);
-  const descExtra = os.descricaoExtra || manut?.descExtra || "";
-  const data = new Date(os.geradaEm).toLocaleString("pt-BR");
+  const descExtra = os.descricaoExtra || contexto?.descExtra || "";
+  const data = new Date(os.geradaEm || Date.now()).toLocaleString("pt-BR");
+  const loja = os.loja || contexto?.agencia || contexto?.agenciaNome || "–";
+  const otTicket = os.otTicket || (contexto?.semOT ? "S/OT" : contexto?.numeroOT) || contexto?.contrato || "–";
+  const dataDoc = (os.geradaEm ? new Date(os.geradaEm) : new Date()).toLocaleDateString("pt-BR");
+  const epis = os.epis || [];
+  const EPIS_TODOS = [
+    "Capacete de segurança","Protetor auricular","Luvas de borracha","Luvas revestida em PU",
+    "Máscara PFF2","Óculos de proteção","Cinto de segurança tipo paraquedista","Botina de segurança",
+  ];
 
   w.document.write(`<!DOCTYPE html>
 <html lang="pt-BR">
@@ -21,91 +29,101 @@ export function exportarOSParaPDF(os, manut) {
 <title>OS ${os.numero}</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;font-size:13px;color:#1a1a1a;padding:20px}
-  .header{background:#1F3864;color:#fff;padding:14px 18px;border-radius:8px 8px 0 0;margin-bottom:0}
-  .header h1{font-size:18px;font-weight:700}
-  .header p{font-size:11px;opacity:.7;margin-top:2px}
-  .orange-bar{background:#C55A11;color:#fff;padding:6px 18px;font-size:11px;font-weight:700;margin-bottom:16px}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;margin-bottom:14px}
-  .field label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.04em}
-  .field p{font-size:13px;font-weight:500;border-bottom:1px solid #e0e0e0;padding-bottom:3px;margin-top:2px}
-  h3{font-size:13px;font-weight:700;color:#1F3864;margin:14px 0 8px;border-bottom:2px solid #D9E1F2;padding-bottom:4px}
-  .servico{padding:4px 0;font-size:12px;border-bottom:1px solid #f0f0f0}
-  .servico::before{content:"• ";color:#2E5FA3}
-  .desc{background:#f8f9fb;border-left:3px solid #2E5FA3;padding:8px 12px;font-size:12px;border-radius:0 4px 4px 0;margin-bottom:14px;white-space:pre-wrap}
-  .assin-block{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px}
-  .assin-box{border:1px solid #e0e0e0;border-radius:6px;padding:10px;text-align:center}
-  .assin-box img{max-height:80px;max-width:100%;object-fit:contain;display:block;margin:0 auto 6px}
-  .assin-box .label{font-size:10px;color:#888;text-transform:uppercase}
-  .assin-box .nome{font-size:12px;font-weight:700;margin-top:4px}
-  .assin-box .cargo{font-size:11px;color:#555}
-  .footer{text-align:center;font-size:10px;color:#aaa;margin-top:20px;padding-top:12px;border-top:1px solid #eee}
-  @media print{body{padding:10px}button{display:none!important}}
+  body{font-family:Arial,sans-serif;font-size:13px;color:#1a1a1a;padding:28px}
+  .header{display:flex;align-items:flex-start;gap:16px;margin-bottom:16px}
+  .header img{height:56px;width:auto;border-radius:6px;flex-shrink:0}
+  .header .empresa{flex:1;text-align:center}
+  .header .empresa h1{font-size:17px;font-weight:800;letter-spacing:.02em}
+  .header .empresa .info{font-size:11px;color:#555;margin-top:2px;line-height:1.5}
+  .titulo-doc{text-align:center;font-size:14px;font-weight:700;text-decoration:underline;margin:10px 0 18px}
+  .campos-topo{display:flex;gap:24px;margin-bottom:16px;font-size:12px;flex-wrap:wrap}
+  .campos-topo b{font-weight:700}
+  .campos-topo span{border-bottom:1px solid #999;padding:0 6px 2px;display:inline-block;min-width:80px}
+  h3.secao{font-size:12px;font-weight:700;margin:16px 0 6px;text-transform:uppercase;letter-spacing:.04em;color:#1a1a1a}
+  .desc-box{border:1px solid #1a1a1a;border-radius:0;min-height:140px;padding:0;margin-bottom:18px}
+  .desc-linha{border-bottom:1px solid #1a1a1a;min-height:24px;padding:4px 10px;font-size:13px;display:flex;align-items:center}
+  .desc-linha:last-child{border-bottom:none}
+  .servico-item{font-size:12px;padding:2px 0}
+  .servico-item::before{content:"• "}
+  .assin-grid{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:24px}
+  .assin-col{text-align:center}
+  .assin-col img{max-height:70px;max-width:100%;object-fit:contain;display:block;margin:0 auto 4px}
+  .assin-linha{border-top:1px solid #1a1a1a;margin-top:40px;padding-top:4px}
+  .assin-col .papel{font-size:10px;color:#888}
+  .assin-col .nome{font-size:12px;font-weight:700;margin-top:2px}
+  .assin-col .extra{font-size:11px;color:#444}
+  .bottom-grid{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:30px;border-top:1px solid #ccc;padding-top:16px}
+  .bottom-grid h4{font-size:12px;font-weight:700;text-decoration:underline;margin-bottom:8px}
+  .epi-item{font-size:11px;padding:2px 0}
+  .epi-item .check{display:inline-block;width:14px;text-align:center;font-weight:700}
+  .obs-seguranca{font-size:10.5px;color:#333;line-height:1.6;text-align:justify}
+  .footer{text-align:center;font-size:10px;color:#aaa;margin-top:24px;padding-top:10px;border-top:1px solid #eee}
+  @media print{body{padding:14px}button{display:none!important}}
 </style>
 </head>
 <body>
 <div class="header">
-  <h1>ORDEM DE SERVIÇO — ${os.numero}</h1>
-  <p>AFINE – A.F. Nery Arquitetura e Construção</p>
-</div>
-<div class="orange-bar">Data de emissão: ${data} &nbsp;|&nbsp; Status: ${manut?.status||"CONCLUÍDA"}</div>
-
-<div class="grid">
-  <div class="field"><label>Cliente</label><p>${manut?.cliente||"–"}</p></div>
-  <div class="field"><label>Agência / Local</label><p>${manut?.agencia||"–"}</p></div>
-  <div class="field"><label>Endereço</label><p>${manut?.endereco||"–"}</p></div>
-  <div class="field"><label>Tipo de manutenção</label><p>${manut?.tipo||"–"}</p></div>
-  ${manut?.numeroOT||manut?.semOT ? `<div class="field"><label>Número da OT</label><p>${manut.semOT?"S/OT":manut.numeroOT}</p></div>` : ""}
-  ${manut?.camposCustom?.protocolo ? `<div class="field"><label>Protocolo</label><p>${manut.camposCustom.protocolo}</p></div>` : ""}
-</div>
-
-<div class="grid">
-  <div class="field"><label>Prestador</label><p>${os.funcionario?.nome||"–"}</p></div>
-  <div class="field"><label>Função</label><p>${os.funcionario?.funcao||"–"}</p></div>
-  <div class="field"><label>Empresa</label><p>${os.funcionario?.empresa||"AFINE"}</p></div>
-  <div class="field"><label>Data de abertura</label><p>${manut?.dataAbertura||"–"}</p></div>
-  <div class="field"><label>Data de conclusão</label><p>${manut?.dataConclusao||"–"}</p></div>
-  <div class="field"><label>Gerente responsável</label><p>${os.nomeGerente||"–"}</p></div>
-</div>
-
-${servicos.length > 0 ? `
-<h3>SERVIÇOS EXECUTADOS</h3>
-${servicos.map(s=>`<div class="servico">${s}</div>`).join("")}
-` : ""}
-
-${descExtra ? `
-<h3>DESCRIÇÃO / OBSERVAÇÕES</h3>
-<div class="desc">${descExtra}</div>
-` : ""}
-
-<div class="assin-block">
-  <div class="assin-box">
-    ${os.assinPrestador ? `<img src="${os.assinPrestador}" alt="Assinatura prestador"/>` : '<div style="height:80px;border-bottom:1px solid #ccc;margin-bottom:6px"></div>'}
-    <div class="label">Assinatura do prestador</div>
-    <div class="nome">${os.funcionario?.nome||"–"}</div>
-    <div class="cargo">${os.funcionario?.funcao||""}</div>
+  <img src="${LOGO_BASE64}" alt="AFINE">
+  <div class="empresa">
+    <h1>AFINE – ARQUITETURA E CONSTRUÇÃO</h1>
+    <div class="info">
+      CNPJ: 32.431.928/0001-17<br>
+      Rua Zabel Burunsuzian, 25 — Tatuapé – São Paulo / SP
+    </div>
   </div>
-  <div class="assin-box">
-    ${os.assinGerente ? `<img src="${os.assinGerente}" alt="Assinatura gerente"/>` : '<div style="height:80px;border-bottom:1px solid #ccc;margin-bottom:6px"></div>'}
-    <div class="label">Assinatura do gerente</div>
-    <div class="nome">${os.nomeGerente||"–"}</div>
-    <div class="cargo">Gerente da agência</div>
+</div>
+<div class="titulo-doc">MANUTENÇÃO E CONSTRUÇÃO PREDIAL</div>
+
+<div class="campos-topo">
+  <div><b>Loja/Agência:</b> <span>${loja}</span></div>
+  <div><b>Data:</b> <span>${dataDoc}</span></div>
+  <div><b>OT/Tickets:</b> <span>${otTicket}</span></div>
+</div>
+
+<h3 class="secao">Descrição do serviço</h3>
+<div class="desc-box">
+  ${servicos.map(s=>`<div class="desc-linha">${s}</div>`).join("")}
+  ${descExtra ? `<div class="desc-linha" style="white-space:pre-wrap">${descExtra}</div>` : ""}
+  ${Array.from({length: Math.max(0, 8 - servicos.length - (descExtra?1:0))}).map(()=>`<div class="desc-linha">&nbsp;</div>`).join("")}
+</div>
+
+<div class="assin-grid">
+  <div class="assin-col">
+    <div class="papel" style="margin-bottom:6px">TELEFONE: ${os.telefoneGerente||"–"}</div>
+    ${os.assinGerente ? `<img src="${os.assinGerente}" alt="Assinatura gerente">` : ""}
+    <div class="assin-linha">
+      <div class="nome">${os.nomeGerente||"–"}</div>
+      <div class="papel">Gerente / Cliente</div>
+    </div>
+  </div>
+  <div class="assin-col">
+    <div class="papel" style="margin-bottom:6px">AFINE</div>
+    ${os.assinPrestador ? `<img src="${os.assinPrestador}" alt="Assinatura técnico">` : ""}
+    <div class="assin-linha">
+      <div class="nome">${os.funcionario?.nome||"–"}</div>
+      <div class="papel">Técnico</div>
+    </div>
+  </div>
+</div>
+
+<div class="bottom-grid">
+  <div>
+    <h4>CHECKLIST DE EPIs UTILIZADOS</h4>
+    ${EPIS_TODOS.map(e=>`<div class="epi-item"><span class="check">${epis.includes(e)?"✓":"( )"}</span> ${e}</div>`).join("")}
+  </div>
+  <div>
+    <h4>OBSERVAÇÕES DE SEGURANÇA</h4>
+    <div class="obs-seguranca">
+      É expressamente proibido realizar qualquer tipo de intervenção em circuitos ou equipamentos energizados.
+      Antes de iniciar qualquer serviço elétrico, certifique-se de que a energia está desligada, bloqueada e sinalizada.
+    </div>
   </div>
 </div>
 
 <div class="footer">
   Documento gerado automaticamente pelo sistema AFINE &nbsp;|&nbsp; ${os.numero} &nbsp;|&nbsp; ${data}
 </div>
-
-<br>
-<div style="text-align:center">
-  <button onclick="window.print()" style="background:#1F3864;color:#fff;border:none;padding:10px 28px;border-radius:6px;font-size:14px;cursor:pointer;margin-right:10px">
-    🖨️ Imprimir / Salvar PDF
-  </button>
-  <button onclick="window.close()" style="background:#eee;color:#333;border:none;padding:10px 20px;border-radius:6px;font-size:14px;cursor:pointer">
-    Fechar
-  </button>
-</div>
+${BOTOES_PDF}
 </body></html>`);
   w.document.close();
 }

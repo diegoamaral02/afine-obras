@@ -18,18 +18,26 @@ const SERVICOS_MANUT = [
   "Pintura corretiva","Rejunte e silicone em banheiros","Revisão geral preventiva",
 ];
 
-export default function OSDigital({ manutencao, descritivos, descExtra, funcionario, onSalvar, onFechar }) {
+const EPIS_LISTA = [
+  "Capacete de segurança","Protetor auricular","Luvas de borracha","Luvas revestida em PU",
+  "Máscara PFF2","Óculos de proteção","Cinto de segurança tipo paraquedista","Botina de segurança",
+];
+
+export default function OSDigital({ manutencao, descritivos, descExtra, funcionario, loja, otTicket, onSalvar, onFechar }) {
   const lista = manutencao ? SERVICOS_MANUT : SERVICOS_OBRA;
   // Pré-seleciona os descritivos vindos da manutenção
   const [servicosSel,    setServicosSel]    = useState(descritivos && descritivos.length > 0 ? [...descritivos] : []);
   const [descricaoExtra, setDescricaoExtra] = useState(descExtra || "");
+  const [epis,           setEpis]           = useState([]);
   const [assinPrestador, setAssinPrestador] = useState(null);
   const [assinGerente,   setAssinGerente]   = useState(null);
   const [geoGerente,     setGeoGerente]     = useState(null);
   const [nomeGerente,    setNomeGerente]    = useState("");
+  const [telefoneGerente,setTelefoneGerente]= useState("");
   const [passo, setPasso] = useState(1);
 
   function toggleServico(s) { setServicosSel(p => p.includes(s)?p.filter(x=>x!==s):[...p,s]); }
+  function toggleEpi(e) { setEpis(p => p.includes(e)?p.filter(x=>x!==e):[...p,e]); }
 
   function avancar() {
     if (passo===1 && servicosSel.length===0 && !descricaoExtra.trim()) { alert("Selecione pelo menos um serviço."); return; }
@@ -45,12 +53,15 @@ export default function OSDigital({ manutencao, descritivos, descExtra, funciona
       numero: `OS-${Date.now()}`,
       data: new Date().toLocaleString("pt-BR"),
       funcionario: funcionario||{},
+      loja: loja||"", otTicket: otTicket||"",
       servicos: servicosSel,
       descricaoExtra,
+      epis,
       assinPrestador,
       assinGerente,
       geoGerente,
       nomeGerente,
+      telefoneGerente,
       geradaEm: new Date().toISOString(),
     });
   }
@@ -115,6 +126,16 @@ export default function OSDigital({ manutencao, descritivos, descExtra, funciona
             {servicosSel.map((s,i)=><div key={i}>• {s}</div>)}
             {descricaoExtra&&<div style={{fontStyle:"italic",marginTop:4}}>{descricaoExtra}</div>}
           </div>
+          <div style={{fontSize:12,fontWeight:600,color:"#185FA5"}}>CHECKLIST DE EPIs UTILIZADOS</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
+            {EPIS_LISTA.map(e=>(
+              <label key={e} style={{display:"flex",alignItems:"center",gap:6,fontSize:12,cursor:"pointer",padding:"4px 6px",borderRadius:6,
+                background:epis.includes(e)?"var(--verde-lt)":"var(--cinza-lt)"}}>
+                <input type="checkbox" checked={epis.includes(e)} onChange={()=>toggleEpi(e)} style={{width:13,height:13}}/>
+                <span style={{color:epis.includes(e)?"var(--verde)":"inherit"}}>{e}</span>
+              </label>
+            ))}
+          </div>
           <AssinaturaDigital label="Assinatura do prestador de serviço" assinatura={assinPrestador} onChange={setAssinPrestador}/>
           <div style={{display:"flex",gap:8}}>
             <button className="btn" onClick={()=>setPasso(1)}>← Voltar</button>
@@ -132,6 +153,10 @@ export default function OSDigital({ manutencao, descritivos, descExtra, funciona
           <div className="form-group">
             <label className="required">Nome do gerente</label>
             <input value={nomeGerente} onChange={e=>setNomeGerente(e.target.value)} placeholder="Nome completo"/>
+          </div>
+          <div className="form-group">
+            <label>Telefone do gerente</label>
+            <input value={telefoneGerente} onChange={e=>setTelefoneGerente(e.target.value)} placeholder="(11) 9xxxx-xxxx"/>
           </div>
           <AssinaturaDigital
             label="Assinatura do gerente da agência"

@@ -27,7 +27,7 @@ import Modal from "../components/Modal";
 import PhotoUploader from "../components/PhotoUploader";
 import OSDigital from "../components/OSDigital";
 import AssinaturaDigital from "../components/AssinaturaDigital";
-import { exportarTermoChavesParaPDF } from "../utils/exportPDF";
+import { exportarTermoChavesParaPDF, exportarOSParaPDF } from "../utils/exportPDF";
 import { useToast } from "../hooks/useToast";
 import { Ocorrencias } from "./Equipe";
 import Medicao from "./Medicao";
@@ -856,7 +856,10 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
             <div style={{background:"var(--verde-lt)",border:"1px solid rgba(45,106,31,.3)",borderRadius:8,padding:12,textAlign:"center"}}>
               <div style={{fontSize:32,marginBottom:4}}>✅</div>
               <div style={{fontWeight:600,color:"var(--verde)"}}>OS assinada!</div>
-              <button className="btn btn-sm" onClick={()=>setOsDigital(null)} style={{marginTop:8,fontSize:11}}>Refazer assinatura</button>
+              <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:8}}>
+                <button className="btn btn-sm" onClick={()=>exportarOSParaPDF(osDigital, form)}>📄 Ver PDF</button>
+                <button className="btn btn-sm" onClick={()=>setOsDigital(null)} style={{fontSize:11}}>Refazer assinatura</button>
+              </div>
             </div>
           )}
 
@@ -866,6 +869,8 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
                 manutencao={false}
                 descExtra={form.obs}
                 funcionario={{ nome: nomeUser, funcao: userProfile?.departamento||userProfile?.perfil||"" }}
+                loja={form.agenciaNome||""}
+                otTicket={form.contrato||""}
                 onSalvar={(os)=>{setOsDigital(os);setShowOS(false);}}
                 onFechar={()=>setShowOS(false)}
               />
