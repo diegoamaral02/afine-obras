@@ -175,7 +175,12 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   const isDescaracterizacao = form.tipo === TIPO_DESCARACTERIZACAO;
   const itensDescaractTotal = Object.values(CHECKLIST_DESCARACTERIZACAO).flat().length + PERGUNTAS_COLETAS.length;
   const itensDescaractPreenchidos =
-    Object.values(CHECKLIST_DESCARACTERIZACAO).flat().filter(item=>checklistDescaract[item]?.avaliacao && (checklistDescaract[item]?.fotos||[]).length>=MIN_FOTOS_ITEM_DESCARACT).length +
+    Object.values(CHECKLIST_DESCARACTERIZACAO).flat().filter(item=>{
+      const d = checklistDescaract[item];
+      if (!d?.avaliacao) return false;
+      if (d.avaliacao==="na") return true; // N/A não exige foto
+      return (d.fotos||[]).length>=MIN_FOTOS_ITEM_DESCARACT;
+    }).length +
     PERGUNTAS_COLETAS.filter(item=>checklistDescaract[item]?.avaliacao).length;
   function adicionarMaterial() {
     if(!matNome.trim()||!matQtd){alert("Informe nome e quantidade.");return;}
@@ -708,7 +713,8 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
                 {itens.map(item=>{
                   const dado = checklistDescaract[item]||{};
                   const fotos = dado.fotos||[];
-                  const fotosOk = fotos.length>=MIN_FOTOS_ITEM_DESCARACT;
+                  const isNA = dado.avaliacao==="na";
+                  const fotosOk = isNA || fotos.length>=MIN_FOTOS_ITEM_DESCARACT;
                   return (
                     <div key={item} style={{border:"1px solid var(--border)",borderRadius:8,padding:10}}>
                       <div style={{fontSize:13,fontWeight:600,marginBottom:8}}>{item}</div>
@@ -731,30 +737,37 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
                         })}
                       </div>
 
-                      {/* Fotos: mínimo 5, com botões de Tirar foto e Anexar */}
-                      <div style={{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap"}}>
-                        <label style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:12,padding:"6px 12px",border:"1px dashed var(--afine-yellow-dk)",borderRadius:6,cursor:"pointer",color:"var(--afine-yellow-dk)"}}>
-                          📷 Tirar foto
-                          <input type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>{adicionarFotosItem(item, e.target.files); e.target.value="";}}/>
-                        </label>
-                        <label style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:12,padding:"6px 12px",border:"1px dashed var(--border)",borderRadius:6,cursor:"pointer",color:"#7A7A7A"}}>
-                          📎 Anexar
-                          <input type="file" accept="image/*" multiple style={{display:"none"}} onChange={e=>{adicionarFotosItem(item, e.target.files); e.target.value="";}}/>
-                        </label>
-                        <span style={{fontSize:11,fontWeight:700,color:fotosOk?"var(--verde)":"var(--vermelho)",alignSelf:"center"}}>
-                          {fotosOk?"✅":"📷"} {fotos.length}/{MIN_FOTOS_ITEM_DESCARACT} fotos
-                        </span>
-                      </div>
-                      {fotos.length>0 && (
-                        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
-                          {fotos.map((f,idx)=>(
-                            <div key={idx} style={{position:"relative"}}>
-                              <img src={f} alt={`${item} ${idx+1}`} style={{height:64,width:64,objectFit:"cover",borderRadius:6,border:"1px solid var(--border)"}}/>
-                              <button onClick={()=>removerFotoItem(item,idx)}
-                                style={{position:"absolute",top:-6,right:-6,background:"var(--vermelho)",color:"#fff",border:"none",borderRadius:"50%",width:18,height:18,cursor:"pointer",fontSize:10}}>✕</button>
+                      {/* Fotos: mínimo 5, com botões de Tirar foto e Anexar — não exigido quando N/A */}
+                      {!isNA && (
+                        <>
+                          <div style={{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap"}}>
+                            <label style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:12,padding:"6px 12px",border:"1px dashed var(--afine-yellow-dk)",borderRadius:6,cursor:"pointer",color:"var(--afine-yellow-dk)"}}>
+                              📷 Tirar foto
+                              <input type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>{adicionarFotosItem(item, e.target.files); e.target.value="";}}/>
+                            </label>
+                            <label style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:12,padding:"6px 12px",border:"1px dashed var(--border)",borderRadius:6,cursor:"pointer",color:"#7A7A7A"}}>
+                              📎 Anexar
+                              <input type="file" accept="image/*" multiple style={{display:"none"}} onChange={e=>{adicionarFotosItem(item, e.target.files); e.target.value="";}}/>
+                            </label>
+                            <span style={{fontSize:11,fontWeight:700,color:fotosOk?"var(--verde)":"var(--vermelho)",alignSelf:"center"}}>
+                              {fotosOk?"✅":"📷"} {fotos.length}/{MIN_FOTOS_ITEM_DESCARACT} fotos
+                            </span>
+                          </div>
+                          {fotos.length>0 && (
+                            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+                              {fotos.map((f,idx)=>(
+                                <div key={idx} style={{position:"relative"}}>
+                                  <img src={f} alt={`${item} ${idx+1}`} style={{height:64,width:64,objectFit:"cover",borderRadius:6,border:"1px solid var(--border)"}}/>
+                                  <button onClick={()=>removerFotoItem(item,idx)}
+                                    style={{position:"absolute",top:-6,right:-6,background:"var(--vermelho)",color:"#fff",border:"none",borderRadius:"50%",width:18,height:18,cursor:"pointer",fontSize:10}}>✕</button>
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                        </div>
+                          )}
+                        </>
+                      )}
+                      {isNA && (
+                        <div style={{fontSize:11,color:"#7A7A7A",marginBottom:8,fontStyle:"italic"}}>Não se aplica — sem necessidade de foto.</div>
                       )}
 
                       {/* Comentário em todos os itens */}
