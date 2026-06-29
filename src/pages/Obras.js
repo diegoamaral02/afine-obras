@@ -31,7 +31,37 @@ import { Ocorrencias } from "./Equipe";
 import Medicao from "./Medicao";
 import Diario from "./Diario";
 
-const TIPOS_OBRA = ["Reforma geral","Layout","Adequação","Retrofit","Manutenção preventiva","Manutenção corretiva","Instalação","Ampliação","Outro"];
+const TIPOS_OBRA = ["Reforma geral","Layout","Adequação","Retrofit","Manutenção preventiva","Manutenção corretiva","Instalação","Ampliação","Descaracterização/Devolução de imóvel","Outro"];
+const TIPO_DESCARACTERIZACAO = "Descaracterização/Devolução de imóvel";
+
+// Checklist de Descaracterização/Devolução de imóvel — cada item de Área
+// Externa/Interna exige avaliação (N/A · Regular · Bom) + foto. Os itens de
+// Coletas são perguntas Sim/Não com comentário (sem N/A, sem foto).
+const CHECKLIST_DESCARACTERIZACAO = {
+  "Área Externa": [
+    "Fachada", "Estacionamento",
+  ],
+  "Área Interna": [
+    "Auto Atendimento", "Salão Gerência", "Sanitário PNE", "Sanitário Masculino",
+    "Sanitário Feminino", "Copa", "Salão Retaguarda", "Sala do Cofre",
+    "Almoxarifado", "Sala de Equipamentos", "Sala do Ar Condicionado", "Escada",
+    "Cobertura", "Área Ociosa (se houver)",
+    "Sistema de Alarme Instalado (Central/Teclados/Sensores/Sirenes/Acionadores)",
+    "Sistema de CFTV (Câmeras/Gravador/Monitor/Teclado/Mouse/Rack — fotos da caixa aberta, embalada e identificada)",
+    "Demais Áreas",
+  ],
+};
+const AVALIACOES_DESCARACT = [
+  { v:"na",      label:"N/A",     icone:"—" },
+  { v:"regular", label:"Regular", icone:"😐" },
+  { v:"bom",     label:"Bom",     icone:"😊" },
+];
+// Coletas — perguntas sim/não com comentário (estrutura diferente: sem N/A, sem foto)
+const PERGUNTAS_COLETAS = [
+  "Foram coletados todos os BDNs pela Tecban?",
+  "Foram coletados todos os itens pelo Transportes?",
+  "O imóvel está 100% desocupado?",
+];
 const MIN_FOTOS_OBRA = 15;
 // Mesmo checklist usado em Manutenção, para manter a mesma restrição de conclusão
 const CHECKLIST_ITENS = [
@@ -77,9 +107,16 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
     materiais: obra?.materiais||[],
     semMaterial: obra?.semMaterial||false,
     motivoSemMaterial: obra?.motivoSemMaterial||"",
+    // Descaracterização/Devolução de imóvel — dados gerais do encerramento
+    descaract: obra?.descaract || {
+      enderecoAgencia: "", numeroProcesso: "", empresaSAP: "", coordenador: "",
+      nomeAreaSolicitante: "", localizacao: "", inicioDesocupacao: "", terminoDesocupacao: "",
+    },
   });
   const [fotos, setFotos] = useState(obra?.fotos||[]);
   const [checklist, setChecklist] = useState(obra?.checklist||{});
+  // Checklist específico de Descaracterização: { [item]: { avaliacao, foto } }
+  const [checklistDescaract, setChecklistDescaract] = useState(obra?.checklistDescaract||{});
   const [osDigital, setOsDigital] = useState(obra?.osDigital||null);
   const [showOS, setShowOS] = useState(false);
   const [buscandoCEP, setBuscandoCEP] = useState(false);
@@ -116,6 +153,23 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   }
 
   function toggleCheck(item) { setChecklist(p=>({...p,[item]:!p[item]})); }
+  function setDescaract(campo,v) { setForm(p=>({...p, descaract:{...p.descaract,[campo]:v}})); }
+  function setAvaliacaoItem(item, avaliacao) {
+    setChecklistDescaract(p=>({...p, [item]:{...p[item], avaliacao}}));
+  }
+  function setFotoItem(item, file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setChecklistDescaract(p=>({...p, [item]:{...p[item], foto: reader.result}}));
+    };
+    reader.readAsDataURL(file);
+  }
+  const isDescaracterizacao = form.tipo === TIPO_DESCARACTERIZACAO;
+  const itensDescaractTotal = Object.values(CHECKLIST_DESCARACTERIZACAO).flat().length + PERGUNTAS_COLETAS.length;
+  const itensDescaractPreenchidos =
+    Object.values(CHECKLIST_DESCARACTERIZACAO).flat().filter(item=>checklistDescaract[item]?.avaliacao && checklistDescaract[item]?.foto).length +
+    PERGUNTAS_COLETAS.filter(item=>checklistDescaract[item]?.avaliacao).length;
   function adicionarMaterial() {
     if(!matNome.trim()||!matQtd){alert("Informe nome e quantidade.");return;}
     const qtd = Number(matQtd);
@@ -242,7 +296,7 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
     }
     setSaving(true);
     const agora = new Date().toISOString();
-    const payload = { ...form, progresso: Number(form.progresso)||0, fotos, checklist, osDigital: osDigital||null, updatedAt: agora };
+    const payload = { ...form, progresso: Number(form.progresso)||0, fotos, checklist, checklistDescaract, osDigital: osDigital||null, updatedAt: agora };
 
     const resultado = await salvarComFallbackOffline(
       obra?.id ? "obra:update" : "obra:create",
@@ -264,9 +318,9 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   }
 
   const ABAS = isCampoUser
-    ? ["materiais","fotos_checklist","os_digital"]
-    : ["dados","endereço","financeiro","materiais","fotos_checklist","os_digital"];
-  const LABELS = { dados:"Dados", "endereço":"Endereço", financeiro:"Financeiro", materiais:"Materiais", fotos_checklist:"Fotos & Checklist", os_digital:"OS Digital" };
+    ? ["materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"os_digital"]
+    : ["dados","endereço","financeiro","materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"os_digital"];
+  const LABELS = { dados:"Dados", "endereço":"Endereço", financeiro:"Financeiro", materiais:"Materiais", fotos_checklist:"Fotos & Checklist", os_digital:"OS Digital", descaracterizacao:"📋 Descaracterização" };
 
   return (
     <Modal title={obra?.id?"Editar obra":"Nova obra"} onClose={onClose}
@@ -613,6 +667,117 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
                 {checklist[item]&&<span style={{marginLeft:"auto",fontSize:14}}>✓</span>}
               </label>
             ))}
+          </div>
+        </div>
+      )}
+
+      {aba==="descaracterizacao" && (
+        <div style={{display:"flex",flexDirection:"column",gap:20}}>
+          <div className="alert alert-info" style={{fontSize:12}}>
+            📋 Checklist de descaracterização/devolução do imóvel — preencha a avaliação e anexe uma foto para cada item.
+            <strong style={{marginLeft:6}}>{itensDescaractPreenchidos}/{itensDescaractTotal} itens completos.</strong>
+          </div>
+
+          {/* Dados gerais do encerramento/desocupação */}
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>
+              Encerramento / Desocupação e Devolução de Bem
+            </div>
+            <div className="form-grid">
+              <div className="form-group span-2"><label>Endereço da Agência</label><input value={form.descaract.enderecoAgencia} onChange={e=>setDescaract("enderecoAgencia",e.target.value)}/></div>
+              <div className="form-group"><label>Nº do Processo / Protocolo</label><input value={form.descaract.numeroProcesso} onChange={e=>setDescaract("numeroProcesso",e.target.value)}/></div>
+              <div className="form-group"><label>Empresa SAP</label><input value={form.descaract.empresaSAP} onChange={e=>setDescaract("empresaSAP",e.target.value)}/></div>
+              <div className="form-group"><label>Coordenador</label><input value={form.descaract.coordenador} onChange={e=>setDescaract("coordenador",e.target.value)}/></div>
+              <div className="form-group"><label>Nome da Área / Solicitante</label><input value={form.descaract.nomeAreaSolicitante} onChange={e=>setDescaract("nomeAreaSolicitante",e.target.value)}/></div>
+              <div className="form-group span-2"><label>Localização</label><input value={form.descaract.localizacao} onChange={e=>setDescaract("localizacao",e.target.value)}/></div>
+              <div className="form-group"><label>Início da desocupação</label><input type="date" value={form.descaract.inicioDesocupacao} onChange={e=>setDescaract("inicioDesocupacao",e.target.value)}/></div>
+              <div className="form-group"><label>Término da desocupação</label><input type="date" value={form.descaract.terminoDesocupacao} onChange={e=>setDescaract("terminoDesocupacao",e.target.value)}/></div>
+            </div>
+          </div>
+
+          {/* Seções de checklist com foto por item (Área Externa / Área Interna) */}
+          {Object.entries(CHECKLIST_DESCARACTERIZACAO).map(([secao, itens])=>(
+            <div key={secao}>
+              <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>
+                Fotos — {secao}
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {itens.map(item=>{
+                  const dado = checklistDescaract[item]||{};
+                  const temComentario = item==="Demais Áreas";
+                  return (
+                    <div key={item} style={{border:"1px solid var(--border)",borderRadius:8,padding:10}}>
+                      <div style={{fontSize:13,fontWeight:600,marginBottom:8}}>{item}</div>
+                      <div style={{display:"flex",gap:6,marginBottom:8}}>
+                        {AVALIACOES_DESCARACT.map(op=>(
+                          <button key={op.v} type="button" onClick={()=>setAvaliacaoItem(item,op.v)}
+                            style={{
+                              flex:1, padding:"8px 4px", borderRadius:6, cursor:"pointer", fontSize:12,
+                              border:`1px solid ${dado.avaliacao===op.v?"var(--afine-yellow-dk)":"var(--border)"}`,
+                              background:dado.avaliacao===op.v?"var(--afine-yellow-lt)":"var(--cinza-lt)",
+                              fontWeight:dado.avaliacao===op.v?700:400,
+                            }}>
+                            <div style={{fontSize:16}}>{op.icone}</div>{op.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                        {dado.foto ? (
+                          <div style={{position:"relative",display:"inline-block"}}>
+                            <img src={dado.foto} alt={item} style={{maxHeight:90,borderRadius:6,border:"1px solid var(--border)"}}/>
+                            <button onClick={()=>setChecklistDescaract(p=>({...p,[item]:{...p[item],foto:null}}))}
+                              style={{position:"absolute",top:-6,right:-6,background:"var(--vermelho)",color:"#fff",border:"none",borderRadius:"50%",width:20,height:20,cursor:"pointer",fontSize:11}}>✕</button>
+                          </div>
+                        ) : (
+                          <label style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:12,padding:"6px 12px",border:"1px dashed var(--border)",borderRadius:6,cursor:"pointer",color:"#7A7A7A"}}>
+                            📎 Anexar
+                            <input type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>setFotoItem(item, e.target.files?.[0])}/>
+                          </label>
+                        )}
+                        {temComentario && (
+                          <input value={dado.comentario||""} onChange={e=>setChecklistDescaract(p=>({...p,[item]:{...p[item],comentario:e.target.value}}))}
+                            placeholder="💬 Comentar (opcional)" style={{flex:1,minWidth:160}}/>
+                        )}
+                      </div>
+                      {!dado.avaliacao && <div style={{fontSize:11,color:"var(--vermelho)",marginTop:4}}>Avaliação pendente</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+
+          {/* Coletas — perguntas Sim/Não com comentário (sem N/A, sem foto) */}
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>
+              Coletas
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {PERGUNTAS_COLETAS.map(pergunta=>{
+                const dado = checklistDescaract[pergunta]||{};
+                return (
+                  <div key={pergunta} style={{border:"1px solid var(--border)",borderRadius:8,padding:10}}>
+                    <div style={{fontSize:13,fontWeight:600,marginBottom:8}}>{pergunta}</div>
+                    <div style={{display:"flex",gap:6,marginBottom:8}}>
+                      {[{v:"regular",icone:"😐",label:"Não"},{v:"bom",icone:"😊",label:"Sim"}].map(op=>(
+                        <button key={op.v} type="button" onClick={()=>setAvaliacaoItem(pergunta,op.v)}
+                          style={{
+                            flex:1, padding:"8px 4px", borderRadius:6, cursor:"pointer", fontSize:12,
+                            border:`1px solid ${dado.avaliacao===op.v?"var(--afine-yellow-dk)":"var(--border)"}`,
+                            background:dado.avaliacao===op.v?"var(--afine-yellow-lt)":"var(--cinza-lt)",
+                            fontWeight:dado.avaliacao===op.v?700:400,
+                          }}>
+                          <div style={{fontSize:16}}>{op.icone}</div>{op.label}
+                        </button>
+                      ))}
+                    </div>
+                    <input value={dado.comentario||""} onChange={e=>setChecklistDescaract(p=>({...p,[pergunta]:{...p[pergunta],comentario:e.target.value}}))}
+                      placeholder="💬 Comentar (opcional)"/>
+                    {!dado.avaliacao && <div style={{fontSize:11,color:"var(--vermelho)",marginTop:4}}>Resposta pendente</div>}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
