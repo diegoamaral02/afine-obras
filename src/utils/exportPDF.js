@@ -1,6 +1,7 @@
 // src/utils/exportPDF.js
 // Gera e exporta OS como PDF usando canvas + window.print()
 // Sem bibliotecas externas — funciona 100% no browser
+import { LOGO_BASE64 } from "./assets";
 
 export function exportarOSParaPDF(os, manut) {
   const w = window.open("", "_blank");
@@ -347,7 +348,9 @@ export function exportarTermoChavesParaPDF(termo) {
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:Arial,sans-serif;font-size:14px;color:#1a1a1a;padding:40px;line-height:1.7}
-  .header{text-align:center;margin-bottom:30px}
+  .header{display:flex;align-items:center;gap:16px;margin-bottom:30px;border-bottom:2px solid #F5C800;padding-bottom:16px}
+  .header img{height:48px;width:auto;border-radius:6px;flex-shrink:0}
+  .header .titulos{flex:1}
   .header h1{font-size:18px;font-weight:700;letter-spacing:.02em;text-transform:uppercase}
   .header .sub{font-size:11px;color:#888;margin-top:4px}
   .corpo{font-size:14px;text-align:justify;margin-bottom:40px}
@@ -365,8 +368,11 @@ export function exportarTermoChavesParaPDF(termo) {
 </head>
 <body>
 <div class="header">
-  <h1>Termo de Entrega de Chaves</h1>
-  <div class="sub">AFINE — A.F. Nery Arquitetura e Construção</div>
+  <img src="${LOGO_BASE64}" alt="AFINE">
+  <div class="titulos">
+    <h1>Termo de Entrega de Chaves</h1>
+    <div class="sub">AFINE — A.F. Nery Arquitetura e Construção</div>
+  </div>
 </div>
 
 <div class="corpo">
