@@ -3,6 +3,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { collection, onSnapshot, query, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
+import { exportarExcel, BtnExcel } from "../utils/exportExcel";
 
 const fmt  = v => `R$ ${Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}`;
 const fmtK = v => { const n=Number(v||0); return n>=1000?`R$ ${(n/1000).toFixed(1)}k`:`R$ ${n.toFixed(0)}`; };
