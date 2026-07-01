@@ -212,28 +212,49 @@ function AbaResultadoProjeto({ lancs, obras, compras, despesas, manuts=[] }) {
     });
   },[todasDemandas, filtros]);
 
-  function calcDemanda(id, tipo) {
-    const l = lancs.filter(x=>x.obraId===id||(tipo==="manutencao"&&x.manutencaoId===id));
-    const c = compras.filter(x=>x.demandaId===id);
-    const d = despesas.filter(x=>x.obraId===id||x.manutencaoId===id);
+  const demandaSelecionada = demandasFiltradas.find(dm=>dm._id===itemFiltro) || null;
+
+  const d = useMemo(()=>{
+    // Sem seleção: consolida todas as demandas do filtro
+    if (!itemFiltro) {
+      const idsObras   = demandasFiltradas.filter(x=>x._tipo==="obra").map(x=>x._id);
+      const idsManuts  = demandasFiltradas.filter(x=>x._tipo==="manutencao").map(x=>x._id);
+      const l = lancs.filter(x=>idsObras.includes(x.obraId)||idsManuts.includes(x.manutencaoId));
+      const c = compras.filter(x=>idsObras.includes(x.demandaId)||idsManuts.includes(x.demandaId));
+      const dep = despesas.filter(x=>idsObras.includes(x.obraId)||idsManuts.includes(x.manutencaoId));
+      const receita       = l.filter(x=>x.tipo==="RECEBER"&&(x.status==="PAGO"||x.status==="RECEBIDO")).reduce((s,x)=>s+(x.valor||0),0);
+      const custoLanc     = l.filter(x=>x.tipo==="PAGAR"&&x.status==="PAGO"&&["Materiais","Mão de obra","Subempreiteiro"].includes(x.categoria)).reduce((s,x)=>s+(x.valor||0),0);
+      const custoCompras  = c.filter(x=>["RECEBIDO","AGUARD. NF","NF VINCULADA"].includes(x.status)).reduce((s,x)=>s+(x.valorAprovado||x.valorCotado||0),0);
+      const custoDespesas = dep.reduce((s,x)=>s+(x.valor||0),0);
+      const custoMatMO    = custoLanc + custoCompras + custoDespesas;
+      const custosAdmin   = l.filter(x=>x.tipo==="PAGAR"&&x.status==="PAGO"&&!["Materiais","Mão de obra","Subempreiteiro"].includes(x.categoria)).reduce((s,x)=>s+(x.valor||0),0);
+      const comprometido  = c.filter(x=>["APROVADA","ORDEM DE COMPRA"].includes(x.status)).reduce((s,x)=>s+(x.valorAprovado||0),0);
+      const aReceber      = l.filter(x=>x.tipo==="RECEBER"&&x.status==="ABERTO").reduce((s,x)=>s+(x.valor||0),0);
+      const aPagar        = l.filter(x=>x.tipo==="PAGAR"&&x.status==="ABERTO").reduce((s,x)=>s+(x.valor||0),0);
+      const margBruta = receita - custoMatMO;
+      const margLiq   = margBruta - custosAdmin;
+      return { receita, custoMatMO, custoLanc, custoCompras, custoDespesas, custosAdmin, margBruta, margLiq, comprometido, aReceber, aPagar, margBrutaPct:pctN(margBruta,receita), margLiqPct:pctN(margLiq,receita) };
+    }
+    // Com seleção: calcula só para a demanda escolhida
+    const tipo = demandaSelecionada?._tipo || "obra";
+    const l   = lancs.filter(x=>tipo==="obra"?x.obraId===itemFiltro:x.manutencaoId===itemFiltro);
+    const c   = compras.filter(x=>x.demandaId===itemFiltro);
+    const dep = despesas.filter(x=>tipo==="obra"?x.obraId===itemFiltro:x.manutencaoId===itemFiltro);
     const receita       = l.filter(x=>x.tipo==="RECEBER"&&(x.status==="PAGO"||x.status==="RECEBIDO")).reduce((s,x)=>s+(x.valor||0),0);
-    const custoLanc      = l.filter(x=>x.tipo==="PAGAR"&&x.status==="PAGO"&&["Materiais","Mão de obra","Subempreiteiro"].includes(x.categoria)).reduce((s,x)=>s+(x.valor||0),0);
+    const custoLanc     = l.filter(x=>x.tipo==="PAGAR"&&x.status==="PAGO"&&["Materiais","Mão de obra","Subempreiteiro"].includes(x.categoria)).reduce((s,x)=>s+(x.valor||0),0);
     const custoCompras  = c.filter(x=>["RECEBIDO","AGUARD. NF","NF VINCULADA"].includes(x.status)).reduce((s,x)=>s+(x.valorAprovado||x.valorCotado||0),0);
-    const custoDespesas = d.reduce((s,x)=>s+(x.valor||0),0);
+    const custoDespesas = dep.reduce((s,x)=>s+(x.valor||0),0);
     const custoMatMO    = custoLanc + custoCompras + custoDespesas;
     const custosAdmin   = l.filter(x=>x.tipo==="PAGAR"&&x.status==="PAGO"&&!["Materiais","Mão de obra","Subempreiteiro"].includes(x.categoria)).reduce((s,x)=>s+(x.valor||0),0);
     const comprometido  = c.filter(x=>["APROVADA","ORDEM DE COMPRA"].includes(x.status)).reduce((s,x)=>s+(x.valorAprovado||0),0);
     const aReceber      = l.filter(x=>x.tipo==="RECEBER"&&x.status==="ABERTO").reduce((s,x)=>s+(x.valor||0),0);
     const aPagar        = l.filter(x=>x.tipo==="PAGAR"&&x.status==="ABERTO").reduce((s,x)=>s+(x.valor||0),0);
-    const margBruta     = receita - custoMatMO;
-    const margLiq       = margBruta - custosAdmin;
-    return { receita, custoMatMO, custoLanc, custoCompras, custoDespesas, custosAdmin, margBruta, margLiq,
-      comprometido, aReceber, aPagar, margBrutaPct:pctN(margBruta,receita), margLiqPct:pctN(margLiq,receita) };
-  }
+    const margBruta = receita - custoMatMO;
+    const margLiq   = margBruta - custosAdmin;
+    return { receita, custoMatMO, custoLanc, custoCompras, custoDespesas, custosAdmin, margBruta, margLiq, comprometido, aReceber, aPagar, margBrutaPct:pctN(margBruta,receita), margLiqPct:pctN(margLiq,receita) };
+  },[lancs,compras,despesas,itemFiltro,demandaSelecionada,demandasFiltradas]);
 
-  const demandaSelecionada = demandasFiltradas.find(dm=>dm._id===itemFiltro);
-  const d = useMemo(()=>calcDemanda(itemFiltro||null, demandaSelecionada?._tipo), [lancs,compras,despesas,itemFiltro,demandaSelecionada]);
-  const lucro = d.margLiq >= 0;
+  const lucro = (d?.margLiq||0) >= 0;
 
   return (
     <div>
@@ -340,7 +361,7 @@ function AbaComparativo({ lancs, obras, compras, despesas }) {
   const dreObras = useMemo(()=>{
     const obrasFilt = obras.filter(o=>{
       if (filtros.clienteNome && o.cliente!==filtros.clienteNome) return false;
-      if (filtros.status.length>0 && !filtros.status.includes(o.status)) return false;
+      if ((filtros.status||[]).length>0 && !(filtros.status||[]).includes(o.status)) return false;
       if (!dentroPeriodo(o.inicio, filtros.periodo)) return false;
       return true;
     });
