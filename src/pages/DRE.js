@@ -188,75 +188,80 @@ function AbaVisaoMensal({ lancs, compras, despesas }) {
   );
 }
 
-function AbaResultadoProjeto({ lancs, obras, compras, despesas }) {
-  const [obraFiltro, setObraFiltro] = useState("");
-  const [filtros, setFiltros] = useState({ periodo:{de:"",ate:""}, clienteNome:"", status:[] });
+function AbaResultadoProjeto({ lancs, obras, compras, despesas, manuts=[] }) {
+  const [itemFiltro, setItemFiltro] = useState("");
+  const [filtros, setFiltros] = useState({ periodo:{de:"",ate:""}, clienteNome:"", status:[], tipo:"" });
 
-  const clientesLista = useMemo(()=>[...new Set(obras.map(o=>o.cliente).filter(Boolean))].sort(),[obras]);
+  const clientesLista = useMemo(()=>[...new Set([...obras,...manuts].map(o=>o.cliente).filter(Boolean))].sort(),[obras,manuts]);
   const statusObraLista = ["EM ANDAMENTO","CONCLUÍDA","PLANEJAMENTO","PARALISADA"];
+  const statusManutLista = ["ABERTA","EM ANDAMENTO","CONCLUÍDA","CANCELADA"];
 
-  const obrasFiltradas = useMemo(()=>{
-    return obras.filter(o=>{
-      const mCliente = !filtros.clienteNome || o.cliente===filtros.clienteNome;
-      const mStatus  = filtros.status.length===0 || filtros.status.includes(o.status);
-      const mPeriodo = dentroPeriodo(o.inicio, filtros.periodo);
-      return mCliente && mStatus && mPeriodo;
+  // Unifica obras e manutenções em uma lista com campos comuns
+  const todasDemandas = useMemo(()=>[
+    ...obras.map(o=>({...o, _tipo:"obra",  _id:o.id})),
+    ...manuts.map(m=>({...m, _tipo:"manutencao", _id:m.id, nome:m.titulo||m.nome||"", inicio:m.dataAbertura||""})),
+  ],[obras,manuts]);
+
+  const demandasFiltradas = useMemo(()=>{
+    return todasDemandas.filter(d=>{
+      const mCliente = !filtros.clienteNome || d.cliente===filtros.clienteNome;
+      const mStatus  = filtros.status.length===0 || filtros.status.includes(d.status);
+      const mPeriodo = dentroPeriodo(d.inicio, filtros.periodo);
+      const mTipo    = !filtros.tipo || d._tipo===filtros.tipo;
+      return mCliente && mStatus && mPeriodo && mTipo;
     });
-  },[obras, filtros]);
+  },[todasDemandas, filtros]);
 
-  function calcObra(obraId) {
-    const l = obraId ? lancs.filter(x=>x.obraId===obraId) : lancs;
-    const c = obraId ? compras.filter(x=>x.demandaId===obraId) : compras;
-    const d = obraId ? despesas.filter(x=>x.obraId===obraId) : despesas;
+  function calcDemanda(id, tipo) {
+    const l = lancs.filter(x=>x.obraId===id||(tipo==="manutencao"&&x.manutencaoId===id));
+    const c = compras.filter(x=>x.demandaId===id);
+    const d = despesas.filter(x=>x.obraId===id||x.manutencaoId===id);
     const receita       = l.filter(x=>x.tipo==="RECEBER"&&(x.status==="PAGO"||x.status==="RECEBIDO")).reduce((s,x)=>s+(x.valor||0),0);
-    const custoLanc      = l.filter(x=>x.tipo==="PAGAR"&&(x.status==="PAGO")&&["Materiais","Mão de obra","Subempreiteiro"].includes(x.categoria)).reduce((s,x)=>s+(x.valor||0),0);
-    // NOVO: compras já recebidas/faturadas (não apenas "comprometido") e despesas
-    // vinculadas à obra também contam como custo direto realizado — antes
-    // desapareciam do relatório assim que a compra saía de "Aprovada/OC".
+    const custoLanc      = l.filter(x=>x.tipo==="PAGAR"&&x.status==="PAGO"&&["Materiais","Mão de obra","Subempreiteiro"].includes(x.categoria)).reduce((s,x)=>s+(x.valor||0),0);
     const custoCompras  = c.filter(x=>["RECEBIDO","AGUARD. NF","NF VINCULADA"].includes(x.status)).reduce((s,x)=>s+(x.valorAprovado||x.valorCotado||0),0);
     const custoDespesas = d.reduce((s,x)=>s+(x.valor||0),0);
     const custoMatMO    = custoLanc + custoCompras + custoDespesas;
-    const custosAdmin   = l.filter(x=>x.tipo==="PAGAR"&&(x.status==="PAGO")&&!["Materiais","Mão de obra","Subempreiteiro"].includes(x.categoria)).reduce((s,x)=>s+(x.valor||0),0);
+    const custosAdmin   = l.filter(x=>x.tipo==="PAGAR"&&x.status==="PAGO"&&!["Materiais","Mão de obra","Subempreiteiro"].includes(x.categoria)).reduce((s,x)=>s+(x.valor||0),0);
     const comprometido  = c.filter(x=>["APROVADA","ORDEM DE COMPRA"].includes(x.status)).reduce((s,x)=>s+(x.valorAprovado||0),0);
     const aReceber      = l.filter(x=>x.tipo==="RECEBER"&&x.status==="ABERTO").reduce((s,x)=>s+(x.valor||0),0);
     const aPagar        = l.filter(x=>x.tipo==="PAGAR"&&x.status==="ABERTO").reduce((s,x)=>s+(x.valor||0),0);
     const margBruta     = receita - custoMatMO;
     const margLiq       = margBruta - custosAdmin;
-    const margBrutaPct  = pctN(margBruta, receita);
-    const margLiqPct    = pctN(margLiq, receita);
-    return { receita, custoMatMO, custoLanc, custoCompras, custoDespesas, custosAdmin, margBruta, margLiq, comprometido, aReceber, aPagar, margBrutaPct, margLiqPct };
+    return { receita, custoMatMO, custoLanc, custoCompras, custoDespesas, custosAdmin, margBruta, margLiq,
+      comprometido, aReceber, aPagar, margBrutaPct:pctN(margBruta,receita), margLiqPct:pctN(margLiq,receita) };
   }
 
-  const d = useMemo(()=>calcObra(obraFiltro),[lancs,compras,despesas,obraFiltro]);
-  const obraAtual = obras.find(o=>o.id===obraFiltro);
+  const demandaSelecionada = demandasFiltradas.find(dm=>dm._id===itemFiltro);
+  const d = useMemo(()=>calcDemanda(itemFiltro||null, demandaSelecionada?._tipo), [lancs,compras,despesas,itemFiltro,demandaSelecionada]);
   const lucro = d.margLiq >= 0;
 
   return (
     <div>
       <FiltroAvancado
         campos={[
-          { tipo:"periodo", key:"periodo",     label:"Período de início da obra" },
+          { tipo:"periodo", key:"periodo",     label:"Período de início" },
           { tipo:"select",  key:"clienteNome", label:"Cliente", opcoes: clientesLista.map(c=>({value:c,label:c})) },
-          { tipo:"multi",   key:"status",      label:"Status da obra", largo:true, opcoes: statusObraLista.map(s=>({value:s,label:s})) },
+          { tipo:"select",  key:"tipo",        label:"Tipo", opcoes: [{value:"obra",label:"🏗️ Obras"},{value:"manutencao",label:"🔧 Manutenções"}] },
+          { tipo:"multi",   key:"status",      label:"Status", largo:true, opcoes: [...new Set([...statusObraLista,...statusManutLista])].map(s=>({value:s,label:s})) },
         ]}
         valores={filtros} onChange={setFiltros}
-        onLimpar={()=>{ setFiltros({ periodo:{de:"",ate:""}, clienteNome:"", status:[] }); setObraFiltro(""); }}
+        onLimpar={()=>{ setFiltros({ periodo:{de:"",ate:""}, clienteNome:"", status:[], tipo:"" }); setItemFiltro(""); }}
       />
       {/* Seletor */}
       <div style={{marginBottom:16}}>
-        <select value={obraFiltro} onChange={e=>setObraFiltro(e.target.value)}
+        <select value={itemFiltro} onChange={e=>setItemFiltro(e.target.value)}
           style={{width:"100%",padding:"9px 14px",borderRadius:8,border:"1px solid var(--border)",fontSize:14,fontWeight:500}}>
-          <option value="">📊 Resultado consolidado — {obrasFiltradas.length} obra(s) no filtro</option>
-          {obrasFiltradas.map(o=><option key={o.id} value={o.id}>{o.nome} {o.cliente?`— ${o.cliente}`:""}</option>)}
+          <option value="">📊 Resultado consolidado — {demandasFiltradas.length} demanda(s) no filtro</option>
+          {demandasFiltradas.map(dm=><option key={dm._id} value={dm._id}>{dm._tipo==="manutencao"?"🔧 ":"🏗️ "}{dm.nome} {dm.cliente?`— ${dm.cliente}`:""}</option>)}
         </select>
       </div>
 
-      {/* Header do projeto */}
-      {obraAtual && (
+      {/* Header da demanda */}
+      {demandaSelecionada && (
         <div style={{background:"#1A1A1A",borderRadius:10,padding:"12px 16px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
-            <div style={{fontSize:15,fontWeight:700,color:"#F5C800"}}>{obraAtual.nome}</div>
-            <div style={{fontSize:12,color:"rgba(255,255,255,.4)"}}>{obraAtual.cliente} · {obraAtual.status}</div>
+            <div style={{fontSize:15,fontWeight:700,color:"#F5C800"}}>{demandaSelecionada.nome}</div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,.4)"}}>{demandaSelecionada.cliente} · {demandaSelecionada.status} · {demandaSelecionada._tipo==="manutencao"?"Manutenção":"Obra"}</div>
           </div>
           <span className={`badge ${lucro?"badge-green":"badge-red"}`} style={{fontSize:12}}>{lucro?"✓ Lucrativo":"⚠ Prejuízo"}</span>
         </div>
@@ -393,7 +398,7 @@ function AbaComparativo({ lancs, obras, compras, despesas }) {
       </div>
 
       {dreObras.length===0
-        ? <div className="empty-state"><div className="empty-icon">📊</div><p>Nenhum lançamento financeiro por obra</p></div>
+        ? <div className="empty-state"><div className="empty-icon">📊</div><p>Nenhuma obra encontrada com os filtros aplicados.</p></div>
         : <>
             <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
               <BtnExcel onClick={()=>exportarExcel(dreObras,"Comparativo_Obras",cols)}/>
@@ -694,7 +699,7 @@ export default function DRE() {
       {!loading&&(
         <>
           {aba==="mensal"     &&<AbaVisaoMensal       lancs={lancs} compras={compras} despesas={despesas}/>}
-          {aba==="resultado"  &&<AbaResultadoProjeto lancs={lancs} obras={obras} compras={compras} despesas={despesas}/>}
+          {aba==="resultado"  &&<AbaResultadoProjeto lancs={lancs} obras={obras} compras={compras} despesas={despesas} manuts={manuts}/>}
           {aba==="comparativo"&&<AbaComparativo      lancs={lancs} obras={obras} compras={compras} despesas={despesas}/>}
           {aba==="clientes"   &&<AbaCliente          lancs={lancs} obras={obras}/>}
           {aba==="indicadores"&&<AbaIndicadores      lancs={lancs} obras={obras} compras={compras} manuts={manuts}/>}

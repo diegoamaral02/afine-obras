@@ -6,7 +6,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, where } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
-import { isGestorOuAdm } from "../constants/departamentos";
+import { isGestorOuAdm, isExterno } from "../constants/departamentos";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
 
 const TIPOS_CUSTO = [
@@ -23,6 +23,9 @@ export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orc
   const { userProfile, currentUser } = useAuth();
   const nomeUser = userProfile?.nome || currentUser?.email || "–";
   const podeAprovar = isGestorOuAdm(userProfile);
+  // Empreiteiro e terceiro apenas executam demandas — não lançam custos.
+  // Lançamentos são feitos pela gestão, campo ou financeiro.
+  const podeLancar = !isExterno(userProfile);
 
   const [custos,     setCustos]     = useState([]);
   const [loading,    setLoading]    = useState(true);
@@ -127,9 +130,11 @@ export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orc
 
       {/* Header lista */}
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-        <button className="btn btn-primary" onClick={()=>setFormAberto(v=>!v)}>
-          {formAberto?"✕ Fechar":"+ Lançar custo"}
-        </button>
+        {podeLancar && (
+          <button className="btn btn-primary" onClick={()=>setFormAberto(v=>!v)}>
+            {formAberto?"✕ Fechar":"+ Lançar custo"}
+          </button>
+        )}
         <BtnExcel disabled={custos.length===0} onClick={()=>exportarExcel(custos,"custos_demanda",[
           {key:"data",header:"Data"},{key:"tipo",header:"Tipo"},{key:"descricao",header:"Descrição"},
           {key:"prestadorNome",header:"Prestador"},{key:"empresa",header:"Empresa"},
@@ -147,7 +152,7 @@ export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orc
       </div>
 
       {/* Formulário */}
-      {formAberto && (
+      {podeLancar && formAberto && (
         <div style={{border:"1px solid var(--afine-yellow-dk)",borderRadius:10,padding:14,background:"var(--afine-yellow-lt)"}}>
           <div style={{fontWeight:700,fontSize:13,marginBottom:10}}>Novo lançamento de custo</div>
           <div className="form-grid">
