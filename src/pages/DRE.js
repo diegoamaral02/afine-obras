@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { collection, onSnapshot, query, limit } from "firebase/firestore";
 import { db } from "../firebase";
-import { exportarExcel, BtnExcel } from "../utils/exportExcel";
+import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
 
 const fmt  = v => `R$ ${Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}`;
 const fmtK = v => { const n=Number(v||0); return n>=1000?`R$ ${(n/1000).toFixed(1)}k`:`R$ ${n.toFixed(0)}`; };
@@ -60,12 +60,18 @@ function KPI({ label, valor, cor="#1A1A1A", sub, icon, destaque }) {
 // agregado globalmente (todas as obras) e quebrado por mês.
 function AbaVisaoMensal({ lancs, compras, despesas }) {
   const [qtdMeses, setQtdMeses] = useState(12);
+  const [filtros, setFiltros] = useState({ periodoCustom:{de:"",ate:""} });
 
   const dadosMensais = useMemo(() => {
     const hj = new Date();
     const meses = Array.from({length: qtdMeses}, (_, i) => {
       const d = new Date(hj.getFullYear(), hj.getMonth() - (qtdMeses-1) + i, 1);
-      return d.toISOString().slice(0,7); // YYYY-MM
+      return d.toISOString().slice(0,7);
+    }).filter(m => {
+      if (!filtros.periodoCustom.de && !filtros.periodoCustom.ate) return true;
+      if (filtros.periodoCustom.de && m < filtros.periodoCustom.de.slice(0,7)) return false;
+      if (filtros.periodoCustom.ate && m > filtros.periodoCustom.ate.slice(0,7)) return false;
+      return true;
     });
 
     return meses.map(m => {
@@ -104,12 +110,21 @@ function AbaVisaoMensal({ lancs, compras, despesas }) {
           <div className="panel-title">Visão Mensal — DRE consolidado</div>
           <div style={{fontSize:12,color:"#7A7A7A"}}>Toda a empresa, mês a mês — receita, custo direto (lançamentos + compras + despesas), custos administrativos e lucro</div>
         </div>
-        <select value={qtdMeses} onChange={e=>setQtdMeses(Number(e.target.value))} style={{width:140}}>
-          <option value={6}>Últimos 6 meses</option>
-          <option value={12}>Últimos 12 meses</option>
-          <option value={24}>Últimos 24 meses</option>
-        </select>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          <select value={qtdMeses} onChange={e=>setQtdMeses(Number(e.target.value))} style={{width:140}}>
+            <option value={3}>Últimos 3 meses</option>
+            <option value={6}>Últimos 6 meses</option>
+            <option value={12}>Últimos 12 meses</option>
+            <option value={24}>Últimos 24 meses</option>
+          </select>
+        </div>
       </div>
+
+      <FiltroAvancado
+        campos={[{ tipo:"periodo", key:"periodoCustom", label:"Período personalizado (sobrepõe a seleção acima)" }]}
+        valores={filtros} onChange={setFiltros}
+        onLimpar={()=>setFiltros({ periodoCustom:{de:"",ate:""} })}
+      />
 
       {/* KPIs consolidados do período */}
       <div className="metrics-grid">
@@ -175,6 +190,19 @@ function AbaVisaoMensal({ lancs, compras, despesas }) {
 
 function AbaResultadoProjeto({ lancs, obras, compras, despesas }) {
   const [obraFiltro, setObraFiltro] = useState("");
+  const [filtros, setFiltros] = useState({ periodo:{de:"",ate:""}, clienteNome:"", status:[] });
+
+  const clientesLista = useMemo(()=>[...new Set(obras.map(o=>o.cliente).filter(Boolean))].sort(),[obras]);
+  const statusObraLista = ["EM ANDAMENTO","CONCLUÍDA","PLANEJAMENTO","PARALISADA"];
+
+  const obrasFiltradas = useMemo(()=>{
+    return obras.filter(o=>{
+      const mCliente = !filtros.clienteNome || o.cliente===filtros.clienteNome;
+      const mStatus  = filtros.status.length===0 || filtros.status.includes(o.status);
+      const mPeriodo = dentroPeriodo(o.inicio, filtros.periodo);
+      return mCliente && mStatus && mPeriodo;
+    });
+  },[obras, filtros]);
 
   function calcObra(obraId) {
     const l = obraId ? lancs.filter(x=>x.obraId===obraId) : lancs;
@@ -205,12 +233,21 @@ function AbaResultadoProjeto({ lancs, obras, compras, despesas }) {
 
   return (
     <div>
+      <FiltroAvancado
+        campos={[
+          { tipo:"periodo", key:"periodo",     label:"Período de início da obra" },
+          { tipo:"select",  key:"clienteNome", label:"Cliente", opcoes: clientesLista.map(c=>({value:c,label:c})) },
+          { tipo:"multi",   key:"status",      label:"Status da obra", largo:true, opcoes: statusObraLista.map(s=>({value:s,label:s})) },
+        ]}
+        valores={filtros} onChange={setFiltros}
+        onLimpar={()=>{ setFiltros({ periodo:{de:"",ate:""}, clienteNome:"", status:[] }); setObraFiltro(""); }}
+      />
       {/* Seletor */}
       <div style={{marginBottom:16}}>
         <select value={obraFiltro} onChange={e=>setObraFiltro(e.target.value)}
           style={{width:"100%",padding:"9px 14px",borderRadius:8,border:"1px solid var(--border)",fontSize:14,fontWeight:500}}>
-          <option value="">📊 Resultado consolidado — todas as obras</option>
-          {obras.map(o=><option key={o.id} value={o.id}>{o.nome} {o.cliente?`— ${o.cliente}`:""}</option>)}
+          <option value="">📊 Resultado consolidado — {obrasFiltradas.length} obra(s) no filtro</option>
+          {obrasFiltradas.map(o=><option key={o.id} value={o.id}>{o.nome} {o.cliente?`— ${o.cliente}`:""}</option>)}
         </select>
       </div>
 
@@ -291,8 +328,18 @@ function AbaResultadoProjeto({ lancs, obras, compras, despesas }) {
 
 // ── Sub-aba: Comparativo de Obras ─────────────────────────────────────────────
 function AbaComparativo({ lancs, obras, compras, despesas }) {
+  const [filtros, setFiltros] = useState({ periodo:{de:"",ate:""}, clienteNome:"", status:[] });
+  const clientesLista = useMemo(()=>[...new Set(obras.map(o=>o.cliente).filter(Boolean))].sort(),[obras]);
+  const statusLista = ["EM ANDAMENTO","CONCLUÍDA","PLANEJAMENTO","PARALISADA"];
+
   const dreObras = useMemo(()=>{
-    return obras.map(o=>{
+    const obrasFilt = obras.filter(o=>{
+      if (filtros.clienteNome && o.cliente!==filtros.clienteNome) return false;
+      if (filtros.status.length>0 && !filtros.status.includes(o.status)) return false;
+      if (!dentroPeriodo(o.inicio, filtros.periodo)) return false;
+      return true;
+    });
+    return obrasFilt.map(o=>{
       const l = lancs.filter(x=>x.obraId===o.id);
       const c = compras.filter(x=>x.demandaId===o.id);
       const d = despesas.filter(x=>x.obraId===o.id);
@@ -307,7 +354,7 @@ function AbaComparativo({ lancs, obras, compras, despesas }) {
       const mb=rec-cusD, ml=mb-cusI;
       return { ...o, receita:rec, custoDir:cusD, custInd:cusI, margBruta:mb, margLiq:ml, mbPct:pctN(mb,rec), mlPct:pctN(ml,rec) };
     }).sort((a,b)=>b.margLiq-a.margLiq);
-  },[lancs,obras,compras,despesas]);
+  },[lancs,obras,compras,despesas,filtros]);
 
   const totais = dreObras.reduce((s,o)=>({
     receita:s.receita+(o.receita||0),
@@ -328,9 +375,18 @@ function AbaComparativo({ lancs, obras, compras, despesas }) {
 
   return (
     <div>
+      <FiltroAvancado
+        campos={[
+          { tipo:"periodo", key:"periodo",     label:"Período de início da obra" },
+          { tipo:"select",  key:"clienteNome", label:"Cliente", opcoes: clientesLista.map(c=>({value:c,label:c})) },
+          { tipo:"multi",   key:"status",      label:"Status", largo:true, opcoes: statusLista.map(s=>({value:s,label:s})) },
+        ]}
+        valores={filtros} onChange={setFiltros}
+        onLimpar={()=>setFiltros({ periodo:{de:"",ate:""}, clienteNome:"", status:[] })}
+      />
       {/* Totalizadores */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8,marginBottom:16}}>
-        <KPI label="Receita total geral"  valor={fmt(totais.receita)}   cor="var(--verde)" icon="💰"/>
+        <KPI label={`Receita total (${dreObras.length} obras)`} valor={fmt(totais.receita)} cor="var(--verde)" icon="💰"/>
         <KPI label="Custo direto total"   valor={fmt(totais.custoDir)}  cor="var(--vermelho)" icon="📤"/>
         <KPI label="Margem bruta total"   valor={fmt(totais.margBruta)} cor={totais.margBruta>=0?"var(--verde)":"var(--vermelho)"} destaque/>
         <KPI label="Margem líquida total" valor={fmt(totais.margLiq)}   cor={totais.margLiq>=0?"var(--verde)":"var(--vermelho)"} icon="🎯"/>
@@ -382,23 +438,29 @@ function AbaComparativo({ lancs, obras, compras, despesas }) {
 // ── Sub-aba: Indicadores de desempenho ────────────────────────────────────────
 function AbaIndicadores({ lancs, obras, compras, manuts }) {
   const hoje = new Date().toISOString().split("T")[0];
+  const [filtros, setFiltros] = useState({ periodo:{de:"",ate:""} });
+
+  const lancsF = useMemo(()=>lancs.filter(l=>dentroPeriodo(l.vencimento||l.pagamento, filtros.periodo)),[lancs,filtros]);
+  const obrasF  = useMemo(()=>obras.filter(o=>dentroPeriodo(o.inicio, filtros.periodo)),[obras,filtros]);
+  const manutF  = useMemo(()=>manuts.filter(m=>dentroPeriodo(m.dataAbertura, filtros.periodo)),[manuts,filtros]);
+  const comprasF= useMemo(()=>compras.filter(c=>dentroPeriodo(c.solicitadoEm, filtros.periodo)),[compras,filtros]);
 
   const kpis = useMemo(()=>{
-    const recTot    = lancs.filter(l=>l.tipo==="RECEBER"&&(l.status==="PAGO"||l.status==="RECEBIDO")).reduce((s,l)=>s+(l.valor||0),0);
-    const pagTot    = lancs.filter(l=>l.tipo==="PAGAR"&&l.status==="PAGO").reduce((s,l)=>s+(l.valor||0),0);
+    const recTot    = lancsF.filter(l=>l.tipo==="RECEBER"&&(l.status==="PAGO"||l.status==="RECEBIDO")).reduce((s,l)=>s+(l.valor||0),0);
+    const pagTot    = lancsF.filter(l=>l.tipo==="PAGAR"&&l.status==="PAGO").reduce((s,l)=>s+(l.valor||0),0);
     const saldo     = recTot - pagTot;
-    const inadim    = lancs.filter(l=>l.tipo==="RECEBER"&&l.status==="ABERTO"&&l.vencimento<hoje);
+    const inadim    = lancsF.filter(l=>l.tipo==="RECEBER"&&l.status==="ABERTO"&&l.vencimento<hoje);
     const inadimVal = inadim.reduce((s,l)=>s+(l.valor||0),0);
-    const aRecTot   = lancs.filter(l=>l.tipo==="RECEBER"&&l.status==="ABERTO").reduce((s,l)=>s+(l.valor||0),0);
+    const aRecTot   = lancsF.filter(l=>l.tipo==="RECEBER"&&l.status==="ABERTO").reduce((s,l)=>s+(l.valor||0),0);
     const txInadim  = aRecTot>0?pctN(inadimVal,aRecTot):0;
-    const obrasAtivas=obras.filter(o=>o.status==="EM ANDAMENTO");
+    const obrasAtivas=obrasF.filter(o=>o.status==="EM ANDAMENTO");
     const progMedio  =obrasAtivas.length>0?Math.round(obrasAtivas.reduce((s,o)=>s+(o.progresso||0),0)/obrasAtivas.length):0;
-    const manutAbertas=manuts.filter(m=>["ABERTA","EM ANDAMENTO"].includes(m.status)).length;
-    const manutConcl=manuts.filter(m=>m.status==="CONCLUÍDA").length;
-    const txConcl   =manuts.length>0?pctN(manutConcl,manuts.length):0;
-    const compAbertos=compras.filter(c=>["SOLICITAÇÃO","COTAÇÃO"].includes(c.status)).length;
+    const manutAbertas=manutF.filter(m=>["ABERTA","EM ANDAMENTO"].includes(m.status)).length;
+    const manutConcl=manutF.filter(m=>m.status==="CONCLUÍDA").length;
+    const txConcl   =manutF.length>0?pctN(manutConcl,manutF.length):0;
+    const compAbertos=comprasF.filter(c=>["SOLICITAÇÃO","COTAÇÃO"].includes(c.status)).length;
     return { recTot, pagTot, saldo, inadimVal, txInadim, obrasAtivas:obrasAtivas.length, progMedio, manutAbertas, txConcl, compAbertos };
-  },[lancs,obras,compras,manuts,hoje]);
+  },[lancsF,obrasF,manutF,comprasF,hoje]);
 
   const indicadores = [
     { categoria:"💰 Financeiro", itens:[
@@ -423,6 +485,12 @@ function AbaIndicadores({ lancs, obras, compras, manuts }) {
 
   return (
     <div>
+      <FiltroAvancado
+        campos={[{ tipo:"periodo", key:"periodo", label:"Período" }]}
+        valores={filtros} onChange={setFiltros}
+        onLimpar={()=>setFiltros({ periodo:{de:"",ate:""} })}
+      />
+
       {indicadores.map(grupo=>(
         <div key={grupo.categoria} style={{marginBottom:20}}>
           <div style={{fontSize:13,fontWeight:700,padding:"8px 0",borderBottom:"2px solid var(--afine-yellow)",marginBottom:12}}>{grupo.categoria}</div>
