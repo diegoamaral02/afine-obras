@@ -142,6 +142,8 @@ function FuncionarioModal({ func, obras, onClose, addToast }) {
     entrada:      func?.entrada      || new Date().toISOString().split("T")[0],
     obras:        func?.obras        || [],
     cartaoCorporativo: func?.cartaoCorporativo || "",
+    empresa:      func?.empresa      || "",
+    cnpj:         func?.cnpj         || "",
   });
   const [senha,     setSenha]     = useState("");
   const [modoSenha, setModoSenha] = useState("criar");
@@ -211,6 +213,10 @@ function FuncionarioModal({ func, obras, onClose, addToast }) {
           <div className="form-group"><label>Telefone / WhatsApp</label><input value={form.tel} onChange={e=>set("tel",e.target.value)} placeholder="(11) 9xxxx-xxxx"/></div>
           <div className="form-group"><label>CPF / RG</label><input value={form.cpf} onChange={e=>set("cpf",e.target.value)}/></div>
           <div className="form-group"><label>Cartão corporativo</label><input value={form.cartaoCorporativo} onChange={e=>set("cartaoCorporativo",e.target.value)} placeholder="Ex: Final 4827 (PagBank)"/></div>
+          {(form.departamento==="empreiteiro"||form.departamento==="terceiro") && (<>
+            <div className="form-group span-2"><label>Empresa / Razão social</label><input value={form.empresa} onChange={e=>set("empresa",e.target.value)} placeholder="Ex: Elétrica Silva LTDA"/></div>
+            <div className="form-group"><label>CNPJ / CPF da empresa</label><input value={form.cnpj} onChange={e=>set("cnpj",e.target.value)} placeholder="00.000.000/0001-00"/></div>
+          </>)}
           <div className="form-group"><label>Data de entrada</label><input type="date" value={form.entrada} onChange={e=>set("entrada",e.target.value)}/></div>
         </div>
 

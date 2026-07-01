@@ -100,13 +100,21 @@ service cloud.firestore {
     }
 
     // ── Materiais / Estoque ───────────────────────────────────────
+    // BUG CORRIGIDO: campo precisa registrar saída de estoque ao usar
+    // material durante a execução de obras/manutenções (unificação real do
+    // controle de estoque), mas a regra exigia isEncarregado() pra qualquer
+    // escrita — bloqueando exatamente quem mais usa essa funcionalidade.
     match /materiais_estoque/{id} {
-      allow read:  if isAuth();
-      allow write: if isEncarregado();
+      allow read:   if isAuth();
+      allow create: if isEncarregado();      // só gestão pode criar item novo do zero
+      allow update: if isAuth();             // campo pode debitar/creditar saldo ao usar/devolver material
+      allow delete: if isGestor();
     }
     match /movimentacoes/{id} {
-      allow read:  if isEncarregado();
-      allow write: if isEncarregado();
+      allow read:   if isAuth();
+      allow create: if isAuth();             // qualquer um registra a própria movimentação (uso em campo)
+      allow update: if isEncarregado();
+      allow delete: if isGestor();
     }
 
     // ── FINANCEIRO (apenas gestor) ───────────────────────────────
@@ -125,6 +133,10 @@ service cloud.firestore {
       allow create: if isAuth();
       allow update: if isEncarregado();
       allow delete: if isGestor();
+      match /historico/{hid} {
+        allow read:  if isAuth();
+        allow write: if isAuth();
+      }
     }
 
     // ── Despesas / reembolsos (novo — migrado do controle de planilha) ─
@@ -132,6 +144,19 @@ service cloud.firestore {
       allow read:   if isAuth();
       allow create: if isAuth();
       allow update: if isEncarregado();
+      allow delete: if isGestor();
+      match /historico/{hid} {
+        allow read:  if isAuth();
+        allow write: if isAuth();
+      }
+    }
+
+    // ── Custos vinculados a demandas (obras/manutenções) ─────────────
+    // Empreiteiro, terceiro e campo podem lançar; gestão aprova e exclui.
+    match /custos_demanda/{id} {
+      allow read:   if isAuth();
+      allow create: if isCampo();        // qualquer usuário autenticado lança
+      allow update: if isEncarregado();  // aprovação, status, edição
       allow delete: if isGestor();
     }
 
@@ -141,6 +166,10 @@ service cloud.firestore {
       allow create: if isEncarregado();
       allow update: if isEncarregado();
       allow delete: if isGestor();
+      match /historico/{hid} {
+        allow read:  if isAuth();
+        allow write: if isAuth();
+      }
     }
 
     // ── Fornecedores ──────────────────────────────────────────────

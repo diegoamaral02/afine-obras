@@ -27,6 +27,7 @@ import Modal from "../components/Modal";
 import PhotoUploader from "../components/PhotoUploader";
 import OSDigital from "../components/OSDigital";
 import AssinaturaDigital from "../components/AssinaturaDigital";
+import CustosDemanda from "../components/CustosDemanda";
 import { exportarTermoChavesParaPDF, exportarOSParaPDF } from "../utils/exportPDF";
 import { useToast } from "../hooks/useToast";
 import { Ocorrencias } from "./Equipe";
@@ -337,9 +338,9 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   }
 
   const ABAS = isCampoUser
-    ? ["materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"termo_chaves","os_digital"]
-    : ["dados","endereço","financeiro","materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"termo_chaves","os_digital"];
-  const LABELS = { dados:"Dados", "endereço":"Endereço", financeiro:"Financeiro", materiais:"Materiais", fotos_checklist:"Fotos & Checklist", os_digital:"OS Digital", descaracterizacao:"📋 Descaracterização", termo_chaves:"🔑 Termo de Chaves" };
+    ? ["custos","materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"termo_chaves","os_digital"]
+    : ["dados","endereço","financeiro","custos","materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"termo_chaves","os_digital"];
+  const LABELS = { dados:"Dados", "endereço":"Endereço", financeiro:"Financeiro", custos:"💰 Custos", materiais:"Materiais", fotos_checklist:"Fotos & Checklist", os_digital:"OS Digital", descaracterizacao:"📋 Descaracterização", termo_chaves:"🔑 Termo de Chaves" };
 
   return (
     <Modal title={obra?.id?"Editar obra":"Nova obra"} onClose={onClose}
@@ -560,6 +561,15 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
             </>
           )}
         </div>
+      )}
+
+      {aba==="custos" && obra?.id && (
+        <CustosDemanda
+          demandaTipo="obra"
+          demandaId={obra.id}
+          demandaNome={obra.nome}
+          orcamento={form.valorOrcamento}
+        />
       )}
 
       {aba==="materiais" && (

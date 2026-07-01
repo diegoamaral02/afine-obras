@@ -2,13 +2,15 @@
 // Definição completa de departamentos, permissões de menu e acesso por módulo
 
 export const DEPARTAMENTOS = [
-  { id:"gestao",      label:"Gestão",      cor:"#1A1A1A", icone:"👑" },
-  { id:"financeiro",  label:"Financeiro",  cor:"#2D6A1F", icone:"💰" },
-  { id:"comercial",   label:"Comercial",   cor:"#185FA5", icone:"📈" },
-  { id:"compras",     label:"Compras",     cor:"#7B4F00", icone:"🛒" },
-  { id:"fiscal",      label:"Fiscal",      cor:"#C9A200", icone:"🔍" },
-  { id:"campo",       label:"Campo",       cor:"#4A4A4A", icone:"🏗️" },
-  { id:"adm",         label:"ADM (Master)",cor:"#B83232", icone:"🔐" },
+  { id:"gestao",       label:"Gestão",       cor:"#1A1A1A", icone:"👑" },
+  { id:"financeiro",   label:"Financeiro",   cor:"#2D6A1F", icone:"💰" },
+  { id:"comercial",    label:"Comercial",    cor:"#185FA5", icone:"📈" },
+  { id:"compras",      label:"Compras",      cor:"#7B4F00", icone:"🛒" },
+  { id:"fiscal",       label:"Fiscal",       cor:"#C9A200", icone:"🔍" },
+  { id:"campo",        label:"Campo",        cor:"#4A4A4A", icone:"🏗️" },
+  { id:"empreiteiro",  label:"Empreiteiro",  cor:"#7A3B99", icone:"🔨" },
+  { id:"terceiro",     label:"Terceiro",     cor:"#1A7A72", icone:"🤝" },
+  { id:"adm",          label:"ADM (Master)", cor:"#B83232", icone:"🔐" },
 ];
 
 // ─── Mapa de acesso por departamento ─────────────────────────────────────────
@@ -103,6 +105,32 @@ export const ACESSO = {
     podeAprovarCompra: false,
     isAdm: false,
   },
+
+  // Empreiteiro e Terceiro: acesso igual ao Campo.
+  // Têm login próprio com cadastro único por empresa.
+  // Só veem as demandas (obras/manutenções) em que estão vinculados,
+  // e podem lançar custos dentro dessas demandas.
+  empreiteiro: {
+    painel:"ver",   comercial:"ver",  clientes:"ver",  fornecedores:"ver",
+    obras:"ver",    medicao:"ver",    manutencao:true, diario:true,     ocorrencias:true,
+    compras:"ver",  materiais:"ver",  despesas:true,
+    financeiro:"ver", dre:"ver",
+    equipe:"ver",   funcionarios:"ver", calendario:"ver",
+    compras_etapas: ["SOLICITAÇÃO"],
+    podeAprovarCompra: false,
+    isAdm: false,
+  },
+
+  terceiro: {
+    painel:"ver",   comercial:"ver",  clientes:"ver",  fornecedores:"ver",
+    obras:"ver",    medicao:"ver",    manutencao:true, diario:true,     ocorrencias:true,
+    compras:"ver",  materiais:"ver",  despesas:true,
+    financeiro:"ver", dre:"ver",
+    equipe:"ver",   funcionarios:"ver", calendario:"ver",
+    compras_etapas: ["SOLICITAÇÃO"],
+    podeAprovarCompra: false,
+    isAdm: false,
+  },
 };
 
 // Helper: retorna acesso de um usuário
@@ -128,14 +156,19 @@ export function podeVer(userProfile, modulo) {
   return ac[modulo] === true || ac[modulo] === "ver";
 }
 
-// Helper: o usuário é do departamento Campo? (considera tanto o sistema novo
-// "departamento" quanto o legado "perfil" — usado para restringir Home, Equipe
-// e criação de manutenção a partir do app móvel de campo)
+// Helper: o usuário tem acesso nível campo ou equivalente?
+// Inclui empreiteiro e terceiro, que têm as mesmas restrições de acesso.
 export function isCampo(userProfile) {
   if (!userProfile) return true;
   if (userProfile.adm === true) return false;
   const dep = userProfile.departamento || userProfile.perfil || "campo";
-  return dep === "campo";
+  return ["campo","empreiteiro","terceiro"].includes(dep);
+}
+
+// Helper: é especificamente empreiteiro ou terceiro (externo)?
+export function isExterno(userProfile) {
+  const dep = getDepartamentoEfetivo(userProfile);
+  return dep === "empreiteiro" || dep === "terceiro";
 }
 
 // Departamento efetivo do usuário, com ADM Master sempre resolvendo para "adm"

@@ -9,6 +9,7 @@ import Modal from "../components/Modal";
 import PhotoUploader from "../components/PhotoUploader";
 import OSDigital from "../components/OSDigital";
 import AssinaturaDigital from "../components/AssinaturaDigital";
+import CustosDemanda from "../components/CustosDemanda";
 import { exportarOSParaPDF, exportarTermoChavesParaPDF } from "../utils/exportPDF";
 import { useToast } from "../hooks/useToast";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
@@ -51,7 +52,7 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
   const uid     = currentUser?.uid;
   const nomeUser= userProfile?.nome || currentUser?.email || "–";
 
-  const [passo, setPasso] = useState(isCampo ? 3 : 1); // campo começa em materiais
+  const [passo, setPasso] = useState(isCampo ? 3 : 1); // campo começa em Custos
 
   const [form, setForm] = useState({
     titulo:       manut?.titulo       || "",
@@ -204,8 +205,8 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
   }
 
   const PASSOS = isCampo
-    ? ["Materiais","Fotos & Checklist","Termo de Chaves","OS Digital"]
-    : ["Dados","Endereço","Materiais","Fotos & Checklist","Termo de Chaves","OS Digital"];
+    ? ["Custos","Materiais","Fotos & Checklist","Termo de Chaves","OS Digital"]
+    : ["Dados","Endereço","Custos","Materiais","Fotos & Checklist","Termo de Chaves","OS Digital"];
   const PASSO_BASE = isCampo ? 3 : 1;
   const passoVisual = passo - PASSO_BASE + 1;
   const totalPassos = PASSOS.length;
@@ -446,8 +447,18 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
         </div>
       )}
 
-      {/* ── PASSO 3 — MATERIAIS ─────────────────────────── */}
-      {passo===3 && (
+      {/* ── PASSO 3 — CUSTOS DA DEMANDA ──────────────────── */}
+      {passo===3 && manut?.id && (
+        <CustosDemanda
+          demandaTipo="manutencao"
+          demandaId={manut.id}
+          demandaNome={manut.titulo||form.titulo}
+          orcamento={form.valorServico||0}
+        />
+      )}
+
+      {/* ── PASSO 4 — MATERIAIS ─────────────────────────── */}
+      {passo===4 && (
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
           {isCampo&&(
             <div style={{background:"#1A1A1A",borderRadius:8,padding:12,color:"#fff"}}>
@@ -514,8 +525,8 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
         </div>
       )}
 
-      {/* ── PASSO 4 — FOTOS & CHECKLIST ─────────────────── */}
-      {passo===4 && (
+      {/* ── PASSO 5 — FOTOS & CHECKLIST ─────────────────── */}
+      {passo===5 && (
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
           <PhotoUploader fotos={fotos} onChange={setFotos} minFotos={MIN_FOTOS}/>
           <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>
@@ -535,8 +546,8 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
         </div>
       )}
 
-      {/* ── PASSO 6 — OS DIGITAL ────────────────────────── */}
-      {passo===6 && (
+      {/* ── PASSO 7 — OS DIGITAL ────────────────────────── */}
+      {passo===7 && (
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
           {/* Resumo para o técnico */}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,fontSize:11}}>
@@ -601,8 +612,8 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
         </div>
       )}
 
-      {/* ── PASSO 5 — TERMO DE ENTREGA DE CHAVES ──────────── */}
-      {passo===5 && (
+      {/* ── PASSO 6 — TERMO DE ENTREGA DE CHAVES ──────────── */}
+      {passo===6 && (
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
           <div className="form-group">
             <label className="required">Tem chave a ser devolvida?</label>
