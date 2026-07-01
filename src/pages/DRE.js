@@ -309,7 +309,7 @@ function AbaResultadoProjeto({ lancs, obras, compras, despesas, manuts=[] }) {
       {/* DRE visual */}
       <div className="card" style={{marginBottom:16}}>
         <div style={{fontSize:13,fontWeight:700,color:"#1A1A1A",marginBottom:16}}>
-          Demonstrativo de Resultado — {obraFiltro?obraAtual?.nome:"Consolidado"}
+          Demonstrativo de Resultado — {demandaSelecionada?.nome||"Consolidado"}
         </div>
         {[
           {label:"(+) Receita realizada",             v:d.receita,       cor:"var(--verde)",   bold:false, tipo:"rec"},
