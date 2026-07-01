@@ -33,6 +33,8 @@ export default function OSDigital({ manutencao, descritivos, descExtra, funciona
   const [assinGerente,   setAssinGerente]   = useState(null);
   const [geoGerente,     setGeoGerente]     = useState(null);
   const [nomeGerente,    setNomeGerente]    = useState("");
+  const [cpfGerente,     setCpfGerente]     = useState("");
+  const [rgGerente,      setRgGerente]      = useState("");
   const [telefoneGerente,setTelefoneGerente]= useState("");
   const [passo, setPasso] = useState(1);
 
@@ -49,6 +51,9 @@ export default function OSDigital({ manutencao, descritivos, descExtra, funciona
     if (!assinGerente) { alert("O gerente precisa assinar."); return; }
     if (!geoGerente) { alert("É necessário confirmar a localização do dispositivo para validar a assinatura do gerente."); return; }
     if (!nomeGerente.trim()) { alert("Informe o nome do gerente."); return; }
+    if (!cpfGerente.trim()) { alert("CPF do gerente é obrigatório."); return; }
+    if (!rgGerente.trim()) { alert("RG do gerente é obrigatório."); return; }
+    if (!telefoneGerente.trim()) { alert("Telefone do gerente é obrigatório."); return; }
     onSalvar({
       numero: `OS-${Date.now()}`,
       data: new Date().toLocaleString("pt-BR"),
@@ -61,6 +66,8 @@ export default function OSDigital({ manutencao, descritivos, descExtra, funciona
       assinGerente,
       geoGerente,
       nomeGerente,
+      cpfGerente,
+      rgGerente,
       telefoneGerente,
       geradaEm: new Date().toISOString(),
     });
@@ -151,11 +158,21 @@ export default function OSDigital({ manutencao, descritivos, descExtra, funciona
             📱 <strong>Entregue o celular ao gerente da agência</strong> para assinar. A localização do dispositivo será solicitada para autenticar a identidade do responsável.
           </div>
           <div className="form-group">
-            <label className="required">Nome do gerente</label>
+            <label className="required">Nome do gerente / cliente</label>
             <input value={nomeGerente} onChange={e=>setNomeGerente(e.target.value)} placeholder="Nome completo"/>
           </div>
+          <div className="form-grid">
+            <div className="form-group">
+              <label className="required">CPF</label>
+              <input value={cpfGerente} onChange={e=>setCpfGerente(e.target.value)} placeholder="000.000.000-00"/>
+            </div>
+            <div className="form-group">
+              <label className="required">RG</label>
+              <input value={rgGerente} onChange={e=>setRgGerente(e.target.value)} placeholder="00.000.000-0"/>
+            </div>
+          </div>
           <div className="form-group">
-            <label>Telefone do gerente</label>
+            <label className="required">Telefone do gerente</label>
             <input value={telefoneGerente} onChange={e=>setTelefoneGerente(e.target.value)} placeholder="(11) 9xxxx-xxxx"/>
           </div>
           <AssinaturaDigital

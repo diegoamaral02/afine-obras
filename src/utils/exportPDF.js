@@ -93,6 +93,9 @@ export function exportarOSParaPDF(os, contexto) {
     ${os.assinGerente ? `<img src="${os.assinGerente}" alt="Assinatura gerente">` : ""}
     <div class="assin-linha">
       <div class="nome">${os.nomeGerente||"–"}</div>
+      <div class="extra">CPF: ${os.cpfGerente||"–"}</div>
+      <div class="extra">RG: ${os.rgGerente||"–"}</div>
+      <div class="extra">Tel: ${os.telefoneGerente||"–"}</div>
       <div class="papel">Gerente / Cliente</div>
     </div>
   </div>
