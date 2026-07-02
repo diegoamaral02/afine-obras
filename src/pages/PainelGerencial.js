@@ -111,6 +111,10 @@ export default function PainelGerencial() {
       : 0,
   }),[obras, hoje]);
 
+  const manutsAtrasadas = useMemo(()=>
+    manuts.filter(m=>["ABERTA","EM ANDAMENTO"].includes(m.status)&&m.dataPrevista&&m.dataPrevista<hoje)
+  ,[manuts, hoje]);
+
   const comprasStats = useMemo(()=>({
     abertas:     compras.filter(c=>["SOLICITAÇÃO","COTAÇÃO"].includes(c.status)).length,
     comprometido:compras.filter(c=>["APROVADA","ORDEM DE COMPRA"].includes(c.status)).reduce((s,c)=>s+(c.valorAprovado||0),0),
@@ -238,7 +242,7 @@ export default function PainelGerencial() {
         </div>
       </div>
 
-      {/* Alertas */}
+      {/* Alertas — Obras atrasadas */}
       {obrasStats.atrasadas.length>0&&(
         <div className="card" style={{borderLeft:"4px solid var(--vermelho)"}}>
           <div style={{fontWeight:600,fontSize:14,marginBottom:10}}>🚨 Obras com desvio de prazo</div>
@@ -250,6 +254,27 @@ export default function PainelGerencial() {
               </div>
               <div style={{textAlign:"right"}}>
                 <div style={{fontSize:11,color:"var(--vermelho)",fontWeight:600}}>Término: {fmtDate(o.termino)}</div>
+                <span className="badge badge-red">ATRASADA</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Alertas — Manutenções atrasadas */}
+      {manutsAtrasadas.length>0&&(
+        <div className="card" style={{borderLeft:"4px solid var(--vermelho)"}}>
+          <div style={{fontWeight:600,fontSize:14,marginBottom:10}}>🔧 Manutenções com desvio de prazo</div>
+          {manutsAtrasadas.map(m=>(
+            <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:"1px solid var(--border)"}}>
+              <div>
+                <div style={{fontWeight:500,fontSize:13}}>{m.titulo||m.nome||"–"}</div>
+                <div style={{fontSize:11,color:"#7A7A7A"}}>
+                  {m.cliente} · {m.agencia&&`${m.agencia} · `}{m.cidade||""}
+                </div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:11,color:"var(--vermelho)",fontWeight:600}}>Previsto: {fmtDate(m.dataPrevista)}</div>
                 <span className="badge badge-red">ATRASADA</span>
               </div>
             </div>
