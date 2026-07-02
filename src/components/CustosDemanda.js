@@ -1,7 +1,4 @@
 // src/components/CustosDemanda.js
-// Aba de custos manuais vinculados a uma demanda (obra ou manutenção).
-// Não replica dados de Compras nem Despesas — esses ficam nos seus módulos.
-// Foco: lançamento e rastreio de custos de empreiteiros, terceiros e outros.
 import React, { useEffect, useState, useMemo } from "react";
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, where } from "firebase/firestore";
 import { db } from "../firebase";
@@ -19,24 +16,31 @@ const STATUS_BG  = { pendente:"var(--afine-yellow-lt)", aprovado:"var(--verde-lt
 const fmt  = v => `R$ ${Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}`;
 const hoje = () => new Date().toISOString().split("T")[0];
 
+const FORM_VAZIO = (nomeUser) => ({
+  descricao:"", tipo:"", valor:"", data:hoje(),
+  prestadorNome: nomeUser, // preenche automaticamente com o usuário logado
+  localCompra:"", reembolsavel:"nao", obs:"",
+});
+
 export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orcamento }) {
   const { userProfile, currentUser } = useAuth();
   const nomeUser = userProfile?.nome || currentUser?.email || "–";
+
   const podeAprovar = isGestorOuAdm(userProfile) ||
     ["financeiro","fiscal","compras"].includes(userProfile?.departamento||userProfile?.perfil||"");
-  const souExterno = isExterno(userProfile);
-  // Empreiteiro e terceiro: não veem a aba de custos (retorna null)
-  if (souExterno) return null;
-  const souCampoDep = !podeAprovar && !souExterno; // campo puro
-  const podeLancar = !souExterno;
+  const souExterno  = isExterno(userProfile);
+  if (souExterno) return null; // empreiteiro/terceiro não veem a aba
 
-  const [custos,     setCustos]     = useState([]);
-  const [loading,    setLoading]    = useState(true);
-  const [formAberto, setFormAberto] = useState(false);
+  const souCampoDep = !podeAprovar && !souExterno;
+  const podeLancar  = !souExterno;
+
+  const [custos,       setCustos]       = useState([]);
+  const [loading,      setLoading]      = useState(true);
   const [filtroStatus, setFiltroStatus] = useState("todos");
-  const [form, setForm] = useState({
-    descricao:"", tipo:"", valor:"", data:hoje(), prestadorNome:"", empresa:"", obs:"",
-  });
+  const [formAberto,   setFormAberto]   = useState(false);
+  const [editandoId,   setEditandoId]   = useState(null); // ID do custo sendo editado
+  const [form, setForm] = useState(FORM_VAZIO(nomeUser));
+  const [saving, setSaving] = useState(false);
 
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
 
@@ -47,26 +51,52 @@ export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orc
     return u;
   }, [demandaId]);
 
-  async function lancar() {
+  function abrirNovo() {
+    setEditandoId(null);
+    setForm(FORM_VAZIO(nomeUser));
+    setFormAberto(true);
+  }
+
+  function abrirEdicao(c) {
+    setEditandoId(c.id);
+    setForm({
+      descricao:    c.descricao||"",
+      tipo:         c.tipo||"",
+      valor:        c.valor||"",
+      data:         c.data||hoje(),
+      prestadorNome:c.prestadorNome||nomeUser,
+      localCompra:  c.localCompra||"",
+      reembolsavel: c.reembolsavel||"nao",
+      obs:          c.obs||"",
+    });
+    setFormAberto(true);
+  }
+
+  async function salvar() {
     if (!form.descricao || !form.valor || !form.tipo) { alert("Preencha descrição, tipo e valor."); return; }
+    setSaving(true);
     const payload = {
       ...form, valor: Number(form.valor),
       demandaTipo, demandaId, demandaNome: demandaNome||"",
-      status: "pendente",
-      lancadoPorId: currentUser?.uid||"",
-      lancadoPorNome: nomeUser,
-      createdAt: new Date().toISOString(),
     };
-    await addDoc(collection(db,"custos_demanda"), payload);
-    setForm({ descricao:"", tipo:"", valor:"", data:hoje(), prestadorNome:"", empresa:"", obs:"" });
-    setFormAberto(false);
+    try {
+      if (editandoId) {
+        await updateDoc(doc(db,"custos_demanda",editandoId), { ...payload, updatedAt: new Date().toISOString(), updatedBy: nomeUser });
+      } else {
+        await addDoc(collection(db,"custos_demanda"), {
+          ...payload, status:"pendente",
+          lancadoPorId: currentUser?.uid||"", lancadoPorNome: nomeUser,
+          createdAt: new Date().toISOString(),
+        });
+      }
+      setFormAberto(false);
+      setEditandoId(null);
+    } finally { setSaving(false); }
   }
 
   async function alterarStatus(id, novoStatus) {
     await updateDoc(doc(db,"custos_demanda",id), {
-      status: novoStatus,
-      aprovadoPor: nomeUser,
-      aprovadoEm: new Date().toISOString(),
+      status: novoStatus, aprovadoPor: nomeUser, aprovadoEm: new Date().toISOString(),
     });
   }
 
@@ -78,7 +108,7 @@ export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orc
   const custosFiltrados = useMemo(()=>{
     let base = filtroStatus==="todos" ? custos : custos.filter(c=>c.status===filtroStatus);
     if (souCampoDep) base = base.filter(c=>c.lancadoPorId===currentUser?.uid||c.lancadoPorNome===nomeUser);
-    return base;
+    return [...base].sort((a,b)=>(b.data||"").localeCompare(a.data||""));
   },[custos, filtroStatus, souCampoDep, currentUser, nomeUser]);
 
   const totais = useMemo(() => ({
@@ -88,31 +118,18 @@ export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orc
     pendente: custos.filter(c=>c.status==="pendente").reduce((s,c)=>s+(c.valor||0),0),
   }),[custos]);
 
-  const orcNum = Number(orcamento)||0;
+  const orcNum   = Number(orcamento)||0;
   const pctGasto = orcNum>0 ? Math.min(100, Math.round(totais.geral/orcNum*100)) : 0;
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      {/* KPIs e barra de orçamento — visível apenas para gestão/financeiro/ADM */}
+      {/* KPIs + orçamento — só para gestão/fiscal/financeiro/compras/adm */}
       {podeAprovar && (<>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8}}>
-          <div className="kpi-card">
-            <div className="kpi-label">TOTAL LANÇADO</div>
-            <div className="kpi-value">{fmt(totais.geral)}</div>
-            <div style={{fontSize:11,color:"#7A7A7A"}}>{custos.filter(c=>c.status!=="cancelado").length} item(ns)</div>
-          </div>
-          <div className="kpi-card" style={{borderLeftColor:"var(--afine-yellow-dk)"}}>
-            <div className="kpi-label">PENDENTE APROVAÇÃO</div>
-            <div className="kpi-value" style={{color:"var(--afine-yellow-dk)",fontSize:18}}>{fmt(totais.pendente)}</div>
-          </div>
-          <div className="kpi-card" style={{borderLeftColor:"var(--verde)"}}>
-            <div className="kpi-label">APROVADO</div>
-            <div className="kpi-value" style={{color:"var(--verde)",fontSize:18}}>{fmt(totais.aprovado)}</div>
-          </div>
-          <div className="kpi-card" style={{borderLeftColor:"#185FA5"}}>
-            <div className="kpi-label">PAGO</div>
-            <div className="kpi-value" style={{color:"#185FA5",fontSize:18}}>{fmt(totais.pago)}</div>
-          </div>
+          <div className="kpi-card"><div className="kpi-label">TOTAL LANÇADO</div><div className="kpi-value">{fmt(totais.geral)}</div><div style={{fontSize:11,color:"#7A7A7A"}}>{custos.filter(c=>c.status!=="cancelado").length} item(ns)</div></div>
+          <div className="kpi-card" style={{borderLeftColor:"var(--afine-yellow-dk)"}}><div className="kpi-label">PENDENTE APROVAÇÃO</div><div className="kpi-value" style={{color:"var(--afine-yellow-dk)",fontSize:18}}>{fmt(totais.pendente)}</div></div>
+          <div className="kpi-card" style={{borderLeftColor:"var(--verde)"}}><div className="kpi-label">APROVADO</div><div className="kpi-value" style={{color:"var(--verde)",fontSize:18}}>{fmt(totais.aprovado)}</div></div>
+          <div className="kpi-card" style={{borderLeftColor:"#185FA5"}}><div className="kpi-label">PAGO</div><div className="kpi-value" style={{color:"#185FA5",fontSize:18}}>{fmt(totais.pago)}</div></div>
           {orcNum>0 && (
             <div className="kpi-card" style={{borderLeftColor:totais.geral<=orcNum?"var(--verde)":"var(--vermelho)"}}>
               <div className="kpi-label">SALDO ORÇAMENTO</div>
@@ -133,33 +150,34 @@ export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orc
         )}
       </>)}
 
-      {/* Header lista */}
+      {/* Barra de ações */}
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-        {podeLancar && (
-          <button className="btn btn-primary" onClick={()=>setFormAberto(v=>!v)}>
-            {formAberto?"✕ Fechar":"+ Lançar custo"}
-          </button>
+        {podeLancar && !formAberto && (
+          <button className="btn btn-primary" onClick={abrirNovo}>+ Lançar custo</button>
         )}
-        <BtnExcel disabled={custos.length===0} onClick={()=>exportarExcel(custos,"custos_demanda",[
-          {key:"data",header:"Data"},{key:"tipo",header:"Tipo"},{key:"descricao",header:"Descrição"},
-          {key:"prestadorNome",header:"Prestador"},{key:"empresa",header:"Empresa"},
-          {key:"valor",header:"Valor",format:v=>Number(v||0).toFixed(2)},{key:"status",header:"Status"},
-          {key:"lancadoPorNome",header:"Lançado por"},
-        ])}/>
+        {podeAprovar && (
+          <BtnExcel disabled={custos.length===0} onClick={()=>exportarExcel(custos,"custos_demanda",[
+            {key:"data",header:"Data"},{key:"tipo",header:"Tipo"},{key:"descricao",header:"Descrição"},
+            {key:"prestadorNome",header:"Responsável"},{key:"localCompra",header:"Local de compra"},
+            {key:"valor",header:"Valor",format:v=>Number(v||0).toFixed(2)},{key:"status",header:"Status"},
+            {key:"reembolsavel",header:"Reembolsável"},{key:"lancadoPorNome",header:"Lançado por"},
+          ])}/>
+        )}
         <div className="chip-row" style={{margin:0,flex:1}}>
           {["todos",...STATUS_CUSTO].map(s=>(
             <button key={s} className={`chip ${filtroStatus===s?"active":""}`} onClick={()=>setFiltroStatus(s)}>
-              {s==="todos"?"Todos":s}
-              {s!=="todos" && ` (${custos.filter(c=>c.status===s).length})`}
+              {s==="todos"?"Todos":s}{s!=="todos"&&` (${custos.filter(c=>c.status===s).length})`}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Formulário */}
+      {/* Formulário (novo ou edição) */}
       {podeLancar && formAberto && (
         <div style={{border:"1px solid var(--afine-yellow-dk)",borderRadius:10,padding:14,background:"var(--afine-yellow-lt)"}}>
-          <div style={{fontWeight:700,fontSize:13,marginBottom:10}}>Novo lançamento de custo</div>
+          <div style={{fontWeight:700,fontSize:13,marginBottom:10}}>
+            {editandoId ? "✏️ Editar lançamento" : "Novo lançamento de custo"}
+          </div>
           <div className="form-grid">
             <div className="form-group">
               <label className="required">Tipo de custo</label>
@@ -181,21 +199,38 @@ export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orc
               <input type="number" step="0.01" value={form.valor} onChange={e=>set("valor",e.target.value)} placeholder="0,00"/>
             </div>
             <div className="form-group">
-              <label>Prestador / Responsável</label>
-              <input value={form.prestadorNome} onChange={e=>set("prestadorNome",e.target.value)} placeholder="Nome do empreiteiro ou responsável"/>
+              <label>Responsável pelo lançamento</label>
+              <input value={form.prestadorNome} onChange={e=>set("prestadorNome",e.target.value)}/>
             </div>
             <div className="form-group">
-              <label>Empresa / CNPJ</label>
-              <input value={form.empresa} onChange={e=>set("empresa",e.target.value)} placeholder="Empresa prestadora"/>
+              <label>Local de compra / Fornecedor</label>
+              <input value={form.localCompra} onChange={e=>set("localCompra",e.target.value)} placeholder="Ex: Leroy Merlin, Fornecedor X"/>
             </div>
             <div className="form-group">
               <label>Observações</label>
               <input value={form.obs} onChange={e=>set("obs",e.target.value)}/>
             </div>
+            {/* Reembolsável — mesma lógica das Despesas */}
+            <div className="form-group span-2" style={{background:"rgba(0,0,0,.04)",borderRadius:8,padding:10}}>
+              <label className="required" style={{display:"block",marginBottom:8}}>Necessita reembolso?</label>
+              <div style={{display:"flex",gap:6}}>
+                {[["nao","Não necessita reembolso"],["sim","Sim, necessita reembolso"]].map(([v,l])=>(
+                  <button key={v} type="button" onClick={()=>set("reembolsavel",v)}
+                    style={{flex:1,padding:"8px 6px",fontSize:12,borderRadius:8,cursor:"pointer",
+                      border:`1px solid ${form.reembolsavel===v?"var(--afine-yellow-dk)":"var(--border)"}`,
+                      background:form.reembolsavel===v?"var(--afine-white)":"var(--cinza-lt)",
+                      fontWeight:form.reembolsavel===v?700:400}}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-          <div style={{display:"flex",gap:8,marginTop:10}}>
-            <button className="btn" onClick={()=>setFormAberto(false)}>Cancelar</button>
-            <button className="btn btn-primary" onClick={lancar}>✓ Confirmar lançamento</button>
+          <div style={{display:"flex",gap:8,marginTop:12}}>
+            <button className="btn" onClick={()=>{setFormAberto(false);setEditandoId(null);}}>Cancelar</button>
+            <button className="btn btn-primary" onClick={salvar} disabled={saving}>
+              {saving?"Salvando...":(editandoId?"✓ Salvar alterações":"✓ Confirmar lançamento")}
+            </button>
           </div>
         </div>
       )}
@@ -207,7 +242,7 @@ export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orc
       )}
       {!loading && custosFiltrados.length>0 && (
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          {[...custosFiltrados].sort((a,b)=>(b.data||"").localeCompare(a.data||"")).map(c=>(
+          {custosFiltrados.map(c=>(
             <div key={c.id} style={{border:"1px solid var(--border)",borderRadius:8,padding:12,display:"flex",gap:10,alignItems:"flex-start",flexWrap:"wrap",background:"#fff"}}>
               <div style={{flex:"1 1 200px",minWidth:0}}>
                 <div style={{fontWeight:600,fontSize:13}}>{c.descricao}</div>
@@ -215,7 +250,8 @@ export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orc
                   <span>{c.data?.split("-").reverse().join("/")}</span>
                   <span className="badge badge-gray" style={{fontSize:9}}>{c.tipo}</span>
                   {c.prestadorNome && <span>👤 {c.prestadorNome}</span>}
-                  {c.empresa && <span>🏢 {c.empresa}</span>}
+                  {c.localCompra && <span>🏪 {c.localCompra}</span>}
+                  {c.reembolsavel==="sim" && <span style={{color:"var(--vermelho)",fontWeight:600,fontSize:10}}>⟳ Reembolso</span>}
                 </div>
                 {c.obs && <div style={{fontSize:11,color:"#7A7A7A",fontStyle:"italic",marginTop:2}}>{c.obs}</div>}
                 <div style={{fontSize:10,color:"#B8B6AE",marginTop:2}}>Lançado por {c.lancadoPorNome||"–"}</div>
@@ -227,8 +263,12 @@ export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orc
                   {c.status}
                 </span>
               </div>
-              {podeAprovar && (
-                <div style={{display:"flex",gap:4,flexShrink:0,flexWrap:"wrap"}}>
+              <div style={{display:"flex",gap:4,flexShrink:0,flexWrap:"wrap"}}>
+                {/* Editar: lançador pode editar se pendente; gestão pode sempre */}
+                {(c.status==="pendente"||(podeAprovar)) && (c.lancadoPorId===currentUser?.uid||podeAprovar) && (
+                  <button className="btn btn-sm" style={{fontSize:11}} onClick={()=>abrirEdicao(c)}>✏️</button>
+                )}
+                {podeAprovar && (<>
                   {c.status==="pendente" && <>
                     <button className="btn btn-sm" style={{background:"var(--verde-lt)",color:"var(--verde)",border:"none",fontSize:11}} onClick={()=>alterarStatus(c.id,"aprovado")}>✓ Aprovar</button>
                     <button className="btn btn-sm" style={{fontSize:11,color:"var(--vermelho)"}} onClick={()=>alterarStatus(c.id,"cancelado")}>✕</button>
@@ -237,8 +277,8 @@ export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orc
                     <button className="btn btn-sm" style={{background:"rgba(24,95,165,.1)",color:"#185FA5",border:"none",fontSize:11}} onClick={()=>alterarStatus(c.id,"pago")}>💳 Pago</button>
                   )}
                   <button className="btn btn-sm" style={{color:"var(--vermelho)",fontSize:11}} onClick={()=>excluir(c.id)}>🗑️</button>
-                </div>
-              )}
+                </>)}
+              </div>
             </div>
           ))}
         </div>
