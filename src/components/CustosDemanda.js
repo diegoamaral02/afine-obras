@@ -88,45 +88,45 @@ export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orc
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      {/* KPIs */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8}}>
-        <div className="kpi-card">
-          <div className="kpi-label">TOTAL LANÇADO</div>
-          <div className="kpi-value">{fmt(totais.geral)}</div>
-          <div style={{fontSize:11,color:"#7A7A7A"}}>{custos.filter(c=>c.status!=="cancelado").length} item(ns)</div>
-        </div>
-        <div className="kpi-card" style={{borderLeftColor:"var(--afine-yellow-dk)"}}>
-          <div className="kpi-label">PENDENTE APROVAÇÃO</div>
-          <div className="kpi-value" style={{color:"var(--afine-yellow-dk)",fontSize:18}}>{fmt(totais.pendente)}</div>
-        </div>
-        <div className="kpi-card" style={{borderLeftColor:"var(--verde)"}}>
-          <div className="kpi-label">APROVADO</div>
-          <div className="kpi-value" style={{color:"var(--verde)",fontSize:18}}>{fmt(totais.aprovado)}</div>
-        </div>
-        <div className="kpi-card" style={{borderLeftColor:"#185FA5"}}>
-          <div className="kpi-label">PAGO</div>
-          <div className="kpi-value" style={{color:"#185FA5",fontSize:18}}>{fmt(totais.pago)}</div>
+      {/* KPIs e barra de orçamento — visível apenas para gestão/financeiro/ADM */}
+      {podeAprovar && (<>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8}}>
+          <div className="kpi-card">
+            <div className="kpi-label">TOTAL LANÇADO</div>
+            <div className="kpi-value">{fmt(totais.geral)}</div>
+            <div style={{fontSize:11,color:"#7A7A7A"}}>{custos.filter(c=>c.status!=="cancelado").length} item(ns)</div>
+          </div>
+          <div className="kpi-card" style={{borderLeftColor:"var(--afine-yellow-dk)"}}>
+            <div className="kpi-label">PENDENTE APROVAÇÃO</div>
+            <div className="kpi-value" style={{color:"var(--afine-yellow-dk)",fontSize:18}}>{fmt(totais.pendente)}</div>
+          </div>
+          <div className="kpi-card" style={{borderLeftColor:"var(--verde)"}}>
+            <div className="kpi-label">APROVADO</div>
+            <div className="kpi-value" style={{color:"var(--verde)",fontSize:18}}>{fmt(totais.aprovado)}</div>
+          </div>
+          <div className="kpi-card" style={{borderLeftColor:"#185FA5"}}>
+            <div className="kpi-label">PAGO</div>
+            <div className="kpi-value" style={{color:"#185FA5",fontSize:18}}>{fmt(totais.pago)}</div>
+          </div>
+          {orcNum>0 && (
+            <div className="kpi-card" style={{borderLeftColor:totais.geral<=orcNum?"var(--verde)":"var(--vermelho)"}}>
+              <div className="kpi-label">SALDO ORÇAMENTO</div>
+              <div className="kpi-value" style={{fontSize:18,color:orcNum-totais.geral>=0?"var(--verde)":"var(--vermelho)"}}>{fmt(orcNum-totais.geral)}</div>
+            </div>
+          )}
         </div>
         {orcNum>0 && (
-          <div className="kpi-card" style={{borderLeftColor:totais.geral<=orcNum?"var(--verde)":"var(--vermelho)"}}>
-            <div className="kpi-label">SALDO ORÇAMENTO</div>
-            <div className="kpi-value" style={{fontSize:18,color:orcNum-totais.geral>=0?"var(--verde)":"var(--vermelho)"}}>{fmt(orcNum-totais.geral)}</div>
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#7A7A7A",marginBottom:4}}>
+              <span>Orçamento: {fmt(orcNum)}</span>
+              <span style={{fontWeight:700,color:pctGasto>=100?"var(--vermelho)":"var(--afine-black)"}}>{pctGasto}% utilizado</span>
+            </div>
+            <div className="progress-bar" style={{height:8}}>
+              <div className={`progress-fill ${pctGasto>=100?"red":pctGasto>=80?"amber":"green"}`} style={{width:`${pctGasto}%`}}/>
+            </div>
           </div>
         )}
-      </div>
-
-      {/* Barra orçamento */}
-      {orcNum>0 && (
-        <div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#7A7A7A",marginBottom:4}}>
-            <span>Orçamento: {fmt(orcNum)}</span>
-            <span style={{fontWeight:700,color:pctGasto>=100?"var(--vermelho)":"var(--afine-black)"}}>{pctGasto}% utilizado</span>
-          </div>
-          <div className="progress-bar" style={{height:8}}>
-            <div className={`progress-fill ${pctGasto>=100?"red":pctGasto>=80?"amber":"green"}`} style={{width:`${pctGasto}%`}}/>
-          </div>
-        </div>
-      )}
+      </>)}
 
       {/* Header lista */}
       <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
