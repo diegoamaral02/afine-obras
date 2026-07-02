@@ -43,7 +43,6 @@ const MENU = [
     { to:"/calendario",icon:"📅", label:"Calendário",       roles:["gestor","encarregado","campo"] },
   ]},
   { id:"comercial", label:"Comercial", roles:["gestor","encarregado"], items:[
-    { to:"/comercial",          icon:"📈", label:"Funil de vendas", roles:["gestor","encarregado"] },
     { to:"/comercial/clientes", icon:"🏢", label:"Clientes",        roles:["gestor","encarregado"] },
     { to:"/fornecedores",       icon:"🤝", label:"Fornecedores",    roles:["gestor","encarregado"] },
   ]},
