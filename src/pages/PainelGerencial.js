@@ -102,18 +102,25 @@ export default function PainelGerencial() {
   // MELHORIA: todos os cálculos memoizados
   const kpis = useFinanceiroKPIs(lancs);
 
-  const obrasStats = useMemo(()=>({
-    ativas:    obras.filter(o=>o.status==="EM ANDAMENTO"),
-    concluidas:obras.filter(o=>o.status==="CONCLUÍDA"),
-    atrasadas: obras.filter(o=>o.status==="EM ANDAMENTO"&&o.termino&&o.termino<hoje&&(o.progresso||0)<100),
-    progMedio: obras.filter(o=>o.status==="EM ANDAMENTO").length>0
-      ? Math.round(obras.filter(o=>o.status==="EM ANDAMENTO").reduce((s,o)=>s+(o.progresso||0),0)/obras.filter(o=>o.status==="EM ANDAMENTO").length)
-      : 0,
-  }),[obras, hoje]);
+  const obrasStats = useMemo(()=>{
+    const em3dias = new Date(); em3dias.setDate(em3dias.getDate()+3);
+    const em3ISO = em3dias.toISOString().split("T")[0];
+    return {
+      ativas:    obras.filter(o=>o.status==="EM ANDAMENTO"),
+      concluidas:obras.filter(o=>o.status==="CONCLUÍDA"),
+      // inclui obras já atrasadas E obras que vencem nos próximos 3 dias
+      atrasadas: obras.filter(o=>o.status==="EM ANDAMENTO"&&o.termino&&o.termino<=em3ISO&&(o.progresso||0)<100),
+      progMedio: obras.filter(o=>o.status==="EM ANDAMENTO").length>0
+        ? Math.round(obras.filter(o=>o.status==="EM ANDAMENTO").reduce((s,o)=>s+(o.progresso||0),0)/obras.filter(o=>o.status==="EM ANDAMENTO").length)
+        : 0,
+    };
+  },[obras, hoje]);
 
-  const manutsAtrasadas = useMemo(()=>
-    manuts.filter(m=>["ABERTA","EM ANDAMENTO"].includes(m.status)&&m.dataPrevista&&m.dataPrevista<hoje)
-  ,[manuts, hoje]);
+  const manutsAtrasadas = useMemo(()=>{
+    const em3dias = new Date(); em3dias.setDate(em3dias.getDate()+3);
+    const em3ISO = em3dias.toISOString().split("T")[0];
+    return manuts.filter(m=>["ABERTA","EM ANDAMENTO"].includes(m.status)&&m.dataPrevista&&m.dataPrevista<=em3ISO);
+  },[manuts, hoje]);
 
   const comprasStats = useMemo(()=>({
     abertas:     compras.filter(c=>["SOLICITAÇÃO","COTAÇÃO"].includes(c.status)).length,
@@ -246,18 +253,26 @@ export default function PainelGerencial() {
       {obrasStats.atrasadas.length>0&&(
         <div className="card" style={{borderLeft:"4px solid var(--vermelho)"}}>
           <div style={{fontWeight:600,fontSize:14,marginBottom:10}}>🚨 Obras com desvio de prazo</div>
-          {obrasStats.atrasadas.map(o=>(
-            <div key={o.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:"1px solid var(--border)"}}>
-              <div>
-                <div style={{fontWeight:500,fontSize:13}}>{o.nome}</div>
-                <div style={{fontSize:11,color:"#7A7A7A"}}>{o.cliente} · {o.progresso||0}% concluído</div>
+          {obrasStats.atrasadas.map(o=>{
+            const atrasada = o.termino < hoje;
+            return (
+              <div key={o.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:"1px solid var(--border)"}}>
+                <div>
+                  <div style={{fontWeight:500,fontSize:13}}>{o.nome}</div>
+                  <div style={{fontSize:11,color:"#7A7A7A"}}>{o.cliente} · {o.progresso||0}% concluído</div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:11,color:atrasada?"var(--vermelho)":"var(--afine-yellow-dk)",fontWeight:600}}>
+                    Término: {fmtDate(o.termino)}
+                  </div>
+                  {atrasada
+                    ? <span className="badge badge-red">ATRASADA</span>
+                    : <span className="badge badge-amber">⚠ A VENCER</span>
+                  }
+                </div>
               </div>
-              <div style={{textAlign:"right"}}>
-                <div style={{fontSize:11,color:"var(--vermelho)",fontWeight:600}}>Término: {fmtDate(o.termino)}</div>
-                <span className="badge badge-red">ATRASADA</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -265,20 +280,28 @@ export default function PainelGerencial() {
       {manutsAtrasadas.length>0&&(
         <div className="card" style={{borderLeft:"4px solid var(--vermelho)"}}>
           <div style={{fontWeight:600,fontSize:14,marginBottom:10}}>🔧 Manutenções com desvio de prazo</div>
-          {manutsAtrasadas.map(m=>(
-            <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:"1px solid var(--border)"}}>
-              <div>
-                <div style={{fontWeight:500,fontSize:13}}>{m.titulo||m.nome||"–"}</div>
-                <div style={{fontSize:11,color:"#7A7A7A"}}>
-                  {m.cliente} · {m.agencia&&`${m.agencia} · `}{m.cidade||""}
+          {manutsAtrasadas.map(m=>{
+            const atrasada = m.dataPrevista < hoje;
+            return (
+              <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:"1px solid var(--border)"}}>
+                <div>
+                  <div style={{fontWeight:500,fontSize:13}}>{m.titulo||m.nome||"–"}</div>
+                  <div style={{fontSize:11,color:"#7A7A7A"}}>
+                    {m.cliente}{m.agencia&&` · ${m.agencia}`}{m.cidade&&` · ${m.cidade}`}
+                  </div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:11,color:atrasada?"var(--vermelho)":"var(--afine-yellow-dk)",fontWeight:600}}>
+                    Previsto: {fmtDate(m.dataPrevista)}
+                  </div>
+                  {atrasada
+                    ? <span className="badge badge-red">ATRASADA</span>
+                    : <span className="badge badge-amber">⚠ A VENCER</span>
+                  }
                 </div>
               </div>
-              <div style={{textAlign:"right"}}>
-                <div style={{fontSize:11,color:"var(--vermelho)",fontWeight:600}}>Previsto: {fmtDate(m.dataPrevista)}</div>
-                <span className="badge badge-red">ATRASADA</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
