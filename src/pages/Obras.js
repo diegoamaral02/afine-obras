@@ -5,7 +5,7 @@ import { collection, onSnapshot, addDoc, updateDoc, doc, query, where, getDocs }
 import { db } from "../firebase";
 import { statusBadge, fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
-import { isCampo, isGestorOuAdm } from "../constants/departamentos";
+import { isCampo, isGestorOuAdm, isExterno } from "../constants/departamentos";
 import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
 import { salvarComFallbackOffline } from "../utils/offlineQueue";
 import { exportarObraParaPDF } from "../utils/exportPDF";
@@ -337,9 +337,10 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
     setSaving(false);
   }
 
+  const isExternoUser = isExterno(userProfile);
   const ABAS = isCampoUser
-    ? ["custos","materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"termo_chaves","os_digital"]
-    : ["dados","endereço","financeiro","custos","materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"termo_chaves","os_digital"];
+    ? [...(!isExternoUser?["custos"]:[]),"materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"termo_chaves","os_digital"]
+    : ["dados","endereço","financeiro",...(!isExternoUser?["custos"]:[]),"materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"termo_chaves","os_digital"];
   const LABELS = { dados:"Dados", "endereço":"Endereço", financeiro:"Financeiro", custos:"💰 Custos", materiais:"Materiais", fotos_checklist:"Fotos & Checklist", os_digital:"OS Digital", descaracterizacao:"📋 Descaracterização", termo_chaves:"🔑 Termo de Chaves" };
 
   return (

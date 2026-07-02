@@ -22,10 +22,13 @@ const hoje = () => new Date().toISOString().split("T")[0];
 export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orcamento }) {
   const { userProfile, currentUser } = useAuth();
   const nomeUser = userProfile?.nome || currentUser?.email || "–";
-  const podeAprovar = isGestorOuAdm(userProfile);
-  // Empreiteiro e terceiro apenas executam demandas — não lançam custos.
-  // Lançamentos são feitos pela gestão, campo ou financeiro.
-  const podeLancar = !isExterno(userProfile);
+  const podeAprovar = isGestorOuAdm(userProfile) ||
+    ["financeiro","fiscal","compras"].includes(userProfile?.departamento||userProfile?.perfil||"");
+  const souExterno = isExterno(userProfile);
+  // Empreiteiro e terceiro: não veem a aba de custos (retorna null)
+  if (souExterno) return null;
+  const souCampoDep = !podeAprovar && !souExterno; // campo puro
+  const podeLancar = !souExterno;
 
   const [custos,     setCustos]     = useState([]);
   const [loading,    setLoading]    = useState(true);
@@ -72,9 +75,11 @@ export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orc
     await deleteDoc(doc(db,"custos_demanda",id));
   }
 
-  const custosFiltrados = useMemo(() =>
-    filtroStatus==="todos" ? custos : custos.filter(c=>c.status===filtroStatus)
-  ,[custos, filtroStatus]);
+  const custosFiltrados = useMemo(()=>{
+    let base = filtroStatus==="todos" ? custos : custos.filter(c=>c.status===filtroStatus);
+    if (souCampoDep) base = base.filter(c=>c.lancadoPorId===currentUser?.uid||c.lancadoPorNome===nomeUser);
+    return base;
+  },[custos, filtroStatus, souCampoDep, currentUser, nomeUser]);
 
   const totais = useMemo(() => ({
     geral:    custos.filter(c=>c.status!=="cancelado").reduce((s,c)=>s+(c.valor||0),0),

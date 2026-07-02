@@ -49,6 +49,7 @@ const DESCRITIVOS_PRONTOS = [
 function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onClose, addToast }) {
   const { userProfile, currentUser } = useAuth();
   const isCampo = userProfile?.departamento==="campo" || (userProfile?.perfil==="campo"&&!userProfile?.departamento);
+  const isExternoUser = (userProfile?.departamento==="empreiteiro"||userProfile?.departamento==="terceiro");
   const uid     = currentUser?.uid;
   const nomeUser= userProfile?.nome || currentUser?.email || "–";
 
@@ -205,8 +206,8 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
   }
 
   const PASSOS = isCampo
-    ? ["Custos","Materiais","Fotos & Checklist","Termo de Chaves","OS Digital"]
-    : ["Dados","Endereço","Custos","Materiais","Fotos & Checklist","Termo de Chaves","OS Digital"];
+    ? [...(!isExternoUser?["Custos"]:[]),"Materiais","Fotos & Checklist","Termo de Chaves","OS Digital"]
+    : ["Dados","Endereço",...(!isExternoUser?["Custos"]:[]),"Materiais","Fotos & Checklist","Termo de Chaves","OS Digital"];
   const PASSO_BASE = isCampo ? 3 : 1;
   const passoVisual = passo - PASSO_BASE + 1;
   const totalPassos = PASSOS.length;
