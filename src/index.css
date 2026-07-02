@@ -94,106 +94,16 @@ select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
 
 /* ── Layout ─────────────────────────────────────────── */
 .app-shell    { display: flex; min-height: 100vh; }
-.sidebar      { width: 240px; flex-shrink: 0; background: var(--afine-black); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; height: 100vh; z-index: 100; overflow-y: auto; transition: transform .25s var(--ease), width .25s var(--ease); }
-.main-content { margin-left: 240px; flex: 1; min-height: 100vh; display: flex; flex-direction: column; transition: margin-left .25s var(--ease); }
-.topbar       { background: var(--afine-white); border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; gap: 12px; }
-.page         { padding: 24px; flex: 1; min-width: 0; }
+.sidebar      { width: 240px; flex-shrink: 0; background: var(--afine-black); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; height: 100vh; z-index: 100; overflow-y: auto; }
+.main-content { margin-left: 240px; flex: 1; min-height: 100vh; display: flex; flex-direction: column; }
+.topbar       { background: var(--afine-white); border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+.page         { padding: 24px; flex: 1; }
 
-/* Botão hambúrguer — visível em tablets e celulares */
-.btn-hamburguer {
-  display: none;
-  background: none; border: none; cursor: pointer;
-  font-size: 20px; padding: 4px 8px; border-radius: var(--r-sm);
-  color: var(--afine-black); line-height: 1;
-  transition: background .15s var(--ease);
-  flex-shrink: 0;
-}
-.btn-hamburguer:hover { background: var(--n-100); }
-
-/* Overlay escuro atrás da sidebar em mobile/tablet */
-.sidebar-overlay {
-  display: none;
-  position: fixed; inset: 0; background: rgba(23,23,26,.5);
-  z-index: 99; backdrop-filter: blur(1px);
-  animation: fadeIn .15s var(--ease);
-}
-.sidebar-overlay.visible { display: block; }
-
-/* ── TABLET (640–1024px) ─────────────────────────── */
-@media (max-width: 1024px) {
-  .btn-hamburguer { display: flex; align-items: center; }
-  .sidebar      { transform: translateX(-100%); width: 260px; }
+@media (max-width: 768px) {
+  .sidebar      { transform: translateX(-100%); transition: transform .25s var(--ease); }
   .sidebar.open { transform: translateX(0); box-shadow: var(--shadow-lg); }
   .main-content { margin-left: 0; }
-  .page         { padding: 20px; }
-  /* Grids de 3 colunas viram 2 em tablet */
-  .form-grid.cols-3 { grid-template-columns: 1fr 1fr; }
-  .metrics-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
-  /* Tabelas ficam com scroll horizontal (não somem) */
-  .table-wrap   { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  table         { min-width: 500px; }
-  /* Modal ocupa mais espaço em tela menor */
-  .modal        { max-width: 96vw; }
-  .modal-bg     { padding: 20px 10px; }
-  /* KPI row em 2 colunas */
-  .kpi-row      { grid-template-columns: 1fr 1fr !important; }
-}
-
-/* ── CELULAR (<640px) ────────────────────────────── */
-@media (max-width: 640px) {
-  .page         { padding: 12px; }
-  .topbar       { padding: 10px 12px; }
-  .topbar-title { font-size: 14px; }
-  /* Grids colapsam para 1 coluna */
-  .form-grid, .form-grid.cols-3, .form-grid.cols-2 { grid-template-columns: 1fr !important; }
-  .form-group.span-2 { grid-column: span 1 !important; }
-  /* Métricas: 2 colunas no celular */
-  .metrics-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
-  .metric-value { font-size: 20px; }
-  .kpi-row      { grid-template-columns: 1fr 1fr !important; gap: 8px; }
-  /* Tabelas com scroll */
-  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  table         { font-size: 12px; }
-  thead th      { padding: 8px 10px; font-size: 9px; }
-  tbody td      { padding: 8px 10px; }
-  /* Modal full-width */
-  .modal        { max-width: 100%; border-radius: var(--r-md) var(--r-md) 0 0; margin-top: auto; }
-  .modal-bg     { padding: 0; align-items: flex-end; }
-  /* Panel header empilha */
-  .panel-header { flex-direction: column; align-items: flex-start; gap: 8px; }
-  .panel-header > div:last-child { width: 100%; display: flex; gap: 6px; flex-wrap: wrap; }
-  /* Abas com scroll horizontal */
-  .tabs         { overflow-x: auto; white-space: nowrap; gap: 0; }
-  .tab          { flex-shrink: 0; padding: 8px 12px; font-size: 12px; }
-  /* Chip rows wrap melhor */
-  .chip-row     { gap: 4px; }
-  .chip         { padding: 4px 10px; font-size: 11px; }
-  /* Botões side by side em vez de overflow */
-  .btn          { font-size: 12px; padding: 7px 12px; }
-  .btn-primary  { font-size: 12px; }
-  /* Cards no celular ocupam largura total */
-  .card         { padding: 12px; }
-  /* KPI cards menores */
-  .kpi-card     { padding: 10px 12px; }
-  .kpi-value    { font-size: 18px; }
-  .kpi-label    { font-size: 10px; }
-  /* Badges menores */
-  .badge        { font-size: 10px; padding: 2px 7px; }
-  /* Search bar */
-  .search-bar   { padding: 8px 10px; font-size: 12px; }
-  /* Empty state compacto */
-  .empty-state  { padding: 32px 12px; }
-  /* Toast no fundo */
-  .toast-container { bottom: 12px; right: 12px; left: 12px; }
-  .toast           { max-width: 100%; }
-}
-
-/* ── DESKTOP GRANDE (>1440px) ────────────────────── */
-@media (min-width: 1440px) {
-  .sidebar { width: 260px; }
-  .main-content { margin-left: 260px; }
-  .page { padding: 32px; max-width: 1600px; }
-  .metrics-grid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+  .page         { padding: 16px; }
 }
 
 
@@ -311,8 +221,7 @@ select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
 .metric-value.gray   { color: var(--afine-gray); }
 .metric-value.blue   { color: var(--afine-black); }
 
-/* ── KPI row (grade de cards de KPI, usada em Despesas, CustosDemanda, etc.) ─ */
-.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+
 .kpi-card  { background: var(--afine-white); border: 1px solid var(--border); border-left: 3px solid var(--afine-yellow); border-radius: var(--r-lg); padding: 14px 16px; box-shadow: var(--shadow-sm); }
 .kpi-label { font-size: 11px; color: var(--afine-gray); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; margin-bottom: 4px; }
 .kpi-value { font-size: 22px; font-weight: 700; color: var(--afine-black); }

@@ -273,12 +273,8 @@ function AppShell() {
 
       <div className="main-content">
         <div className="topbar">
-          {/* Hambúrguer — visível via CSS apenas em telas ≤1024px */}
-          <button className="btn-hamburguer" onClick={()=>setSideOpen(s=>!s)} aria-label="Menu">
-            {sideOpen ? "✕" : "☰"}
-          </button>
-          <div style={{flex:1,minWidth:0}}>
-            <div className="topbar-title" style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{obraAtual?obraAtual.nome:"AFINE · ERP"}</div>
+          <div>
+            <div className="topbar-title">{obraAtual?obraAtual.nome:"AFINE · ERP"}</div>
             {obraAtual&&(
               <div className="topbar-obra">
                 <span className="obra-tag">{obraAtual.cliente}</span>
@@ -286,17 +282,15 @@ function AppShell() {
               </div>
             )}
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-            {/* Fila offline pendente */}
+          <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:"auto"}}>
             {filaOffline.pendentes>0 && (
               <button onClick={filaOffline.tentarSincronizar} disabled={filaOffline.sincronizando}
                 title="Há dados salvos no dispositivo aguardando conexão para sincronizar. Clique para tentar agora."
                 style={{display:"flex",alignItems:"center",gap:6,background:"#FDF2D9",border:"1px solid rgba(184,145,10,.3)",
                   borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:700,color:"#7A5400",cursor:"pointer"}}>
-                {filaOffline.sincronizando ? "🔄" : `📡 ${filaOffline.pendentes}`}
+                {filaOffline.sincronizando ? "🔄 Sincronizando..." : `📡 ${filaOffline.pendentes} pendente(s) — sincronizar`}
               </button>
             )}
-            {/* Sino de notificações */}
             <button onClick={()=>setShowNotifs(!showNotifs)}
               style={{position:"relative",background:"none",border:"none",cursor:"pointer",fontSize:20,padding:"4px",lineHeight:1}}>
               🔔
@@ -307,6 +301,7 @@ function AppShell() {
                 </span>
               )}
             </button>
+            <button className="btn btn-sm" onClick={()=>setSideOpen(s=>!s)}>☰</button>
           </div>
         </div>
 
@@ -340,7 +335,7 @@ function AppShell() {
         </div>
       </div>
 
-      {sideOpen&&<div className={`sidebar-overlay visible`} onClick={()=>setSideOpen(false)}/>}
+      {sideOpen&&<div onClick={()=>setSideOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:99}}/>}
     </div>
   );
 }
