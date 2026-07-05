@@ -1,4 +1,4 @@
-// src/pages/Compras.js — v5: permissões revisadas + recusa/revisão + rastreio por etapa + PDF
+// src/pages/Compras.js — v5: permissões revisadas + recusa/revisão + rastreio por etapa + PDF + catálogo de itens
 import React, { useEffect, useState, useMemo } from "react";
 import { collection, onSnapshot, addDoc, updateDoc, doc, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
@@ -9,6 +9,7 @@ import { useToast } from "../hooks/useToast";
 import { getAcesso, isCampo } from "../constants/departamentos";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
 import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
+import ModalCatalogoItens from "../components/ModalCatalogoItens";
 
 // ── Regras de aprovação ───────────────────────────────────────────────────────
 // Para MANUTENÇÃO: todos menos campo podem aprovar
@@ -292,6 +293,7 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
   const [itemNome,       setItemNome]        = useState("");
   const [itemQtd,        setItemQtd]         = useState("");
   const [itemUn,         setItemUn]          = useState("un");
+  const [mostrarCatalogo, setMostrarCatalogo] = useState(false);
 
   const demandas = demandaTipo === "obra" ? obras : manutencoes;
   const fornSel  = fornecedores.find(f=>f.id===fornecedorId);
@@ -630,8 +632,39 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
               </div>
             </div>
             <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>Itens solicitados</div>
+
+            {/* Botão catálogo de itens */}
+            <button
+              type="button"
+              onClick={()=>setMostrarCatalogo(true)}
+              style={{
+                display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+                padding:"9px 16px",marginBottom:4,
+                border:"2px dashed var(--afine-yellow)",borderRadius:8,
+                background:"#fffbea",color:"#1A1A1A",cursor:"pointer",
+                fontSize:13,fontWeight:600,width:"100%",
+              }}
+            >
+              📦 Selecionar do Catálogo por Tipo de Serviço
+            </button>
+
+            {/* Modal catálogo */}
+            {mostrarCatalogo && (
+              <ModalCatalogoItens
+                itensJaAdicionados={itens.map(i=>({item:i.nome}))}
+                onFechar={()=>setMostrarCatalogo(false)}
+                onConfirmar={(novosItens)=>{
+                  setItens(prev=>[
+                    ...prev,
+                    ...novosItens.map(i=>({nome:i.item,qtd:i.qtd,un:i.unidade}))
+                  ]);
+                  setMostrarCatalogo(false);
+                }}
+              />
+            )}
+
             <div style={{display:"flex",gap:6,alignItems:"flex-end"}}>
-              <div className="form-group" style={{flex:2}}><label>Item</label><input value={itemNome} onChange={e=>setItemNome(e.target.value)} placeholder="Ex: Cabo 10mm²"/></div>
+              <div className="form-group" style={{flex:2}}><label>Item avulso</label><input value={itemNome} onChange={e=>setItemNome(e.target.value)} placeholder="Ex: Cabo 10mm²"/></div>
               <div className="form-group" style={{width:80}}><label>Qtd.</label><input type="number" min="1" value={itemQtd} onChange={e=>setItemQtd(e.target.value)}/></div>
               <div className="form-group" style={{width:80}}><label>Un.</label>
                 <select value={itemUn} onChange={e=>setItemUn(e.target.value)}>
