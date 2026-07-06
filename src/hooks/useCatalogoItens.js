@@ -1,7 +1,10 @@
 // src/hooks/useCatalogoItens.js
+// USA getDocs (leitura única) em vez de onSnapshot para não consumir cota do Firestore.
+// Recarrega manualmente após cada operação de escrita (add/edit/remove).
+
 import { useState, useEffect, useCallback } from "react";
 import {
-  collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDocs, writeBatch,
+  collection, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { CATEGORIAS_COMPRAS } from "../constants/itensCompras";
@@ -9,46 +12,48 @@ import { CATEGORIAS_COMPRAS } from "../constants/itensCompras";
 export function useCatalogoItens() {
   const [docs,    setDocs]    = useState([]);
   const [loading, setLoading] = useState(true);
-  const [seeded,  setSeeded]  = useState(false);
 
-  // ── Listener em tempo real ───────────────────────────────────────────────
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, "catalogo_itens"), snap => {
-      setDocs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setLoading(false);
-    }, () => setLoading(false));
-    return unsub;
+  // ── Carrega do Firestore (leitura única) ─────────────────────────────────
+  const carregar = useCallback(async () => {
+    try {
+      const snap = await getDocs(collection(db, "catalogo_itens"));
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      // Seed automático se vazio
+      if (items.length === 0) {
+        const batch = writeBatch(db);
+        let ordem = 0;
+        for (const cat of CATEGORIAS_COMPRAS) {
+          for (const item of cat.itens) {
+            const ref = doc(collection(db, "catalogo_itens"));
+            batch.set(ref, {
+              categoriaId:    cat.id,
+              categoriaLabel: cat.label,
+              categoriaCor:   cat.cor,
+              descricao:      item.descricao,
+              unidade:        item.unidade,
+              fabricante:     item.fabricante || "",
+              ordem:          ordem++,
+              createdAt:      new Date().toISOString(),
+            });
+          }
+        }
+        await batch.commit();
+        // Recarrega após seed
+        const snap2 = await getDocs(collection(db, "catalogo_itens"));
+        setDocs(snap2.docs.map(d => ({ id: d.id, ...d.data() })));
+      } else {
+        setDocs(items);
+      }
+    } catch(e) {
+      console.error("useCatalogoItens:", e);
+    }
+    setLoading(false);
   }, []);
 
-  // ── Seed inicial (roda uma única vez se coleção vazia) ────────────────────
-  useEffect(() => {
-    if (loading || seeded || docs.length > 0) return;
-    setSeeded(true);
-    (async () => {
-      const snap = await getDocs(collection(db, "catalogo_itens"));
-      if (snap.size > 0) return;
-      const batch = writeBatch(db);
-      let ordem = 0;
-      for (const cat of CATEGORIAS_COMPRAS) {
-        for (const item of cat.itens) {
-          const ref = doc(collection(db, "catalogo_itens"));
-          batch.set(ref, {
-            categoriaId:    cat.id,
-            categoriaLabel: cat.label,
-            categoriaCor:   cat.cor,
-            descricao:      item.descricao,
-            unidade:        item.unidade,
-            fabricante:     item.fabricante || "",
-            ordem:          ordem++,
-            createdAt:      new Date().toISOString(),
-          });
-        }
-      }
-      await batch.commit();
-    })();
-  }, [loading, seeded, docs.length]);
+  useEffect(() => { carregar(); }, [carregar]);
 
-  // ── Categorias derivadas — sempre inclui as do seed mesmo sem docs ────────
+  // ── Categorias derivadas ─────────────────────────────────────────────────
   const categorias = (() => {
     const map = new Map();
     for (const cat of CATEGORIAS_COMPRAS) {
@@ -66,22 +71,16 @@ export function useCatalogoItens() {
     return Array.from(map.values());
   })();
 
-  // ── CRUD ─────────────────────────────────────────────────────────────────
+  // ── CRUD — cada operação recarrega localmente sem nova leitura Firestore ──
 
   const adicionarItem = useCallback(async (categoriaId, { descricao, unidade, fabricante = "" }) => {
     if (!descricao?.trim()) return;
-
-    // FIX: busca metadados da categoria no seed local como fallback
-    // (não depende do Firestore ter itens — funciona mesmo com coleção vazia)
-    const catSeed = CATEGORIAS_COMPRAS.find(c => c.id === categoriaId);
-    const catDocs = docs.find(d => d.categoriaId === categoriaId);
-    const catLabel = catSeed?.label || catDocs?.categoriaLabel || categoriaId;
-    const catCor   = catSeed?.cor   || catDocs?.categoriaCor   || "#4A4A4A";
-
+    const catSeed  = CATEGORIAS_COMPRAS.find(c => c.id === categoriaId);
+    const catLabel = catSeed?.label || categoriaId;
+    const catCor   = catSeed?.cor   || "#4A4A4A";
     const maxOrdem = docs.filter(d => d.categoriaId === categoriaId)
       .reduce((max, d) => Math.max(max, d.ordem ?? 0), 0);
-
-    await addDoc(collection(db, "catalogo_itens"), {
+    const novoDoc = {
       categoriaId,
       categoriaLabel: catLabel,
       categoriaCor:   catCor,
@@ -90,21 +89,27 @@ export function useCatalogoItens() {
       fabricante:     fabricante.trim(),
       ordem:          maxOrdem + 1,
       createdAt:      new Date().toISOString(),
-    });
+    };
+    const ref = await addDoc(collection(db, "catalogo_itens"), novoDoc);
+    // Atualiza estado local sem reler o Firestore
+    setDocs(prev => [...prev, { id: ref.id, ...novoDoc }]);
   }, [docs]);
 
   const editarItem = useCallback(async (id, campos) => {
-    await updateDoc(doc(db, "catalogo_itens", id), { ...campos, updatedAt: new Date().toISOString() });
+    const atualizado = { ...campos, updatedAt: new Date().toISOString() };
+    await updateDoc(doc(db, "catalogo_itens", id), atualizado);
+    setDocs(prev => prev.map(d => d.id === id ? { ...d, ...atualizado } : d));
   }, []);
 
   const removerItem = useCallback(async (id) => {
     await deleteDoc(doc(db, "catalogo_itens", id));
+    setDocs(prev => prev.filter(d => d.id !== id));
   }, []);
 
   const adicionarCategoria = useCallback(async ({ id, label, cor }) => {
     if (!label?.trim()) return;
     const safeId = (id || label).trim().toLowerCase().replace(/\s+/g,"_").replace(/[^a-z0-9_]/g,"");
-    await addDoc(collection(db, "catalogo_itens"), {
+    const novoDoc = {
       categoriaId:    safeId,
       categoriaLabel: label.trim(),
       categoriaCor:   cor || "#4A4A4A",
@@ -113,7 +118,9 @@ export function useCatalogoItens() {
       fabricante:     "",
       ordem:          9999,
       createdAt:      new Date().toISOString(),
-    });
+    };
+    const ref = await addDoc(collection(db, "catalogo_itens"), novoDoc);
+    setDocs(prev => [...prev, { id: ref.id, ...novoDoc }]);
   }, []);
 
   return { categorias, loading, adicionarItem, editarItem, removerItem, adicionarCategoria };
