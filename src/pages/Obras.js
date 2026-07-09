@@ -1,7 +1,7 @@
 import { buscarCEP } from "../utils/cep";
 // src/pages/Obras.js — completo com endereço, busca CEP, fotos, medições, subcontratados
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, doc, query, where, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, where, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { statusBadge, fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -985,6 +985,45 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   );
 }
 
+// Modal de confirmação de exclusão — requer digitar o nome para confirmar
+function ModalConfirmacaoExclusao({ nome, onConfirmar, onCancelar }) {
+  const [digitado, setDigitado] = React.useState("");
+  const confirmado = digitado.trim().toLowerCase() === (nome||"").trim().toLowerCase();
+  return (
+    <div onClick={onCancelar} style={{position:"fixed",inset:0,zIndex:400,background:"rgba(10,10,10,.65)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:12,width:"min(460px,94vw)",boxShadow:"0 24px 64px rgba(0,0,0,.28)",overflow:"hidden"}}>
+        <div style={{background:"#1A1A1A",padding:"14px 20px",display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:20}}>🗑️</span>
+          <div style={{fontWeight:700,fontSize:15,color:"var(--vermelho,#BD3838)"}}>Excluir demanda</div>
+        </div>
+        <div style={{padding:"20px 20px 16px",display:"flex",flexDirection:"column",gap:14}}>
+          <div style={{background:"#fff0f0",border:"1px solid rgba(189,56,56,.25)",borderRadius:8,padding:"10px 14px",fontSize:13,color:"var(--vermelho,#BD3838)",fontWeight:600}}>
+            ⚠️ Esta ação é <strong>irreversível</strong>. Todos os dados desta demanda serão excluídos permanentemente.
+          </div>
+          <div style={{fontSize:13,color:"#555"}}>
+            Digite o nome abaixo para confirmar a exclusão de <strong>"{nome}"</strong>:
+          </div>
+          <input
+            type="text"
+            value={digitado}
+            onChange={e=>setDigitado(e.target.value)}
+            placeholder={nome}
+            autoFocus
+            style={{padding:"9px 12px",border:`1px solid ${confirmado?"var(--verde,#1E7A3C)":digitado?"var(--vermelho,#BD3838)":"#ddd"}`,borderRadius:7,fontSize:13,outline:"none"}}
+          />
+          {confirmado && <span style={{fontSize:11,color:"var(--verde,#1E7A3C)",fontWeight:600}}>✓ Confirmado — pronto para excluir</span>}
+          <div style={{display:"flex",gap:8,justifyContent:"flex-end",paddingTop:4}}>
+            <button onClick={onCancelar} style={{padding:"9px 20px",border:"1px solid #ddd",borderRadius:8,background:"#fff",cursor:"pointer",fontSize:13}}>Cancelar</button>
+            <button onClick={onConfirmar} disabled={!confirmado} style={{padding:"9px 22px",border:"none",borderRadius:8,background:confirmado?"var(--vermelho,#BD3838)":"#e0e0e0",color:confirmado?"#fff":"#aaa",cursor:confirmado?"pointer":"not-allowed",fontSize:13,fontWeight:700}}>
+              Excluir definitivamente
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Obras({ onObraSelect }) {
   const { userProfile, currentUser } = useAuth();
   const souCampo = isCampo(userProfile);
@@ -998,6 +1037,7 @@ export default function Obras({ onObraSelect }) {
   const [filtros, setFiltros] = useState({ periodo:{de:"",ate:""}, clienteId:"", responsavelId:"", status:[] });
   const [modal,   setModal]   = useState(null);
   const [obraAberta, setObraAberta] = useState(null);
+  const [confirmarExclusao, setConfirmarExclusao] = useState(null); // {id, nome}
   const [abaDrawer, setAbaDrawer]   = useState("ocorrencias");
   const isGestor = isGestorOuAdm(userProfile);
   const [aba, setAba] = useState("lista");
@@ -1256,6 +1296,7 @@ export default function Obras({ onObraSelect }) {
                       <button className="btn btn-sm btn-icon" title="Ocorrências" onClick={()=>{setObraAberta(o);setAbaDrawer("ocorrencias");}}>⚠️</button>
                       <button className="btn btn-sm btn-icon" title="Acompanhamento" onClick={()=>{setObraAberta(o);setAbaDrawer("acompanhamento");}}>📐</button>
                       <button className="btn btn-sm btn-icon" title="Diário" onClick={()=>{setObraAberta(o);setAbaDrawer("diario");}}>📓</button>
+                      {isGestor && <button className="btn btn-sm btn-icon" title="Excluir" onClick={()=>setConfirmarExclusao({id:o.id,nome:o.nome})} style={{color:"var(--vermelho)"}}>🗑️</button>}
                     </div>
                   </td>
                 </tr>
@@ -1313,6 +1354,7 @@ export default function Obras({ onObraSelect }) {
                   <button className="btn btn-sm btn-icon" title="Ocorrências" onClick={()=>{setObraAberta(o);setAbaDrawer("ocorrencias");}}>⚠️</button>
                   <button className="btn btn-sm btn-icon" title="Acompanhamento" onClick={()=>{setObraAberta(o);setAbaDrawer("acompanhamento");}}>📐</button>
                   <button className="btn btn-sm btn-icon" title="Diário" onClick={()=>{setObraAberta(o);setAbaDrawer("diario");}}>📓</button>
+                  {isGestor&&<button className="btn btn-sm btn-icon" title="Excluir" onClick={()=>setConfirmarExclusao({id:o.id,nome:o.nome})} style={{color:"var(--vermelho)"}}>🗑️</button>}
                 </div>
               </div>
             );
@@ -1466,6 +1508,20 @@ export default function Obras({ onObraSelect }) {
         </div>
       )}
 
+      {/* Modal de confirmação de exclusão */}
+      {confirmarExclusao && (
+        <ModalConfirmacaoExclusao
+          nome={confirmarExclusao.nome}
+          onCancelar={()=>setConfirmarExclusao(null)}
+          onConfirmar={async()=>{
+            try {
+              await deleteDoc(doc(db,"obras",confirmarExclusao.id));
+              addToast(`Obra "${confirmarExclusao.nome}" excluída.`);
+            } catch(e) { addToast("Erro ao excluir: "+e.message,"error"); }
+            setConfirmarExclusao(null);
+          }}
+        />
+      )}
       {modal && <ObraModal obra={modal.obra} funcionarios={funcionarios} clientes={clientes} onClose={()=>setModal(null)} addToast={addToast}/>}
 
       {/* Painel lateral de ocorrências por obra */}
