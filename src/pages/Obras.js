@@ -1139,7 +1139,7 @@ export default function Obras({ onObraSelect }) {
           })}
         </div>
       )}
-      {!loading && filtered.length>0 && !isMobile && (
+      {!loading && filtered.length>0 && (
         <div className="table-wrap">
           <table>
             <thead><tr><th>Obra</th><th>Tipo</th><th>Cliente</th><th>Responsável</th><th className="col-hide-md">Equipe</th><th className="col-hide-lg">Endereço</th><th className="col-hide-xl">Vistoria</th><th className="col-hide-lg">Término</th><th className="col-hide-xl">Orçamento</th><th className="col-hide-xl">Relatório</th><th className="col-hide-xl">Progresso</th><th>Status</th><th></th></tr></thead>
@@ -1201,8 +1201,10 @@ export default function Obras({ onObraSelect }) {
             </tbody>
           </table>
         </div>
+      )}
 
-        {/* ── Cards responsivos (visíveis em telas < 960px) ── */}
+      {/* ── Cards responsivos (visíveis em telas < 960px) ── */}
+      {!loading && filtered.length>0 && (
         <div className="rdo-cards-grid">
           {filtered.map(o => {
             const equipeIds = o.equipeIds||[];
@@ -1210,7 +1212,6 @@ export default function Obras({ onObraSelect }) {
             const temEndereco = o.logradouro&&o.numero;
             return (
               <div key={o.id} className="rdo-card-item" style={{borderLeft:`4px solid ${o.status==="EM ANDAMENTO"?"#185FA5":o.status==="CONCLUÍDA"?"var(--verde)":"#ccc"}`}}>
-                {/* Título + status */}
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
                   <div style={{flex:1,minWidth:0}}>
                     <div className="card-title">{o.nome}</div>
@@ -1218,22 +1219,16 @@ export default function Obras({ onObraSelect }) {
                   </div>
                   <span className={`badge ${statusBadge(o.status)}`} style={{flexShrink:0}}>{o.status}</span>
                 </div>
-
-                {/* Meta */}
                 <div className="card-meta">
                   {o.tipo&&<span className="badge badge-gray" style={{fontSize:10}}>{o.tipo}</span>}
                   {o.cliente&&<span className="card-meta-item">🏢 {o.cliente}{o.agenciaNome?` · ${o.agenciaNome}`:""}</span>}
                   {o.responsavelNome&&<span className="card-meta-item">👤 {o.responsavelNome}</span>}
                   {nomesEquipe.length>0&&<span className="card-meta-item">👷 {nomesEquipe.join(", ")}</span>}
                 </div>
-
-                {/* Datas e endereço */}
                 <div className="card-meta" style={{fontSize:11,color:"#7A7A7A"}}>
                   {o.termino&&<span>🗓 Término: {fmtDate(o.conclusaoReal||o.termino)}</span>}
                   {temEndereco&&<button onClick={()=>{const enc=encodeURIComponent(`${o.logradouro}, ${o.numero}, ${o.cidade}`);window.open(`https://www.google.com/maps/search/?api=1&query=${enc}`,"_blank");}} style={{background:"none",border:"none",color:"var(--afine-yellow-dk)",cursor:"pointer",fontSize:11,padding:0}}>🗺️ {o.logradouro}, {o.numero}</button>}
                 </div>
-
-                {/* Progresso */}
                 {(o.progresso||0) > 0 && (
                   <div>
                     <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#aaa",marginBottom:3}}>
@@ -1244,16 +1239,12 @@ export default function Obras({ onObraSelect }) {
                     </div>
                   </div>
                 )}
-
-                {/* Badges orçamento/relatório */}
                 <div className="card-meta">
                   <span style={{fontSize:10,color:"#aaa"}}>Orç:</span>
                   <span className={`badge ${o.orcamentoEnviado==="SIM"?"badge-green":o.orcamentoEnviado==="PENDENTE"?"badge-amber":"badge-red"}`} style={{fontSize:10}}>{o.orcamentoEnviado||"NÃO"}</span>
                   <span style={{fontSize:10,color:"#aaa"}}>Rel:</span>
                   <span className={`badge ${o.relatorioEnviado==="SIM"?"badge-green":"badge-red"}`} style={{fontSize:10}}>{o.relatorioEnviado||"NÃO"}</span>
                 </div>
-
-                {/* Ações */}
                 <div className="card-actions">
                   <button className="btn btn-primary btn-sm" onClick={()=>setModal({obra:o})}>▶ Executar</button>
                   {isGestor&&<button className="btn btn-sm btn-icon" onClick={()=>setModal({obra:o})}>✏️</button>}
