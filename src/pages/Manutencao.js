@@ -935,7 +935,20 @@ export default function Manutencao({ obraAtual }) {
             <>
             <div className="table-wrap">
               <table>
-                <thead><tr><th>Título</th><th>Cliente</th><th className="col-hide-lg">Agência</th><th>Responsável</th><th className="col-hide-xl">Criado por</th><th className="col-hide-md">Alocado para</th><th className="col-hide-lg">OT</th><th className="col-hide-xl">Prior.</th><th className="col-hide-xl">OS</th><th>Status</th><th></th></tr></thead>
+                <colgroup>
+                  <col style={{width:"20%"}}/>
+                  <col style={{width:"10%"}}/>
+                  <col style={{width:"12%"}}/>
+                  <col style={{width:"10%"}}/>
+                  <col style={{width:"10%"}}/>
+                  <col style={{width:"13%"}}/>
+                  <col style={{width:"9%"}}/>
+                  <col style={{width:"7%"}}/>
+                  <col style={{width:"7%"}}/>
+                  <col style={{width:"8%"}}/>
+                  <col style={{width:"4%"}}/>
+                </colgroup>
+                <thead><tr><th>Título</th><th>Cliente</th><th>Agência</th><th>Responsável</th><th>Criado por</th><th>Alocado para</th><th>OT</th><th>Prior.</th><th>OS</th><th>Status</th><th></th></tr></thead>
                 <tbody>
                   {filtered.map(m=>(
                     <tr key={m.id} style={{background:m.prioridade==="urgente"?"rgba(184,50,50,.03)":""}}>

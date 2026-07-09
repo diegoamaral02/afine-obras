@@ -1142,7 +1142,22 @@ export default function Obras({ onObraSelect }) {
       {!loading && filtered.length>0 && (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Obra</th><th>Tipo</th><th>Cliente</th><th>Responsável</th><th className="col-hide-md">Equipe</th><th className="col-hide-lg">Endereço</th><th className="col-hide-xl">Vistoria</th><th className="col-hide-lg">Término</th><th className="col-hide-xl">Orçamento</th><th className="col-hide-xl">Relatório</th><th className="col-hide-xl">Progresso</th><th>Status</th><th></th></tr></thead>
+            <colgroup>
+              <col style={{width:"18%"}}/>
+              <col style={{width:"13%"}}/>
+              <col style={{width:"10%"}}/>
+              <col style={{width:"10%"}}/>
+              <col style={{width:"10%"}}/>
+              <col style={{width:"11%"}}/>
+              <col style={{width:"7%"}}/>
+              <col style={{width:"7%"}}/>
+              <col style={{width:"6%"}}/>
+              <col style={{width:"6%"}}/>
+              <col style={{width:"6%"}}/>
+              <col style={{width:"8%"}}/>
+              <col style={{width:"8%"}}/>
+            </colgroup>
+            <thead><tr><th>Obra</th><th>Tipo</th><th>Cliente</th><th>Responsável</th><th>Equipe</th><th>Endereço</th><th>Vistoria</th><th>Término</th><th>Orç.</th><th>Rel.</th><th>%</th><th>Status</th><th></th></tr></thead>
             <tbody>
               {filtered.map(o=>{
                 const temEndereco = o.logradouro&&o.numero;
