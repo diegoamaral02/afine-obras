@@ -45,6 +45,41 @@ const DESCRITIVOS_PRONTOS = [
   "Pintura corretiva","Rejunte e silicone em banheiros","Revisão geral preventiva",
 ];
 
+// Campo inline para adicionar descritivo personalizado
+function NovoDescritivo({ onAdicionar }) {
+  const [texto, setTexto] = React.useState("");
+  function adicionar() {
+    if (!texto.trim()) return;
+    onAdicionar(texto.trim());
+    setTexto("");
+  }
+  return (
+    <div style={{display:"flex",gap:6,alignItems:"center",marginTop:4}}>
+      <input
+        type="text"
+        value={texto}
+        onChange={e=>setTexto(e.target.value)}
+        onKeyDown={e=>e.key==="Enter"&&(e.preventDefault(),adicionar())}
+        placeholder="+ Adicionar descritivo personalizado..."
+        style={{flex:1,padding:"6px 10px",border:"1px dashed #F5C400",borderRadius:7,fontSize:12,background:"#fffbea",outline:"none"}}
+      />
+      <button
+        type="button"
+        onClick={adicionar}
+        disabled={!texto.trim()}
+        style={{
+          padding:"6px 14px",border:"none",borderRadius:7,
+          background:texto.trim()?"#1A1A1A":"#e0e0e0",
+          color:texto.trim()?"#F5C400":"#aaa",
+          cursor:texto.trim()?"pointer":"not-allowed",
+          fontSize:12,fontWeight:700,whiteSpace:"nowrap",
+          transition:"all .15s",
+        }}
+      >+ Adicionar</button>
+    </div>
+  );
+}
+
 // ── Modal da manutenção ───────────────────────────────────────────────────────
 function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onClose, addToast }) {
   const { userProfile, currentUser } = useAuth();
@@ -86,6 +121,7 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
     garantia:     manut?.garantia     || "NÃO",
     vencGarantia: manut?.vencGarantia || "",
     descProntas:  manut?.descProntas  || [],
+    descExtras:   manut?.descExtras   || [],
     descExtra:    manut?.descExtra    || "",
     obs:          manut?.obs          || "",
     camposCustom: manut?.camposCustom || {},
@@ -396,15 +432,39 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
           )}
 
           {/* Descritivos */}
-          <div style={{fontSize:11,fontWeight:700,color:"#185FA5",textTransform:"uppercase",letterSpacing:".06em"}}>Descritivos do serviço</div>
-          <div style={{display:"flex",flexDirection:"column",gap:3,maxHeight:160,overflowY:"auto"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#185FA5",textTransform:"uppercase",letterSpacing:".06em",marginBottom:4}}>Descritivos do serviço</div>
+          <div style={{display:"flex",flexDirection:"column",gap:3,maxHeight:200,overflowY:"auto",border:"1px solid var(--border)",borderRadius:7,padding:"6px 8px",background:"#fafafa"}}>
+            {/* Itens prontos */}
             {DESCRITIVOS_PRONTOS.map(d=>(
               <label key={d} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,cursor:"pointer",padding:"4px 8px",borderRadius:5,background:form.descProntas.includes(d)?"rgba(24,95,165,.08)":"transparent"}}>
-                <input type="checkbox" checked={form.descProntas.includes(d)} onChange={()=>toggleDesc(d)} style={{width:14,height:14}}/>
+                <input type="checkbox" checked={form.descProntas.includes(d)} onChange={()=>toggleDesc(d)} style={{width:14,height:14,accentColor:"#185FA5"}}/>
                 {d}
               </label>
             ))}
+            {/* Itens adicionados pelo usuário */}
+            {(form.descExtras||[]).map((d,i)=>(
+              <label key={"ex_"+i} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,cursor:"pointer",padding:"4px 8px",borderRadius:5,background:"rgba(245,196,0,.1)"}}>
+                <input type="checkbox" checked={form.descProntas.includes(d)} onChange={()=>toggleDesc(d)} style={{width:14,height:14,accentColor:"#185FA5"}}/>
+                <span style={{flex:1}}>{d}</span>
+                <button type="button" onClick={()=>{
+                  const novas = (form.descExtras||[]).filter((_,j)=>j!==i);
+                  const prontas = form.descProntas.filter(p=>p!==d);
+                  set("descExtras", novas);
+                  set("descProntas", prontas);
+                }} style={{background:"none",border:"none",cursor:"pointer",color:"#aaa",fontSize:13,padding:0,lineHeight:1}}>✕</button>
+              </label>
+            ))}
           </div>
+
+          {/* Campo para adicionar descritivo personalizado */}
+          <NovoDescritivo onAdicionar={(texto)=>{
+            if(!texto.trim()) return;
+            const novas = [...(form.descExtras||[]), texto.trim()];
+            const prontas = [...form.descProntas, texto.trim()];
+            set("descExtras", novas);
+            set("descProntas", prontas);
+          }}/>
+
           <div className="form-group"><label>Descrição adicional</label>
             <textarea value={form.descExtra} onChange={e=>set("descExtra",e.target.value)} rows={2} placeholder="Detalhe o serviço..."/></div>
 
