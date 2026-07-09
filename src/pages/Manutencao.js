@@ -974,6 +974,49 @@ export default function Manutencao({ obraAtual }) {
                 </tbody>
               </table>
             </div>
+
+            {/* ── Cards responsivos (visíveis em telas < 960px) ── */}
+            <div className="rdo-cards-grid">
+              {filtered.map(m => (
+                <div key={m.id} className="rdo-card-item" style={{borderLeft:`4px solid ${m.prioridade==="urgente"?"var(--vermelho)":m.prioridade==="alta"?"#F5A623":statusBadge(m.status)==="badge-green"?"var(--verde)":"#ccc"}`}}>
+                  {/* Título + status */}
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div className="card-title">{m.titulo}</div>
+                      {m.agencia&&<div className="card-sub">📍 {m.agencia}</div>}
+                    </div>
+                    <span className={`badge ${statusBadge(m.status)}`} style={{flexShrink:0}}>{m.status}</span>
+                  </div>
+
+                  {/* Meta */}
+                  <div className="card-meta">
+                    {m.cliente&&<span className="card-meta-item">🏢 {m.cliente}</span>}
+                    {m.responsavelNome&&<span className="card-meta-item">👤 {m.responsavelNome}</span>}
+                    {m.alocadoNomes?.length>0&&(
+                      <span style={{fontSize:11,background:"var(--afine-yellow-lt)",color:"var(--afine-yellow-dk)",padding:"2px 8px",borderRadius:10,fontWeight:600}}>
+                        👷 {m.alocadoNomes.join(", ")}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Badges */}
+                  <div className="card-meta">
+                    {m.prioridade&&<span className={`badge ${m.prioridade==="urgente"?"badge-red":m.prioridade==="alta"?"badge-amber":"badge-gray"}`} style={{fontSize:10}}>{m.prioridade}</span>}
+                    {m.semOT?<span className="badge badge-amber" style={{fontSize:10}}>S/OT</span>:m.numeroOT&&<span className="card-meta-item" style={{fontSize:11}}>OT: {m.numeroOT}</span>}
+                    {m.osDigital?<span className="badge badge-green" style={{fontSize:10}}>✓ OS</span>:<span className="badge badge-gray" style={{fontSize:10}}>OS Pendente</span>}
+                  </div>
+
+                  {/* Criado por */}
+                  {m.criadoPorNome&&<div style={{fontSize:11,color:"#aaa"}}>Criado por: {m.criadoPorNome}</div>}
+
+                  {/* Ações */}
+                  <div className="card-actions">
+                    <button className="btn btn-sm btn-icon" onClick={()=>setModal({manut:m})}>✏️ Editar</button>
+                    {m.osDigital&&<button className="btn btn-sm" onClick={()=>exportarOSParaPDF(m.osDigital,m)} style={{fontSize:11}}>📄 OS</button>}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </>
       )}

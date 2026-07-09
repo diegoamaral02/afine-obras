@@ -1201,6 +1201,70 @@ export default function Obras({ onObraSelect }) {
             </tbody>
           </table>
         </div>
+
+        {/* ── Cards responsivos (visíveis em telas < 960px) ── */}
+        <div className="rdo-cards-grid">
+          {filtered.map(o => {
+            const equipeIds = o.equipeIds||[];
+            const nomesEquipe = equipeIds.map(id=>funcionarios.find(f=>f.id===id)?.nome).filter(Boolean);
+            const temEndereco = o.logradouro&&o.numero;
+            return (
+              <div key={o.id} className="rdo-card-item" style={{borderLeft:`4px solid ${o.status==="EM ANDAMENTO"?"#185FA5":o.status==="CONCLUÍDA"?"var(--verde)":"#ccc"}`}}>
+                {/* Título + status */}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div className="card-title">{o.nome}</div>
+                    {o.contrato&&<div className="card-sub">{o.contrato}</div>}
+                  </div>
+                  <span className={`badge ${statusBadge(o.status)}`} style={{flexShrink:0}}>{o.status}</span>
+                </div>
+
+                {/* Meta */}
+                <div className="card-meta">
+                  {o.tipo&&<span className="badge badge-gray" style={{fontSize:10}}>{o.tipo}</span>}
+                  {o.cliente&&<span className="card-meta-item">🏢 {o.cliente}{o.agenciaNome?` · ${o.agenciaNome}`:""}</span>}
+                  {o.responsavelNome&&<span className="card-meta-item">👤 {o.responsavelNome}</span>}
+                  {nomesEquipe.length>0&&<span className="card-meta-item">👷 {nomesEquipe.join(", ")}</span>}
+                </div>
+
+                {/* Datas e endereço */}
+                <div className="card-meta" style={{fontSize:11,color:"#7A7A7A"}}>
+                  {o.termino&&<span>🗓 Término: {fmtDate(o.conclusaoReal||o.termino)}</span>}
+                  {temEndereco&&<button onClick={()=>{const enc=encodeURIComponent(`${o.logradouro}, ${o.numero}, ${o.cidade}`);window.open(`https://www.google.com/maps/search/?api=1&query=${enc}`,"_blank");}} style={{background:"none",border:"none",color:"var(--afine-yellow-dk)",cursor:"pointer",fontSize:11,padding:0}}>🗺️ {o.logradouro}, {o.numero}</button>}
+                </div>
+
+                {/* Progresso */}
+                {(o.progresso||0) > 0 && (
+                  <div>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#aaa",marginBottom:3}}>
+                      <span>Progresso</span><span>{o.progresso||0}%</span>
+                    </div>
+                    <div className="card-progress">
+                      <div className={`card-progress-fill${o.progresso>=100?" green":""}`} style={{width:`${o.progresso||0}%`}}/>
+                    </div>
+                  </div>
+                )}
+
+                {/* Badges orçamento/relatório */}
+                <div className="card-meta">
+                  <span style={{fontSize:10,color:"#aaa"}}>Orç:</span>
+                  <span className={`badge ${o.orcamentoEnviado==="SIM"?"badge-green":o.orcamentoEnviado==="PENDENTE"?"badge-amber":"badge-red"}`} style={{fontSize:10}}>{o.orcamentoEnviado||"NÃO"}</span>
+                  <span style={{fontSize:10,color:"#aaa"}}>Rel:</span>
+                  <span className={`badge ${o.relatorioEnviado==="SIM"?"badge-green":"badge-red"}`} style={{fontSize:10}}>{o.relatorioEnviado||"NÃO"}</span>
+                </div>
+
+                {/* Ações */}
+                <div className="card-actions">
+                  <button className="btn btn-primary btn-sm" onClick={()=>setModal({obra:o})}>▶ Executar</button>
+                  {isGestor&&<button className="btn btn-sm btn-icon" onClick={()=>setModal({obra:o})}>✏️</button>}
+                  <button className="btn btn-sm btn-icon" title="Ocorrências" onClick={()=>{setObraAberta(o);setAbaDrawer("ocorrencias");}}>⚠️</button>
+                  <button className="btn btn-sm btn-icon" title="Acompanhamento" onClick={()=>{setObraAberta(o);setAbaDrawer("acompanhamento");}}>📐</button>
+                  <button className="btn btn-sm btn-icon" title="Diário" onClick={()=>{setObraAberta(o);setAbaDrawer("diario");}}>📓</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
       {modal && <ObraModal obra={modal.obra} funcionarios={funcionarios} clientes={clientes} onClose={()=>setModal(null)} addToast={addToast}/>}
 

@@ -240,6 +240,39 @@ tbody tr:nth-child(even) { background: rgba(243,242,239,.45); }
 tbody tr:hover { background: var(--afine-yellow-lt); }
 tbody td      { padding: 10px 14px; vertical-align: middle; }
 
+/* ── Cards responsivos — Obras e Manutenção ────────────
+   Em telas < 960px a tabela some e os cards aparecem      */
+.rdo-cards-grid {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+}
+.rdo-card-item {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow .15s;
+}
+.rdo-card-item:hover { box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,.10)); }
+.rdo-card-item .card-title { font-weight: 700; font-size: 14px; color: #1A1A1A; line-height: 1.35; }
+.rdo-card-item .card-sub   { font-size: 11px; color: #7A7A7A; margin-top: 1px; }
+.rdo-card-item .card-meta  { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.rdo-card-item .card-meta-item { display: flex; align-items: center; gap: 4px; font-size: 11.5px; color: #444; }
+.rdo-card-item .card-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--border); }
+.rdo-card-item .card-progress { height: 5px; background: #e8e6e0; border-radius: 99px; overflow: hidden; }
+.rdo-card-item .card-progress-fill { height: 100%; background: #185FA5; border-radius: 99px; transition: width .3s; }
+.rdo-card-item .card-progress-fill.green { background: var(--verde, #1E7A3C); }
+
+@media (max-width: 960px) {
+  .table-wrap { display: none; }
+  .rdo-cards-grid { display: flex; }
+}
+
 /* ── Colunas responsivas (ocultar em telas menores) ─── */
 /* Oculta em telas < 1280px */
 @media (max-width: 1279px) { .col-hide-xl { display: none !important; } }
