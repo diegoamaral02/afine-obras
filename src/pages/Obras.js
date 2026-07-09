@@ -1371,8 +1371,9 @@ export default function Obras({ onObraSelect }) {
                           <span className={`badge ${statusBadge(o.status)}`}>{o.status}</span>
                           <div style={{display:"flex",gap:3}}>
                             <button className="btn btn-sm btn-primary" onClick={()=>setModal({obra:o})} title="Abrir">▶</button>
-                            <button className="btn btn-sm btn-icon" onClick={()=>{setObraAberta(o);setAbaDrawer("ocorrencias");}}>⚠️</button>
-                            <button className="btn btn-sm btn-icon" onClick={()=>{setObraAberta(o);setAbaDrawer("acompanhamento");}}>📐</button>
+                            <button className="btn btn-sm btn-icon" title="Ocorrências" onClick={()=>{setObraAberta(o);setAbaDrawer("ocorrencias");}}>⚠️</button>
+                            <button className="btn btn-sm btn-icon" title="Acompanhamento" onClick={()=>{setObraAberta(o);setAbaDrawer("acompanhamento");}}>📐</button>
+                            <button className="btn btn-sm btn-icon" title="Diário de Obra" onClick={()=>{setObraAberta(o);setAbaDrawer("diario");}}>📓</button>
                           </div>
                         </div>
                       </div>
