@@ -189,6 +189,114 @@ function AbaVisaoMensal({ lancs, compras, despesas }) {
   );
 }
 
+// Busca com input + dropdown filtrável para selecionar demanda nos Resultados
+function BuscaDemandaDRE({ demandas, itemFiltro, onChange }) {
+  const [busca, setBusca] = React.useState("");
+  const [aberto, setAberto] = React.useState(false);
+
+  const selecionada = demandas.find(d => d._id === itemFiltro);
+
+  const filtradas = demandas.filter(d =>
+    (d.nome||"").toLowerCase().includes(busca.toLowerCase()) ||
+    (d.cliente||"").toLowerCase().includes(busca.toLowerCase())
+  );
+
+  function selecionar(dm) {
+    onChange(dm._id);
+    setBusca(dm.nome + (dm.cliente ? ` — ${dm.cliente}` : ""));
+    setAberto(false);
+  }
+
+  function limpar() {
+    onChange("");
+    setBusca("");
+    setAberto(true);
+  }
+
+  return (
+    <div style={{ position:"relative", marginBottom:16 }}>
+      <div style={{ position:"relative" }}>
+        <input
+          type="text"
+          value={busca}
+          onChange={e => { setBusca(e.target.value); onChange(""); setAberto(true); }}
+          onFocus={() => setAberto(true)}
+          onBlur={() => setTimeout(() => setAberto(false), 150)}
+          placeholder={selecionada ? "" : `📊 Resultado consolidado — ${demandas.length} demanda(s) no filtro`}
+          autoComplete="off"
+          style={{
+            width:"100%", boxSizing:"border-box",
+            padding:"9px 40px 9px 14px",
+            borderRadius:8, border:"1px solid var(--border)",
+            fontSize:14, fontWeight:500,
+            borderColor: selecionada ? "var(--afine-yellow)" : "var(--border)",
+            background: selecionada ? "#fffbea" : "#fff",
+          }}
+        />
+        {/* Ícone chevron ou limpar */}
+        {busca || selecionada ? (
+          <button type="button" onClick={limpar}
+            style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",
+              background:"none",border:"none",cursor:"pointer",color:"#aaa",fontSize:18,lineHeight:1}}>×</button>
+        ) : (
+          <span style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",
+            color:"#aaa",fontSize:12,pointerEvents:"none"}}>▼</span>
+        )}
+      </div>
+
+      {/* Dropdown */}
+      {aberto && (
+        <div style={{
+          position:"absolute",top:"100%",left:0,right:0,zIndex:100,
+          background:"#fff",border:"1px solid #ddd",borderRadius:8,
+          boxShadow:"0 8px 32px rgba(0,0,0,.14)",maxHeight:260,overflowY:"auto",marginTop:3,
+        }}>
+          {/* Opção consolidado */}
+          <div
+            onMouseDown={() => { onChange(""); setBusca(""); setAberto(false); }}
+            style={{
+              padding:"10px 14px",fontSize:13,cursor:"pointer",
+              borderBottom:"1px solid #f0f0f0",
+              background: !itemFiltro ? "#fffbea" : "transparent",
+              fontWeight: !itemFiltro ? 700 : 400,
+              display:"flex",alignItems:"center",gap:8,
+            }}
+            onMouseEnter={e=>e.currentTarget.style.background="#f8f7f4"}
+            onMouseLeave={e=>e.currentTarget.style.background=!itemFiltro?"#fffbea":"transparent"}
+          >
+            <span>📊</span>
+            <span>Resultado consolidado <span style={{color:"#aaa",fontWeight:400}}>— {demandas.length} demanda(s)</span></span>
+          </div>
+
+          {/* Demandas filtradas */}
+          {filtradas.length === 0 && busca && (
+            <div style={{padding:"12px 14px",fontSize:13,color:"#aaa"}}>Nenhuma demanda encontrada.</div>
+          )}
+          {filtradas.map(dm => (
+            <div key={dm._id}
+              onMouseDown={() => selecionar(dm)}
+              style={{
+                padding:"9px 14px",fontSize:13,cursor:"pointer",
+                borderBottom:"1px solid #f0f0f0",
+                background: dm._id===itemFiltro ? "#fffbea" : "transparent",
+                fontWeight: dm._id===itemFiltro ? 600 : 400,
+              }}
+              onMouseEnter={e=>e.currentTarget.style.background="#f8f7f4"}
+              onMouseLeave={e=>e.currentTarget.style.background=dm._id===itemFiltro?"#fffbea":"transparent"}
+            >
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <span>{dm._tipo==="manutencao"?"🔧":"🏗️"}</span>
+                <span>{dm.nome}</span>
+                {dm.cliente && <span style={{fontSize:11,color:"#aaa"}}>— {dm.cliente}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AbaResultadoProjeto({ lancs, obras, compras, despesas, manuts=[] }) {
   const [itemFiltro, setItemFiltro] = useState("");
   const [filtros, setFiltros] = useState({ periodo:{de:"",ate:""}, clienteNome:"", status:[], tipo:"" });
@@ -270,13 +378,11 @@ function AbaResultadoProjeto({ lancs, obras, compras, despesas, manuts=[] }) {
         onLimpar={()=>{ setFiltros({ periodo:{de:"",ate:""}, clienteNome:"", status:[], tipo:"" }); setItemFiltro(""); }}
       />
       {/* Seletor */}
-      <div style={{marginBottom:16}}>
-        <select value={itemFiltro} onChange={e=>setItemFiltro(e.target.value)}
-          style={{width:"100%",padding:"9px 14px",borderRadius:8,border:"1px solid var(--border)",fontSize:14,fontWeight:500}}>
-          <option value="">📊 Resultado consolidado — {demandasFiltradas.length} demanda(s) no filtro</option>
-          {demandasFiltradas.map(dm=><option key={dm._id} value={dm._id}>{dm._tipo==="manutencao"?"🔧 ":"🏗️ "}{dm.nome} {dm.cliente?`— ${dm.cliente}`:""}</option>)}
-        </select>
-      </div>
+      <BuscaDemandaDRE
+        demandas={demandasFiltradas}
+        itemFiltro={itemFiltro}
+        onChange={setItemFiltro}
+      />
 
       {/* Header da demanda */}
       {demandaSelecionada && (
