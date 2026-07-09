@@ -103,6 +103,78 @@ function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }
   );
 }
 
+// Busca com input + dropdown filtrável para selecionar obra ou manutenção
+function BuscaDestino({ tipo, lista, destinoId, onChange }) {
+  const [busca, setBusca] = useState("");
+  const [aberto, setAberto] = useState(false);
+
+  const getNome = (d) => tipo === "obra" ? d.nome : (d.titulo || d.descricao || d.id);
+  const filtrados = lista.filter(d => getNome(d).toLowerCase().includes(busca.toLowerCase()));
+  const selecionado = lista.find(d => d.id === destinoId);
+
+  function selecionar(d) {
+    onChange(d.id);
+    setBusca(getNome(d));
+    setAberto(false);
+  }
+  function handleBlur() { setTimeout(() => setAberto(false), 150); }
+
+  return (
+    <div className="form-group" style={{ position: "relative" }}>
+      <label className="required">
+        {tipo === "obra" ? "Obra de destino" : "Manutenção de destino"}
+      </label>
+      <div style={{ position: "relative" }}>
+        <input
+          type="text"
+          value={busca}
+          onChange={e => { setBusca(e.target.value); onChange(""); setAberto(true); }}
+          onFocus={() => setAberto(true)}
+          onBlur={handleBlur}
+          placeholder={`🔍 Buscar ${tipo === "obra" ? "obra" : "manutenção"}...`}
+          style={{ width:"100%", boxSizing:"border-box", borderColor: selecionado ? "var(--verde)" : undefined }}
+          autoComplete="off"
+        />
+        {busca && (
+          <button type="button" onClick={() => { setBusca(""); onChange(""); setAberto(true); }}
+            style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)",
+              background:"none", border:"none", cursor:"pointer", color:"#aaa", fontSize:16 }}>×</button>
+        )}
+      </div>
+      {aberto && (
+        <div style={{
+          position:"absolute", top:"100%", left:0, right:0, zIndex:50,
+          background:"#fff", border:"1px solid #ddd", borderRadius:8,
+          boxShadow:"0 8px 24px rgba(0,0,0,.12)", maxHeight:200, overflowY:"auto", marginTop:2,
+        }}>
+          {filtrados.length === 0
+            ? <div style={{ padding:"12px 14px", fontSize:13, color:"#aaa" }}>Nenhum resultado.</div>
+            : filtrados.map(d => (
+              <div key={d.id} onMouseDown={() => selecionar(d)}
+                style={{
+                  padding:"10px 14px", fontSize:13, cursor:"pointer",
+                  background: d.id === destinoId ? "#fffbea" : "transparent",
+                  borderBottom:"1px solid #f0f0f0",
+                  fontWeight: d.id === destinoId ? 600 : 400,
+                }}
+                onMouseEnter={e => e.currentTarget.style.background="#f8f7f4"}
+                onMouseLeave={e => e.currentTarget.style.background = d.id===destinoId?"#fffbea":"transparent"}
+              >
+                {tipo === "obra" ? "🏗️" : "🔧"} {getNome(d)}
+                {tipo === "manutencao" && d.cliente && (
+                  <span style={{ fontSize:11, color:"#aaa", marginLeft:6 }}>— {d.cliente}</span>
+                )}
+              </div>
+            ))
+          }
+        </div>
+      )}
+      {selecionado && <span style={{ fontSize:11, color:"var(--verde)", fontWeight:600 }}>✓ {getNome(selecionado)}</span>}
+      {lista.length === 0 && <span style={{ fontSize:11, color:"var(--vermelho)" }}>Nenhuma {tipo==="obra"?"obra":"manutenção em aberto"} disponível.</span>}
+    </div>
+  );
+}
+
 // Modal de transferência de saldo — Obra → Obra | Manutenção | Estoque
 function TransferenciaModal({ origem, material, obras, manutencoes, onClose, addToast }) {
   const { userProfile, currentUser } = useAuth();
@@ -204,26 +276,14 @@ function TransferenciaModal({ origem, material, obras, manutencoes, onClose, add
           </div>
         </div>
 
-        {/* Select de destino (Obra ou Manutenção) */}
+        {/* Busca de destino (Obra ou Manutenção) */}
         {tipoDestino !== "estoque" && (
-          <div className="form-group">
-            <label className="required">
-              {tipoDestino === "obra" ? "Obra de destino" : "Manutenção de destino"}
-            </label>
-            <select value={destinoId} onChange={e => setDestinoId(e.target.value)}>
-              <option value="">{TIPOS.find(t=>t.id===tipoDestino)?.placeholder}</option>
-              {listaDestinos.map(d => (
-                <option key={d.id} value={d.id}>
-                  {tipoDestino === "obra" ? d.nome : (d.titulo || d.descricao || d.id)}
-                </option>
-              ))}
-            </select>
-            {listaDestinos.length === 0 && (
-              <span style={{fontSize:11, color:"var(--vermelho)"}}>
-                Nenhuma {tipoDestino === "obra" ? "obra" : "manutenção em aberto"} disponível.
-              </span>
-            )}
-          </div>
+          <BuscaDestino
+            tipo={tipoDestino}
+            lista={listaDestinos}
+            destinoId={destinoId}
+            onChange={setDestinoId}
+          />
         )}
 
         {/* Estoque — aviso */}
