@@ -300,7 +300,7 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
             </div>
             <div className="form-group"><label>Tipo</label>
               <select value={form.tipo} onChange={e=>set("tipo",e.target.value)}>
-                {["corretiva","preventiva","preditiva","emergencial"].map(t=><option key={t}>{t}</option>)}
+                {["corretiva","preventiva","emergencial"].map(t=><option key={t}>{t}</option>)}
               </select></div>
             <div className="form-group"><label>Prioridade</label>
               <select value={form.prioridade} onChange={e=>set("prioridade",e.target.value)}>
