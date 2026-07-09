@@ -242,7 +242,7 @@ function TransferenciaModal({ origem, material, obras, manutencoes, onClose, add
       footer={
         <>
           <button className="btn" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={salvar} disabled={saving}>
+          <button className="btn btn-primary" onClick={salvar} disabled={saving || !qtd || Number(qtd) <= 0 || Number(qtd) > saldo}>
             {saving ? "Salvando..." : "Confirmar transferência"}
           </button>
         </>
@@ -296,8 +296,22 @@ function TransferenciaModal({ origem, material, obras, manutencoes, onClose, add
         {/* Quantidade */}
         <div className="form-group">
           <label className="required">Quantidade a transferir ({material.un})</label>
-          <input type="number" min="1" max={saldo} value={qtd}
-            onChange={e => setQtd(e.target.value)} placeholder={`Máx. ${saldo}`}/>
+          <input
+            type="number" min="1" max={saldo} value={qtd}
+            onChange={e => setQtd(e.target.value)}
+            placeholder={`Máx. ${saldo}`}
+            style={{ borderColor: qtd && Number(qtd) > saldo ? "var(--vermelho)" : qtd && Number(qtd) > 0 ? "var(--verde)" : undefined }}
+          />
+          {qtd && Number(qtd) > saldo && (
+            <div style={{
+              marginTop:6, padding:"8px 12px", borderRadius:7,
+              background:"#fff0f0", border:"1px solid var(--vermelho)",
+              fontSize:12, color:"var(--vermelho)", fontWeight:600,
+              display:"flex", alignItems:"center", gap:6,
+            }}>
+              ⚠️ Quantidade indisponível. Saldo atual é de <strong>{saldo} {material.un}</strong>.
+            </div>
+          )}
         </div>
 
         {/* Observações */}
