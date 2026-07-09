@@ -38,29 +38,29 @@ function Protected({ children }) {
 
 const MENU = [
   { id:"principal", label:"Principal", roles:["gestor","encarregado","campo"], items:[
-    { to:"/painel",    icon:"📊", label:"Painel Gerencial", roles:["gestor"] },
-    { to:"/",          icon:"🏠", label:"Home",             roles:["gestor","encarregado"] },
-    { to:"/calendario",icon:"📅", label:"Calendário",       roles:["gestor","encarregado","campo"] },
-  ]},
-  { id:"comercial", label:"Comercial", roles:["gestor","encarregado"], items:[
-    { to:"/comercial/clientes", icon:"🏢", label:"Clientes",        roles:["gestor","encarregado"] },
-    { to:"/fornecedores",       icon:"🤝", label:"Fornecedores",    roles:["gestor","encarregado"] },
+    { to:"/",           icon:"🏠", label:"Home",             roles:["gestor","encarregado"] },
+    { to:"/calendario", icon:"📅", label:"Calendário",       roles:["gestor","encarregado","campo"] },
+    { to:"/painel",     icon:"📊", label:"Painel Gerencial", roles:["gestor"] },
   ]},
   { id:"operacao", label:"Operação", roles:["gestor","encarregado","campo"], items:[
-    { to:"/obras",       icon:"🏗️", label:"Obras",          roles:["gestor","encarregado","campo"] },
-    { to:"/manutencao",  icon:"🔧", label:"Manutenção",     roles:["gestor","encarregado","campo"] },
+    { to:"/obras",      icon:"🏗️", label:"Obras",       roles:["gestor","encarregado","campo"] },
+    { to:"/manutencao", icon:"🔧", label:"Manutenção",  roles:["gestor","encarregado","campo"] },
   ]},
   { id:"suprimentos", label:"Suprimentos", roles:["gestor","encarregado","campo"], items:[
-    { to:"/compras",   icon:"🛒", label:"Compras",    roles:["gestor","encarregado","campo"] },
-    { to:"/materiais", icon:"📦", label:"Materiais",  roles:["gestor","encarregado"] },
+    { to:"/compras",   icon:"🛒", label:"Compras",   roles:["gestor","encarregado","campo"] },
+    { to:"/materiais", icon:"📦", label:"Materiais", roles:["gestor","encarregado"] },
   ]},
-  { id:"financeiro", label:"Financeiro", roles:["gestor","encarregado","campo"], items:[
-    { to:"/dre",        icon:"📈", label:"Resultados",         roles:["gestor"] },
-    { to:"/despesas",   icon:"🧾", label:"Despesas",           roles:["gestor","encarregado","campo"] },
+  { id:"comercial", label:"Comercial", roles:["gestor","encarregado"], items:[
+    { to:"/comercial/clientes", icon:"🏢", label:"Clientes",     roles:["gestor","encarregado"] },
+    { to:"/fornecedores",       icon:"🤝", label:"Fornecedores", roles:["gestor","encarregado"] },
   ]},
   { id:"pessoas", label:"Pessoas", roles:["gestor","encarregado"], items:[
     { to:"/equipe",       icon:"👷", label:"Equipe",       roles:["gestor","encarregado"] },
     { to:"/funcionarios", icon:"👤", label:"Funcionários", roles:["gestor"] },
+  ]},
+  { id:"financeiro", label:"Financeiro", roles:["gestor","encarregado","campo"], items:[
+    { to:"/dre",      icon:"📈", label:"Resultados", roles:["gestor"] },
+    { to:"/despesas", icon:"🧾", label:"Despesas",   roles:["gestor","encarregado","campo"] },
   ]},
 ];
 
