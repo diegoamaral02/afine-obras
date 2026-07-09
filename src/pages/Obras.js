@@ -1026,7 +1026,7 @@ export default function Obras({ onObraSelect }) {
     ? obras.filter(o => (o.equipeIds||[]).includes(currentUser?.uid))
     : obras;
 
-  const filtered = obrasVisiveis.filter(o=>{
+  const filtered = obrasAtivas.filter(o=>{
     const q=search.toLowerCase();
     const mQ=!q||o.nome?.toLowerCase().includes(q)||o.cliente?.toLowerCase().includes(q)||o.contrato?.toLowerCase().includes(q);
     const mPeriodo = dentroPeriodo(o.inicio, filtros.periodo);
@@ -1047,10 +1047,13 @@ export default function Obras({ onObraSelect }) {
   const kpiAtrasadas    = obrasVisiveis.filter(o=>o.termino&&o.termino<hoje&&!["CONCLUÍDA","PARALISADA"].includes(o.status)).length;
   const gestoresList = funcionarios.filter(f=>isGestorOuAdm(f));
 
-  // Agrupamento por cliente
-  const porCliente = useMemo(()=>{
+  // Separa ativas x concluídas
+  const obrasAtivas    = useMemo(()=>obrasVisiveis.filter(o=>o.status!=="CONCLUÍDA"),[obrasVisiveis]);
+  const obrasConcluidas = useMemo(()=>obrasVisiveis.filter(o=>o.status==="CONCLUÍDA"),[obrasVisiveis]);
+
+  function buildPorCliente(lista) {
     const map = {};
-    obrasVisiveis.forEach(o=>{
+    lista.forEach(o=>{
       const cli = o.cliente||"Sem cliente";
       if(!map[cli]) map[cli] = { nome:cli, agencias:{} };
       const ag = o.agenciaNome||o.agencia||"Sede / Sem agência";
@@ -1058,7 +1061,11 @@ export default function Obras({ onObraSelect }) {
       map[cli].agencias[ag].push(o);
     });
     return Object.values(map).sort((a,b)=>a.nome.localeCompare(b.nome));
-  },[obrasVisiveis]);
+  }
+
+  // Agrupamento por cliente — ativas e concluídas separados
+  const porCliente          = useMemo(()=>buildPorCliente(obrasAtivas),    [obrasAtivas]);
+  const porClienteConcluidas = useMemo(()=>buildPorCliente(obrasConcluidas),[obrasConcluidas]);
 
   const [clienteExpandido, setClienteExpandido] = useState(null);
 
@@ -1111,9 +1118,9 @@ export default function Obras({ onObraSelect }) {
       {!souCampo && (
         <div style={{display:"flex",gap:0,marginBottom:16,borderRadius:8,overflow:"hidden",border:"1px solid var(--border)",flexWrap:"wrap"}}>
           {[
-            {id:"lista",      label:"📋 Lista completa"},
-            {id:"por_cliente",label:"🏢 Por cliente"},
-            {id:"historico",  label:"📅 Histórico"},
+            {id:"lista",       label:"📋 Lista completa"},
+            {id:"por_cliente", label:"🏢 Por cliente"},
+            {id:"concluidas",  label:`✅ Concluídas (${kpiConcluidas})`},
           ].map((a,i,arr)=>(
             <button key={a.id} onClick={()=>setAba(a.id)}
               style={{flex:"1 1 auto",padding:"9px 10px",border:"none",cursor:"pointer",
@@ -1386,35 +1393,75 @@ export default function Obras({ onObraSelect }) {
         </div>
       )}
 
-      {/* ── ABA: HISTÓRICO ── */}
-      {aba==="historico" && !souCampo && (
+      {/* ── ABA: CONCLUÍDAS (por cliente / agência) ── */}
+      {aba==="concluidas" && !souCampo && (
         <div>
-          <div className="search-bar">🔍<input placeholder="Buscar no histórico..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
-          {obrasVisiveis.filter(o=>o.status==="CONCLUÍDA"&&(!search||o.nome?.toLowerCase().includes(search.toLowerCase())||o.cliente?.toLowerCase().includes(search.toLowerCase()))).length===0&&(
-            <div className="empty-state"><div className="empty-icon">📅</div><p>Nenhuma obra concluída</p></div>
-          )}
-          {obrasVisiveis
-            .filter(o=>o.status==="CONCLUÍDA"&&(!search||o.nome?.toLowerCase().includes(search.toLowerCase())||o.cliente?.toLowerCase().includes(search.toLowerCase())))
-            .sort((a,b)=>(b.conclusaoReal||b.termino||"").localeCompare(a.conclusaoReal||a.termino||""))
-            .map(o=>(
-              <div key={o.id} className="rdo-card" style={{borderLeft:"3px solid var(--verde)",marginBottom:8}}>
-                <div className="rdo-header">
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:600,fontSize:13}}>{o.nome}</div>
-                    <div style={{fontSize:11,color:"#7A7A7A",marginTop:2,display:"flex",gap:8,flexWrap:"wrap"}}>
-                      {o.cliente&&<span>🏢 {o.cliente}{o.agenciaNome?` · ${o.agenciaNome}`:""}</span>}
-                      {o.responsavelNome&&<span>👤 {o.responsavelNome}</span>}
-                      {(o.conclusaoReal||o.termino)&&<span>✓ Concluída em {fmtDate(o.conclusaoReal||o.termino)}</span>}
+          <div className="search-bar">🔍<input placeholder="Buscar obra concluída..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
+          {porClienteConcluidas.length===0&&<div className="empty-state"><div className="empty-icon">✅</div><p>Nenhuma obra concluída</p></div>}
+          {porClienteConcluidas
+            .map(cli=>({
+              ...cli,
+              agencias: Object.fromEntries(
+                Object.entries(cli.agencias).map(([ag,obras])=>[
+                  ag,
+                  obras.filter(o=>!search||o.nome?.toLowerCase().includes(search.toLowerCase())||o.cliente?.toLowerCase().includes(search.toLowerCase()))
+                ]).filter(([,obras])=>obras.length>0)
+              )
+            }))
+            .filter(cli=>Object.keys(cli.agencias).length>0)
+            .map(cli=>(
+            <div key={cli.nome} style={{marginBottom:12}}>
+              <button
+                onClick={()=>setClienteExpandido(clienteExpandido===("c_"+cli.nome)?null:("c_"+cli.nome))}
+                style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",
+                  padding:"10px 14px",border:"none",borderRadius:8,cursor:"pointer",
+                  background:"#1A1A1A",color:"#fff",textAlign:"left",marginBottom:4}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <span style={{fontSize:16}}>🏢</span>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:14,color:"#F5C400"}}>{cli.nome}</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,.5)",marginTop:1}}>
+                      {Object.values(cli.agencias).flat().length} concluída(s) · {Object.keys(cli.agencias).length} agência(s)/loja(s)
                     </div>
                   </div>
-                  <div style={{display:"flex",gap:4,flexShrink:0}}>
-                    <span className="badge badge-green">CONCLUÍDA</span>
-                    <button className="btn btn-sm btn-icon" onClick={()=>setModal({obra:o})}>✏️</button>
+                </div>
+                <span style={{color:"#F5C400",fontSize:12,transform:clienteExpandido===("c_"+cli.nome)?"rotate(180deg)":"",transition:"transform .2s"}}>▼</span>
+              </button>
+
+              {clienteExpandido===("c_"+cli.nome) && Object.entries(cli.agencias).sort((a,b)=>a[0].localeCompare(b[0])).map(([ag,obras])=>(
+                <div key={ag} style={{marginLeft:16,marginBottom:8}}>
+                  <div style={{fontWeight:600,fontSize:12,padding:"6px 10px",
+                    background:"var(--cinza-lt)",borderRadius:6,marginBottom:4,
+                    display:"flex",alignItems:"center",gap:6,
+                    borderLeft:"3px solid var(--verde)"}}>
+                    🏪 {ag}
+                    <span style={{fontSize:11,fontWeight:400,color:"#7A7A7A"}}>({obras.length} obra{obras.length>1?"s":""})</span>
+                  </div>
+                  <div style={{marginLeft:8}}>
+                    {obras.sort((a,b)=>(b.conclusaoReal||b.termino||"").localeCompare(a.conclusaoReal||a.termino||"")).map(o=>(
+                      <div key={o.id} className="rdo-card" style={{borderLeft:"3px solid var(--verde)",marginBottom:6}}>
+                        <div className="rdo-header">
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontWeight:600,fontSize:13}}>{o.nome}</div>
+                            <div style={{fontSize:11,color:"#7A7A7A",marginTop:2,display:"flex",gap:8,flexWrap:"wrap"}}>
+                              {o.tipo&&<span>{o.tipo}</span>}
+                              {o.responsavelNome&&<span>👤 {o.responsavelNome}</span>}
+                              {(o.conclusaoReal||o.termino)&&<span>✓ {fmtDate(o.conclusaoReal||o.termino)}</span>}
+                            </div>
+                          </div>
+                          <div style={{display:"flex",gap:3,flexShrink:0}}>
+                            <span className="badge badge-green" style={{fontSize:10}}>CONCLUÍDA</span>
+                            <button className="btn btn-sm btn-icon" onClick={()=>setModal({obra:o})}>✏️</button>
+                            <button className="btn btn-sm btn-icon" title="Diário" onClick={()=>{setObraAberta(o);setAbaDrawer("diario");}}>📓</button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </div>
-            ))
-          }
+              ))}
+            </div>
+          ))}
         </div>
       )}
 

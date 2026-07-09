@@ -779,7 +779,7 @@ export default function Manutencao({ obraAtual }) {
   // Lista filtrada para gestores
   const filtered = useMemo(()=>{
     const q=search.toLowerCase();
-    return manuts.filter(m=>{
+    return manutsAtivas.filter(m=>{
       const mQ=!q||m.titulo?.toLowerCase().includes(q)||m.cliente?.toLowerCase().includes(q)||m.agencia?.toLowerCase().includes(q)||(m.numeroOT||"").toLowerCase().includes(q);
       const mPeriodo = dentroPeriodo(m.dataAbertura, filtros.periodo);
       const mCliente = !filtros.clienteNome || m.cliente===filtros.clienteNome;
@@ -787,7 +787,7 @@ export default function Manutencao({ obraAtual }) {
       const mStatus = filtros.status.length===0 || filtros.status.includes(m.status);
       return mQ && mPeriodo && mCliente && mResp && mStatus;
     });
-  },[manuts,filtros,search]);
+  },[manutsAtivas,filtros,search]);
 
   // KPIs
   const abertas    = manuts.filter(m=>["ABERTA","EM ANDAMENTO"].includes(m.status)).length;
@@ -803,10 +803,13 @@ export default function Manutencao({ obraAtual }) {
     },{});
   },[manuts]);
 
-  // Agrupamento por cliente → agência (para aba Por agência com accordion igual a Obras)
-  const porCliente = useMemo(()=>{
+  // Separa ativas x concluídas
+  const manutsAtivas     = useMemo(()=>manuts.filter(m=>m.status!=="CONCLUÍDA"),[manuts]);
+  const manutsConcluidas = useMemo(()=>manuts.filter(m=>m.status==="CONCLUÍDA"),[manuts]);
+
+  function buildPorCliente(lista) {
     const map = {};
-    manuts.forEach(m=>{
+    lista.forEach(m=>{
       const cli = m.cliente||"Sem cliente";
       if(!map[cli]) map[cli] = { nome:cli, agencias:{} };
       const ag = m.agencia||"Sem agência";
@@ -814,7 +817,11 @@ export default function Manutencao({ obraAtual }) {
       map[cli].agencias[ag].push(m);
     });
     return Object.values(map).sort((a,b)=>a.nome.localeCompare(b.nome));
-  },[manuts]);
+  }
+
+  // Agrupamento por cliente — ativas e concluídas
+  const porCliente           = useMemo(()=>buildPorCliente(manutsAtivas),    [manutsAtivas]);
+  const porClienteConcluidas = useMemo(()=>buildPorCliente(manutsConcluidas),[manutsConcluidas]);
 
   const excelCols=[
     {key:"titulo",header:"Título"},{key:"cliente",header:"Cliente"},{key:"agencia",header:"Agência"},
@@ -830,7 +837,7 @@ export default function Manutencao({ obraAtual }) {
     ...(!isCampo?[{id:"por_agencia",label:"🏢 Por agência"}]:[]),
     {id:"garantias",label:"🛡️ Garantias"},
     ...(!isCampo?[{id:"sem_ot",label:`⚠️ S/OT${semOT>0?` (${semOT})`:""}`}]:[]),
-    ...(!isCampo?[{id:"historico",label:"📅 Histórico"}]:[]),
+    ...(!isCampo?[{id:"concluidas",label:`✅ Concluídas (${concl})`}]:[]),
   ];
 
   const STATUS_MANUT = ["ABERTA","EM ANDAMENTO","CONCLUÍDA","CANCELADA","AGUARDANDO PEÇAS"];
@@ -1116,16 +1123,56 @@ export default function Manutencao({ obraAtual }) {
         </div>
       )}
 
-      {/* ── ABA: HISTÓRICO ──────────────────────────────── */}
-      {aba==="historico" && (
+      {/* ── ABA: CONCLUÍDAS (por cliente / agência) ── */}
+      {aba==="concluidas" && (
         <div>
-          <div className="search-bar">🔍<input placeholder="Buscar no histórico..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
-          {manuts.filter(m=>m.status==="CONCLUÍDA"&&(!search||m.titulo?.toLowerCase().includes(search.toLowerCase())||m.agencia?.toLowerCase().includes(search.toLowerCase()))).length===0&&(
-            <div className="empty-state"><div className="empty-icon">📅</div><p>Nenhum histórico de conclusões</p></div>
-          )}
-          {manuts.filter(m=>m.status==="CONCLUÍDA"&&(!search||m.titulo?.toLowerCase().includes(search.toLowerCase())||m.agencia?.toLowerCase().includes(search.toLowerCase())))
-            .map(m=><HistoricoCard key={m.id} manut={m} onEdit={()=>setModal({manut:m})}/>)
-          }
+          <div className="search-bar">🔍<input placeholder="Buscar manutenção concluída..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
+          {porClienteConcluidas.length===0&&<div className="empty-state"><div className="empty-icon">✅</div><p>Nenhuma manutenção concluída</p></div>}
+          {porClienteConcluidas
+            .map(cli=>({
+              ...cli,
+              agencias: Object.fromEntries(
+                Object.entries(cli.agencias).map(([ag,items])=>[
+                  ag,
+                  items.filter(m=>!search||m.titulo?.toLowerCase().includes(search.toLowerCase())||m.agencia?.toLowerCase().includes(search.toLowerCase()))
+                ]).filter(([,items])=>items.length>0)
+              )
+            }))
+            .filter(cli=>Object.keys(cli.agencias).length>0)
+            .map(cli=>(
+            <div key={cli.nome} style={{marginBottom:12}}>
+              <button
+                onClick={()=>setClienteExpandido(clienteExpandido===("c_"+cli.nome)?null:("c_"+cli.nome))}
+                style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",
+                  padding:"10px 14px",border:"none",borderRadius:8,cursor:"pointer",
+                  background:"#1A1A1A",color:"#fff",textAlign:"left",marginBottom:4}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <span style={{fontSize:16}}>🏢</span>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:14,color:"#F5C400"}}>{cli.nome}</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,.5)",marginTop:1}}>
+                      {Object.values(cli.agencias).flat().length} concluída(s) · {Object.keys(cli.agencias).length} agência(s)/loja(s)
+                    </div>
+                  </div>
+                </div>
+                <span style={{color:"#F5C400",fontSize:12,transform:clienteExpandido===("c_"+cli.nome)?"rotate(180deg)":"",transition:"transform .2s"}}>▼</span>
+              </button>
+              {clienteExpandido===("c_"+cli.nome) && Object.entries(cli.agencias).sort((a,b)=>a[0].localeCompare(b[0])).map(([ag,items])=>(
+                <div key={ag} style={{marginLeft:16,marginBottom:8}}>
+                  <div style={{fontWeight:600,fontSize:12,padding:"6px 10px",
+                    background:"var(--cinza-lt)",borderRadius:6,marginBottom:4,
+                    display:"flex",alignItems:"center",gap:6,
+                    borderLeft:"3px solid var(--verde)"}}>
+                    🏪 {ag}
+                    <span style={{fontSize:11,fontWeight:400,color:"#7A7A7A"}}>({items.length} chamado{items.length>1?"s":""})</span>
+                  </div>
+                  <div style={{marginLeft:8}}>
+                    {items.map(m=><HistoricoCard key={m.id} manut={m} onEdit={()=>setModal({manut:m})}/>)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
       )}
 
