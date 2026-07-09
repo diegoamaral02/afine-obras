@@ -1,6 +1,6 @@
 // src/pages/Materiais.js — controle global de estoque + por demanda
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, doc, query, where } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, doc, query, where, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -18,11 +18,27 @@ function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }
     demandaId: "",
     obs: "",
     data: new Date().toISOString().split("T")[0],
+    colaboradorNome: "",
   });
   const [saving, setSaving] = useState(false);
+  const [usuarios, setUsuarios] = useState([]);
+  const [buscaColab, setBuscaColab] = useState("");
+  const [dropColab, setDropColab] = useState(false);
   function set(f, v) { setForm(p => ({...p, [f]: v})); }
 
+  // Carrega lista de colaboradores (leitura única)
+  useEffect(() => {
+    getDocs(collection(db, "usuarios")).then(snap => {
+      setUsuarios(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => u.nome));
+    }).catch(() => {});
+  }, []);
+
   const demandas = form.demandaTipo === "obra" ? obras : manutencoes;
+
+  const usuariosFiltrados = usuarios.filter(u =>
+    u.nome.toLowerCase().includes(buscaColab.toLowerCase())
+  );
+  const colabSelecionado = form.colaboradorNome;
 
   async function save() {
     if (!form.quantidade || Number(form.quantidade) <= 0) { alert("Informe uma quantidade válida."); return; }
@@ -33,20 +49,19 @@ function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }
     const mov = {
       materialId: item.id,
       materialNome: item.nome,
-      tipo, // "entrada" | "saida"
+      tipo,
       quantidade: Number(form.quantidade),
       demandaTipo: form.demandaTipo,
       demandaId: form.demandaId,
       demandaNome: demandas.find(d=>d.id===form.demandaId)?.nome || demandas.find(d=>d.id===form.demandaId)?.titulo || "",
+      colaboradorNome: form.colaboradorNome || "",
       obs: form.obs,
       data: form.data,
       usuario: userProfile?.nome || "–",
       createdAt: new Date().toISOString(),
     };
     try {
-      // Registra movimentação
       await addDoc(collection(db, "movimentacoes"), mov);
-      // Atualiza saldo no item
       const novoSaldo = tipo === "entrada"
         ? item.saldo + Number(form.quantidade)
         : item.saldo - Number(form.quantidade);
@@ -94,6 +109,64 @@ function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }
             </div>
           )}
         </div>
+
+        {/* Colaborador — só na saída */}
+        {tipo === "saida" && (
+          <div className="form-group" style={{position:"relative"}}>
+            <label>👷 Alocado para colaborador <span style={{fontSize:11,color:"#aaa",fontWeight:400}}>(opcional)</span></label>
+            <div style={{position:"relative"}}>
+              <input
+                type="text"
+                value={buscaColab}
+                onChange={e => { setBuscaColab(e.target.value); set("colaboradorNome",""); setDropColab(true); }}
+                onFocus={() => setDropColab(true)}
+                onBlur={() => setTimeout(() => setDropColab(false), 150)}
+                placeholder="🔍 Buscar colaborador..."
+                autoComplete="off"
+                style={{ width:"100%", boxSizing:"border-box",
+                  borderColor: colabSelecionado ? "var(--verde)" : undefined }}
+              />
+              {buscaColab && (
+                <button type="button" onClick={() => { setBuscaColab(""); set("colaboradorNome",""); }}
+                  style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",
+                    background:"none",border:"none",cursor:"pointer",color:"#aaa",fontSize:16}}>×</button>
+              )}
+            </div>
+            {dropColab && buscaColab && (
+              <div style={{
+                position:"absolute",top:"100%",left:0,right:0,zIndex:50,
+                background:"#fff",border:"1px solid #ddd",borderRadius:8,
+                boxShadow:"0 8px 24px rgba(0,0,0,.12)",maxHeight:180,overflowY:"auto",marginTop:2,
+              }}>
+                {usuariosFiltrados.length === 0
+                  ? <div style={{padding:"12px 14px",fontSize:13,color:"#aaa"}}>Nenhum colaborador encontrado.</div>
+                  : usuariosFiltrados.map(u => (
+                    <div key={u.id}
+                      onMouseDown={() => { set("colaboradorNome", u.nome); setBuscaColab(u.nome); setDropColab(false); }}
+                      style={{padding:"9px 14px",fontSize:13,cursor:"pointer",borderBottom:"1px solid #f0f0f0",
+                        display:"flex",alignItems:"center",gap:8}}
+                      onMouseEnter={e=>e.currentTarget.style.background="#f8f7f4"}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                    >
+                      <span style={{width:28,height:28,borderRadius:"50%",background:"#1A1A1A",
+                        color:"#F5C400",display:"inline-flex",alignItems:"center",justifyContent:"center",
+                        fontSize:11,fontWeight:700,flexShrink:0}}>
+                        {u.nome.split(" ").map(n=>n[0]).slice(0,2).join("").toUpperCase()}
+                      </span>
+                      <div>
+                        <div style={{fontWeight:500}}>{u.nome}</div>
+                        {u.departamento && <div style={{fontSize:11,color:"#aaa"}}>{u.departamento}</div>}
+                      </div>
+                    </div>
+                  ))
+                }
+              </div>
+            )}
+            {colabSelecionado && (
+              <span style={{fontSize:11,color:"var(--verde)",fontWeight:600}}>✓ {colabSelecionado}</span>
+            )}
+          </div>
+        )}
 
         <div className="form-group"><label>Observações</label>
           <input value={form.obs} onChange={e=>set("obs",e.target.value)} placeholder="Ex: NF 4521, Fornecedor Leroy..."/>
