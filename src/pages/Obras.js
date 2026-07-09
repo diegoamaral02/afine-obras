@@ -1000,6 +1000,7 @@ export default function Obras({ onObraSelect }) {
   const [obraAberta, setObraAberta] = useState(null);
   const [abaDrawer, setAbaDrawer]   = useState("ocorrencias");
   const isGestor = isGestorOuAdm(userProfile);
+  const [aba, setAba] = useState("lista");
 
   useEffect(() => {
     return onSnapshot(collection(db,"obras"), snap => {
@@ -1046,6 +1047,21 @@ export default function Obras({ onObraSelect }) {
   const kpiAtrasadas    = obrasVisiveis.filter(o=>o.termino&&o.termino<hoje&&!["CONCLUÍDA","PARALISADA"].includes(o.status)).length;
   const gestoresList = funcionarios.filter(f=>isGestorOuAdm(f));
 
+  // Agrupamento por cliente
+  const porCliente = useMemo(()=>{
+    const map = {};
+    obrasVisiveis.forEach(o=>{
+      const cli = o.cliente||"Sem cliente";
+      if(!map[cli]) map[cli] = { nome:cli, agencias:{} };
+      const ag = o.agenciaNome||o.agencia||"Sede / Sem agência";
+      if(!map[cli].agencias[ag]) map[cli].agencias[ag] = [];
+      map[cli].agencias[ag].push(o);
+    });
+    return Object.values(map).sort((a,b)=>a.nome.localeCompare(b.nome));
+  },[obrasVisiveis]);
+
+  const [clienteExpandido, setClienteExpandido] = useState(null);
+
   const camposFiltro = [
     { tipo:"periodo", key:"periodo", label:"Período de início" },
     { tipo:"select", key:"clienteId", label:"Cliente", opcoes: clientes.map(c=>({value:c.id,label:c.nomeFantasia||c.razaoSocial})) },
@@ -1091,17 +1107,38 @@ export default function Obras({ onObraSelect }) {
         {kpiAtrasadas>0&&<div className="metric" style={{borderLeft:"3px solid var(--laranja,#F5A623)"}}><div className="metric-label">Atrasadas</div><div className="metric-value amber">{kpiAtrasadas}</div></div>}
       </div>
 
-      <FiltroAvancado campos={camposFiltro} valores={filtros} onChange={setFiltros}
-        onLimpar={()=>setFiltros({ periodo:{de:"",ate:""}, clienteId:"", responsavelId:"", status:[] })}/>
-
-      <div className="search-bar">🔍<input placeholder="Buscar por nome, cliente ou contrato..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
-      {loading && <div className="spinner"/>}
-      {!loading && filtered.length===0 && (
-        <div className="empty-state">
-          <div className="empty-icon">🏗️</div>
-          <p>{souCampo?"Você não está alocado em nenhuma obra no momento":"Nenhuma obra encontrada"}</p>
+      {/* Sub-abas */}
+      {!souCampo && (
+        <div style={{display:"flex",gap:0,marginBottom:16,borderRadius:8,overflow:"hidden",border:"1px solid var(--border)",flexWrap:"wrap"}}>
+          {[
+            {id:"lista",      label:"📋 Lista completa"},
+            {id:"por_cliente",label:"🏢 Por cliente"},
+            {id:"historico",  label:"📅 Histórico"},
+          ].map((a,i,arr)=>(
+            <button key={a.id} onClick={()=>setAba(a.id)}
+              style={{flex:"1 1 auto",padding:"9px 10px",border:"none",cursor:"pointer",
+                background:aba===a.id?"#1A1A1A":"var(--cinza-lt)",
+                color:aba===a.id?"#F5C800":"#4A4A4A",
+                borderRight:i<arr.length-1?"1px solid var(--border)":"none",
+                transition:"all .15s",fontSize:11,fontWeight:aba===a.id?700:400,whiteSpace:"nowrap"}}>
+              {a.label}
+            </button>
+          ))}
         </div>
       )}
+
+      {/* ── ABA: LISTA COMPLETA ── */}
+      {(aba==="lista" || souCampo) && (<>
+        <FiltroAvancado campos={camposFiltro} valores={filtros} onChange={setFiltros}
+          onLimpar={()=>setFiltros({ periodo:{de:"",ate:""}, clienteId:"", responsavelId:"", status:[] })}/>
+        <div className="search-bar">🔍<input placeholder="Buscar por nome, cliente ou contrato..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
+        {loading && <div className="spinner"/>}
+        {!loading && filtered.length===0 && (
+          <div className="empty-state">
+            <div className="empty-icon">🏗️</div>
+            <p>{souCampo?"Você não está alocado em nenhuma obra no momento":"Nenhuma obra encontrada"}</p>
+          </div>
+        )}
       {!loading && filtered.length>0 && isMobile && (
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {filtered.map(o=>{
@@ -1274,6 +1311,112 @@ export default function Obras({ onObraSelect }) {
           })}
         </div>
       )}
+      </>)}
+
+      {/* ── ABA: POR CLIENTE ── */}
+      {aba==="por_cliente" && !souCampo && (
+        <div>
+          {porCliente.length===0&&<div className="empty-state"><div className="empty-icon">🏢</div><p>Nenhuma obra encontrada</p></div>}
+          {porCliente.map(cli=>(
+            <div key={cli.nome} style={{marginBottom:16}}>
+              {/* Header do cliente */}
+              <button
+                onClick={()=>setClienteExpandido(clienteExpandido===cli.nome?null:cli.nome)}
+                style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",
+                  padding:"10px 14px",border:"none",borderRadius:8,cursor:"pointer",
+                  background:"#1A1A1A",color:"#fff",textAlign:"left",marginBottom:4}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <span style={{fontSize:16}}>🏢</span>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:14,color:"#F5C400"}}>{cli.nome}</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,.5)",marginTop:1}}>
+                      {Object.values(cli.agencias).flat().length} obra(s) · {Object.keys(cli.agencias).length} agência(s)/loja(s)
+                    </div>
+                  </div>
+                </div>
+                <span style={{color:"#F5C400",fontSize:12,transform:clienteExpandido===cli.nome?"rotate(180deg)":"",transition:"transform .2s"}}>▼</span>
+              </button>
+
+              {/* Agências do cliente */}
+              {clienteExpandido===cli.nome && Object.entries(cli.agencias).sort((a,b)=>a[0].localeCompare(b[0])).map(([ag,obras])=>(
+                <div key={ag} style={{marginLeft:16,marginBottom:8}}>
+                  <div style={{fontWeight:600,fontSize:12,padding:"6px 10px",
+                    background:"var(--cinza-lt)",borderRadius:6,marginBottom:4,
+                    display:"flex",alignItems:"center",gap:6,
+                    borderLeft:"3px solid var(--afine-yellow)"}}>
+                    🏪 {ag}
+                    <span style={{fontSize:11,fontWeight:400,color:"#7A7A7A"}}>({obras.length} obra{obras.length>1?"s":""})</span>
+                    <span style={{marginLeft:"auto",fontSize:11,color:"var(--verde)"}}>
+                      {obras.filter(o=>o.status==="CONCLUÍDA").length} concluída{obras.filter(o=>o.status==="CONCLUÍDA").length!==1?"s":""}
+                    </span>
+                  </div>
+                  {obras.map(o=>(
+                    <div key={o.id} className="rdo-card" style={{borderLeft:`3px solid ${o.status==="EM ANDAMENTO"?"#185FA5":o.status==="CONCLUÍDA"?"var(--verde)":"#ccc"}`,marginBottom:6,marginLeft:8}}>
+                      <div className="rdo-header">
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontWeight:600,fontSize:13}}>{o.nome}</div>
+                          <div style={{fontSize:11,color:"#7A7A7A",marginTop:2,display:"flex",gap:8,flexWrap:"wrap"}}>
+                            {o.tipo&&<span>{o.tipo}</span>}
+                            {o.responsavelNome&&<span>👤 {o.responsavelNome}</span>}
+                            {o.termino&&<span>🗓 {fmtDate(o.termino)}</span>}
+                          </div>
+                          {(o.progresso||0)>0&&(
+                            <div style={{marginTop:6}}>
+                              <div className="progress-bar" style={{marginBottom:2}}><div className={`progress-fill ${o.progresso>=100?"green":"blue"}`} style={{width:`${o.progresso||0}%`}}/></div>
+                              <span style={{fontSize:10,color:"#aaa"}}>{o.progresso||0}%</span>
+                            </div>
+                          )}
+                        </div>
+                        <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
+                          <span className={`badge ${statusBadge(o.status)}`}>{o.status}</span>
+                          <div style={{display:"flex",gap:3}}>
+                            <button className="btn btn-sm btn-primary" onClick={()=>setModal({obra:o})} title="Abrir">▶</button>
+                            <button className="btn btn-sm btn-icon" onClick={()=>{setObraAberta(o);setAbaDrawer("ocorrencias");}}>⚠️</button>
+                            <button className="btn btn-sm btn-icon" onClick={()=>{setObraAberta(o);setAbaDrawer("acompanhamento");}}>📐</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── ABA: HISTÓRICO ── */}
+      {aba==="historico" && !souCampo && (
+        <div>
+          <div className="search-bar">🔍<input placeholder="Buscar no histórico..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
+          {obrasVisiveis.filter(o=>o.status==="CONCLUÍDA"&&(!search||o.nome?.toLowerCase().includes(search.toLowerCase())||o.cliente?.toLowerCase().includes(search.toLowerCase()))).length===0&&(
+            <div className="empty-state"><div className="empty-icon">📅</div><p>Nenhuma obra concluída</p></div>
+          )}
+          {obrasVisiveis
+            .filter(o=>o.status==="CONCLUÍDA"&&(!search||o.nome?.toLowerCase().includes(search.toLowerCase())||o.cliente?.toLowerCase().includes(search.toLowerCase())))
+            .sort((a,b)=>(b.conclusaoReal||b.termino||"").localeCompare(a.conclusaoReal||a.termino||""))
+            .map(o=>(
+              <div key={o.id} className="rdo-card" style={{borderLeft:"3px solid var(--verde)",marginBottom:8}}>
+                <div className="rdo-header">
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:600,fontSize:13}}>{o.nome}</div>
+                    <div style={{fontSize:11,color:"#7A7A7A",marginTop:2,display:"flex",gap:8,flexWrap:"wrap"}}>
+                      {o.cliente&&<span>🏢 {o.cliente}{o.agenciaNome?` · ${o.agenciaNome}`:""}</span>}
+                      {o.responsavelNome&&<span>👤 {o.responsavelNome}</span>}
+                      {(o.conclusaoReal||o.termino)&&<span>✓ Concluída em {fmtDate(o.conclusaoReal||o.termino)}</span>}
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:4,flexShrink:0}}>
+                    <span className="badge badge-green">CONCLUÍDA</span>
+                    <button className="btn btn-sm btn-icon" onClick={()=>setModal({obra:o})}>✏️</button>
+                  </div>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      )}
+
       {modal && <ObraModal obra={modal.obra} funcionarios={funcionarios} clientes={clientes} onClose={()=>setModal(null)} addToast={addToast}/>}
 
       {/* Painel lateral de ocorrências por obra */}
