@@ -24,6 +24,8 @@ function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }
   const [usuarios, setUsuarios] = useState([]);
   const [buscaColab, setBuscaColab] = useState("");
   const [dropColab, setDropColab] = useState(false);
+  const [buscaDemanda, setBuscaDemanda] = useState("");
+  const [dropDemanda, setDropDemanda] = useState(false);
   function set(f, v) { setForm(p => ({...p, [f]: v})); }
 
   // Carrega lista de colaboradores (leitura única)
@@ -76,7 +78,7 @@ function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }
 
   return (
     <Modal title={tipo==="entrada" ? "📥 Registrar entrada" : "📤 Registrar saída"} onClose={onClose}
-      footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className={`btn ${tipo==="entrada"?"btn-primary":"btn-danger"}`} onClick={save} disabled={saving}>{saving?"Salvando...":"Confirmar"}</button></>}>
+      footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className={`btn ${tipo==="entrada"?"btn-primary":"btn-danger"}`} onClick={save} disabled={saving || (tipo==="saida" && form.quantidade && Number(form.quantidade) > item.saldo)}>{saving?"Salvando...":"Confirmar"}</button></>}>
       <div style={{display:"flex",flexDirection:"column",gap:14}}>
         <div style={{background:tipo==="entrada"?"var(--verde-lt)":"var(--vermelho-lt)",borderRadius:8,padding:10,fontSize:13,fontWeight:500}}>
           {tipo==="entrada"?"📥 Entrada em estoque":"📤 Saída do estoque"} — <strong>{item.nome}</strong>
@@ -84,8 +86,19 @@ function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }
         </div>
 
         <div className="form-grid">
-          <div className="form-group"><label className="required">Quantidade ({item.un})</label>
-            <input type="number" min="1" value={form.quantidade} onChange={e=>set("quantidade",e.target.value)} placeholder="0"/>
+          <div className="form-group">
+            <label className="required">Quantidade ({item.un})</label>
+            <input type="number" min="1" value={form.quantidade}
+              onChange={e=>set("quantidade",e.target.value)} placeholder="0"
+              style={{ borderColor: tipo==="saida" && form.quantidade && Number(form.quantidade) > item.saldo ? "var(--vermelho)" : tipo==="saida" && form.quantidade && Number(form.quantidade) > 0 ? "var(--verde)" : undefined }}
+            />
+            {tipo==="saida" && form.quantidade && Number(form.quantidade) > item.saldo && (
+              <div style={{marginTop:5,padding:"7px 11px",borderRadius:7,background:"#fff0f0",
+                border:"1px solid var(--vermelho)",fontSize:12,color:"var(--vermelho)",fontWeight:600,
+                display:"flex",alignItems:"center",gap:6}}>
+                ⚠️ Quantidade indisponível. Saldo atual é de <strong>{item.saldo} {item.un}</strong>.
+              </div>
+            )}
           </div>
           <div className="form-group"><label>Data</label>
             <input type="date" value={form.data} onChange={e=>set("data",e.target.value)}/>
@@ -94,18 +107,52 @@ function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }
 
         <div className="form-grid">
           <div className="form-group"><label>Vincular a</label>
-            <select value={form.demandaTipo} onChange={e=>{set("demandaTipo",e.target.value);set("demandaId","");}}>
+            <select value={form.demandaTipo} onChange={e=>{set("demandaTipo",e.target.value);set("demandaId","");setBuscaDemanda("");}}>
               <option value="obra">Obra</option>
               <option value="manutencao">Manutenção</option>
               <option value="estoque">Estoque local (sem demanda)</option>
             </select>
           </div>
           {form.demandaTipo !== "estoque" && (
-            <div className="form-group"><label>Qual {form.demandaTipo==="obra"?"obra":"manutenção"}?</label>
-              <select value={form.demandaId} onChange={e=>set("demandaId",e.target.value)}>
-                <option value="">Selecione...</option>
-                {demandas.map(d=><option key={d.id} value={d.id}>{d.nome||d.titulo}</option>)}
-              </select>
+            <div className="form-group" style={{position:"relative"}}>
+              <label>Qual {form.demandaTipo==="obra"?"obra":"manutenção"}?</label>
+              <div style={{position:"relative"}}>
+                <input type="text" value={buscaDemanda}
+                  onChange={e=>{ setBuscaDemanda(e.target.value); set("demandaId",""); setDropDemanda(true); }}
+                  onFocus={()=>setDropDemanda(true)}
+                  onBlur={()=>setTimeout(()=>setDropDemanda(false),150)}
+                  placeholder={`🔍 Buscar ${form.demandaTipo==="obra"?"obra":"manutenção"}...`}
+                  autoComplete="off"
+                  style={{width:"100%",boxSizing:"border-box",
+                    borderColor: form.demandaId ? "var(--verde)" : undefined}}
+                />
+                {buscaDemanda && (
+                  <button type="button" onClick={()=>{ setBuscaDemanda(""); set("demandaId",""); }}
+                    style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",
+                      background:"none",border:"none",cursor:"pointer",color:"#aaa",fontSize:16}}>×</button>
+                )}
+              </div>
+              {dropDemanda && (
+                <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:50,
+                  background:"#fff",border:"1px solid #ddd",borderRadius:8,
+                  boxShadow:"0 8px 24px rgba(0,0,0,.12)",maxHeight:180,overflowY:"auto",marginTop:2}}>
+                  {demandas.filter(d=>(d.nome||d.titulo||"").toLowerCase().includes(buscaDemanda.toLowerCase())).length === 0
+                    ? <div style={{padding:"12px 14px",fontSize:13,color:"#aaa"}}>Nenhum resultado.</div>
+                    : demandas.filter(d=>(d.nome||d.titulo||"").toLowerCase().includes(buscaDemanda.toLowerCase())).map(d=>(
+                      <div key={d.id}
+                        onMouseDown={()=>{ set("demandaId",d.id); setBuscaDemanda(d.nome||d.titulo||""); setDropDemanda(false); }}
+                        style={{padding:"9px 14px",fontSize:13,cursor:"pointer",borderBottom:"1px solid #f0f0f0",
+                          fontWeight: d.id===form.demandaId?600:400}}
+                        onMouseEnter={e=>e.currentTarget.style.background="#f8f7f4"}
+                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                      >
+                        {form.demandaTipo==="obra"?"🏗️":"🔧"} {d.nome||d.titulo}
+                      </div>
+                    ))
+                  }
+                </div>
+              )}
+              {form.demandaId && <span style={{fontSize:11,color:"var(--verde)",fontWeight:600}}>✓ Selecionado</span>}
             </div>
           )}
         </div>
