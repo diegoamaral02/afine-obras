@@ -777,6 +777,25 @@ export default function Manutencao({ obraAtual }) {
   },[manuts,uid]);
 
   // Lista filtrada para gestores
+  // Separa ativas x concluídas
+  const manutsAtivas     = useMemo(()=>manuts.filter(m=>m.status!=="CONCLUÍDA"),[manuts]);
+  const manutsConcluidas = useMemo(()=>manuts.filter(m=>m.status==="CONCLUÍDA"), [manuts]);
+
+  function buildPorCliente(lista) {
+    const map = {};
+    lista.forEach(m=>{
+      const cli = m.cliente||"Sem cliente";
+      if(!map[cli]) map[cli] = { nome:cli, agencias:{} };
+      const ag = m.agencia||"Sem agência";
+      if(!map[cli].agencias[ag]) map[cli].agencias[ag] = [];
+      map[cli].agencias[ag].push(m);
+    });
+    return Object.values(map).sort((a,b)=>a.nome.localeCompare(b.nome));
+  }
+
+  const porCliente           = useMemo(()=>buildPorCliente(manutsAtivas),    [manutsAtivas]);
+  const porClienteConcluidas = useMemo(()=>buildPorCliente(manutsConcluidas),[manutsConcluidas]);
+
   const filtered = useMemo(()=>{
     const q=search.toLowerCase();
     return manutsAtivas.filter(m=>{
@@ -803,25 +822,7 @@ export default function Manutencao({ obraAtual }) {
     },{});
   },[manuts]);
 
-  // Separa ativas x concluídas
-  const manutsAtivas     = useMemo(()=>manuts.filter(m=>m.status!=="CONCLUÍDA"),[manuts]);
-  const manutsConcluidas = useMemo(()=>manuts.filter(m=>m.status==="CONCLUÍDA"),[manuts]);
 
-  function buildPorCliente(lista) {
-    const map = {};
-    lista.forEach(m=>{
-      const cli = m.cliente||"Sem cliente";
-      if(!map[cli]) map[cli] = { nome:cli, agencias:{} };
-      const ag = m.agencia||"Sem agência";
-      if(!map[cli].agencias[ag]) map[cli].agencias[ag] = [];
-      map[cli].agencias[ag].push(m);
-    });
-    return Object.values(map).sort((a,b)=>a.nome.localeCompare(b.nome));
-  }
-
-  // Agrupamento por cliente — ativas e concluídas
-  const porCliente           = useMemo(()=>buildPorCliente(manutsAtivas),    [manutsAtivas]);
-  const porClienteConcluidas = useMemo(()=>buildPorCliente(manutsConcluidas),[manutsConcluidas]);
 
   const excelCols=[
     {key:"titulo",header:"Título"},{key:"cliente",header:"Cliente"},{key:"agencia",header:"Agência"},

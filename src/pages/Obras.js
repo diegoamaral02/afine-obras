@@ -1026,6 +1026,25 @@ export default function Obras({ onObraSelect }) {
     ? obras.filter(o => (o.equipeIds||[]).includes(currentUser?.uid))
     : obras;
 
+  // Separa ativas x concluídas
+  const obrasAtivas     = useMemo(()=>obrasVisiveis.filter(o=>o.status!=="CONCLUÍDA"),[obrasVisiveis]);
+  const obrasConcluidas = useMemo(()=>obrasVisiveis.filter(o=>o.status==="CONCLUÍDA"), [obrasVisiveis]);
+
+  function buildPorCliente(lista) {
+    const map = {};
+    lista.forEach(o=>{
+      const cli = o.cliente||"Sem cliente";
+      if(!map[cli]) map[cli] = { nome:cli, agencias:{} };
+      const ag = o.agenciaNome||o.agencia||"Sede / Sem agência";
+      if(!map[cli].agencias[ag]) map[cli].agencias[ag] = [];
+      map[cli].agencias[ag].push(o);
+    });
+    return Object.values(map).sort((a,b)=>a.nome.localeCompare(b.nome));
+  }
+
+  const porCliente           = useMemo(()=>buildPorCliente(obrasAtivas),    [obrasAtivas]);
+  const porClienteConcluidas = useMemo(()=>buildPorCliente(obrasConcluidas),[obrasConcluidas]);
+
   const filtered = obrasAtivas.filter(o=>{
     const q=search.toLowerCase();
     const mQ=!q||o.nome?.toLowerCase().includes(q)||o.cliente?.toLowerCase().includes(q)||o.contrato?.toLowerCase().includes(q);
@@ -1047,25 +1066,7 @@ export default function Obras({ onObraSelect }) {
   const kpiAtrasadas    = obrasVisiveis.filter(o=>o.termino&&o.termino<hoje&&!["CONCLUÍDA","PARALISADA"].includes(o.status)).length;
   const gestoresList = funcionarios.filter(f=>isGestorOuAdm(f));
 
-  // Separa ativas x concluídas
-  const obrasAtivas    = useMemo(()=>obrasVisiveis.filter(o=>o.status!=="CONCLUÍDA"),[obrasVisiveis]);
-  const obrasConcluidas = useMemo(()=>obrasVisiveis.filter(o=>o.status==="CONCLUÍDA"),[obrasVisiveis]);
 
-  function buildPorCliente(lista) {
-    const map = {};
-    lista.forEach(o=>{
-      const cli = o.cliente||"Sem cliente";
-      if(!map[cli]) map[cli] = { nome:cli, agencias:{} };
-      const ag = o.agenciaNome||o.agencia||"Sede / Sem agência";
-      if(!map[cli].agencias[ag]) map[cli].agencias[ag] = [];
-      map[cli].agencias[ag].push(o);
-    });
-    return Object.values(map).sort((a,b)=>a.nome.localeCompare(b.nome));
-  }
-
-  // Agrupamento por cliente — ativas e concluídas separados
-  const porCliente          = useMemo(()=>buildPorCliente(obrasAtivas),    [obrasAtivas]);
-  const porClienteConcluidas = useMemo(()=>buildPorCliente(obrasConcluidas),[obrasConcluidas]);
 
   const [clienteExpandido, setClienteExpandido] = useState(null);
 
