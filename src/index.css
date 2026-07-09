@@ -230,17 +230,15 @@ select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
 .kpi-value { font-size: 22px; font-weight: 700; color: var(--afine-black); }
 
 /* ── Tables ──────────────────────────────────────────── */
-.table-wrap   { border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; overflow-x: auto; background: var(--afine-white); box-shadow: var(--shadow-sm); width: 100%; }
-table         { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+.table-wrap   { border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; background: var(--afine-white); box-shadow: var(--shadow-sm); width: 100%; }
+table         { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 thead tr      { background: var(--afine-black); }
-thead th      { padding: 9px 10px; text-align: left; font-weight: 700; font-size: 10px; color: rgba(255,255,255,.78); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+thead th      { padding: 10px 12px; text-align: left; font-weight: 700; font-size: 10.5px; color: rgba(255,255,255,.78); text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
 tbody tr      { border-bottom: 1px solid var(--border); transition: background .1s var(--ease); }
 tbody tr:last-child { border-bottom: none; }
 tbody tr:nth-child(even) { background: rgba(243,242,239,.45); }
 tbody tr:hover { background: var(--afine-yellow-lt); }
-tbody td      { padding: 8px 10px; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Coluna de nome/título sempre quebra linha normalmente */
-tbody td:first-child { white-space: normal; word-break: break-word; }
+tbody td      { padding: 9px 12px; vertical-align: middle; }
 
 /* ── Cards responsivos — Obras e Manutenção ────────────
    Em telas < 960px a tabela some e os cards aparecem      */

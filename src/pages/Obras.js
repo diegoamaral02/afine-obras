@@ -1142,22 +1142,7 @@ export default function Obras({ onObraSelect }) {
       {!loading && filtered.length>0 && (
         <div className="table-wrap">
           <table>
-            <colgroup>
-              <col style={{width:"18%"}}/>
-              <col style={{width:"13%"}}/>
-              <col style={{width:"10%"}}/>
-              <col style={{width:"10%"}}/>
-              <col style={{width:"10%"}}/>
-              <col style={{width:"11%"}}/>
-              <col style={{width:"7%"}}/>
-              <col style={{width:"7%"}}/>
-              <col style={{width:"6%"}}/>
-              <col style={{width:"6%"}}/>
-              <col style={{width:"6%"}}/>
-              <col style={{width:"8%"}}/>
-              <col style={{width:"8%"}}/>
-            </colgroup>
-            <thead><tr><th>Obra</th><th>Tipo</th><th>Cliente</th><th>Responsável</th><th>Equipe</th><th>Endereço</th><th>Vistoria</th><th>Término</th><th>Orç.</th><th>Rel.</th><th>%</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Obra</th><th>Cliente</th><th>Responsável</th><th>Término</th><th>Status</th><th></th></tr></thead>
             <tbody>
               {filtered.map(o=>{
                 const temEndereco = o.logradouro&&o.numero;
@@ -1165,51 +1150,51 @@ export default function Obras({ onObraSelect }) {
                 const nomesEquipe = equipeIds.map(id=>funcionarios.find(f=>f.id===id)?.nome).filter(Boolean);
                 return (
                 <tr key={o.id}>
-                  <td><div style={{fontWeight:600}}>{o.nome}</div><div style={{fontSize:11,color:"#7A7A7A"}}>{o.contrato}</div></td>
-                  <td><span className="badge badge-gray" style={{fontSize:10}}>{o.tipo||"–"}</span></td>
-                  <td style={{fontSize:12}}>{o.cliente}{o.agenciaNome&&<div style={{fontSize:10,color:"var(--afine-yellow-dk)",fontWeight:600}}>🏢 {o.agenciaNome}</div>}</td>
+                  <td>
+                    <div style={{fontWeight:600,fontSize:13}}>{o.nome}</div>
+                    <div style={{fontSize:11,color:"#7A7A7A",marginTop:2,display:"flex",gap:6,flexWrap:"wrap"}}>
+                      {o.contrato&&<span>{o.contrato}</span>}
+                      {o.tipo&&<span className="badge badge-gray" style={{fontSize:10}}>{o.tipo}</span>}
+                      {nomesEquipe.length>0&&<span style={{color:"var(--afine-yellow-dk)"}}>👷 {nomesEquipe.join(", ")}</span>}
+                    </div>
+                  </td>
+                  <td style={{fontSize:12}}>
+                    {o.cliente}
+                    {o.agenciaNome&&<div style={{fontSize:10,color:"var(--afine-yellow-dk)",fontWeight:600}}>🏢 {o.agenciaNome}</div>}
+                    {temEndereco&&<div style={{fontSize:10,color:"#aaa"}}>📍 {o.logradouro}, {o.numero}</div>}
+                  </td>
                   <td style={{fontSize:12}}>
                     {o.responsavelNome ? (
                       <span style={{display:"inline-flex",alignItems:"center",gap:5}}>
-                        <span style={{width:20,height:20,borderRadius:"50%",background:"#185FA5",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                        <span style={{width:22,height:22,borderRadius:"50%",background:"#185FA5",color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                           {o.responsavelNome.split(" ").map(p=>p[0]).join("").slice(0,2).toUpperCase()}
                         </span>
                         {o.responsavelNome}
                       </span>
                     ) : <span style={{color:"#aaa"}}>–</span>}
                   </td>
-                  <td className="col-hide-md" style={{fontSize:11,maxWidth:160}}>
-                    {nomesEquipe.length>0 ? (
-                      <span title={nomesEquipe.join(", ")} style={{fontSize:11,background:"var(--afine-yellow-lt)",color:"var(--afine-yellow-dk)",padding:"2px 8px",borderRadius:10,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"inline-block",maxWidth:"100%"}}>
-                        👷 {nomesEquipe.join(", ")}
-                      </span>
-                    ) : <span style={{color:"#aaa"}}>Sem equipe</span>}
+                  <td style={{fontSize:12}}>
+                    {fmtDate(o.conclusaoReal||o.termino)||"–"}
+                    <div style={{marginTop:4}}>
+                      <div className="progress-bar" style={{marginBottom:2}}><div className={`progress-fill ${o.progresso>=100?"green":"blue"}`} style={{width:`${o.progresso||0}%`}}/></div>
+                      <span style={{fontSize:10,color:"#aaa"}}>{o.progresso||0}%</span>
+                    </div>
                   </td>
-                  <td className="col-hide-lg" style={{fontSize:11}}>
-                    {temEndereco ? (
-                      <button onClick={()=>{
-                        const enc=encodeURIComponent(`${o.logradouro}, ${o.numero}, ${o.cidade}`);
-                        window.open(`https://www.google.com/maps/search/?api=1&query=${enc}`,"_blank");
-                      }} style={{background:"none",border:"none",color:"var(--afine-yellow-dk)",cursor:"pointer",fontSize:11,padding:0,textAlign:"left"}}>
-                        🗺️ {o.logradouro}, {o.numero}
-                      </button>
-                    ):"–"}
+                  <td>
+                    <span className={`badge ${statusBadge(o.status)}`}>{o.status}</span>
+                    <div style={{display:"flex",gap:3,marginTop:4}}>
+                      <span className={`badge ${o.orcamentoEnviado==="SIM"?"badge-green":"badge-red"}`} style={{fontSize:9}}>Orç</span>
+                      <span className={`badge ${o.relatorioEnviado==="SIM"?"badge-green":"badge-red"}`} style={{fontSize:9}}>Rel</span>
+                    </div>
                   </td>
-                  <td className="col-hide-xl" style={{fontSize:12}}>{fmtDate(o.dataVistoria)}</td>
-                  <td className="col-hide-lg" style={{fontSize:12}}>{fmtDate(o.conclusaoReal||o.termino)}</td>
-                  <td className="col-hide-xl"><span className={`badge ${o.orcamentoEnviado==="SIM"?"badge-green":o.orcamentoEnviado==="PENDENTE"?"badge-amber":"badge-red"}`}>{o.orcamentoEnviado||"NÃO"}</span></td>
-                  <td className="col-hide-xl"><span className={`badge ${o.relatorioEnviado==="SIM"?"badge-green":"badge-red"}`}>{o.relatorioEnviado||"NÃO"}</span></td>
-                  <td className="col-hide-xl" style={{minWidth:90}}>
-                    <div className="progress-bar" style={{marginBottom:3}}><div className={`progress-fill ${o.progresso>=100?"green":"blue"}`} style={{width:`${o.progresso||0}%`}}/></div>
-                    <span style={{fontSize:11}}>{o.progresso||0}%</span>
-                  </td>
-                  <td><span className={`badge ${statusBadge(o.status)}`}>{o.status}</span></td>
-                  <td style={{display:"flex",gap:4}}>
-                    <button className="btn btn-primary btn-sm" onClick={()=>setModal({obra:o})}>▶ Executar</button>
-                    {isGestor && <button className="btn btn-sm btn-icon" onClick={()=>setModal({obra:o})}>✏️</button>}
-                    <button className="btn btn-sm btn-icon" title="Ocorrências" onClick={()=>{setObraAberta(o);setAbaDrawer("ocorrencias");}} style={{fontSize:12}}>⚠️</button>
-                    <button className="btn btn-sm btn-icon" title="Acompanhamento" onClick={()=>{setObraAberta(o);setAbaDrawer("acompanhamento");}} style={{fontSize:12}}>📐</button>
-                    <button className="btn btn-sm btn-icon" title="Diário de Obra"  onClick={()=>{setObraAberta(o);setAbaDrawer("diario");}} style={{fontSize:12}}>📓</button>
+                  <td style={{whiteSpace:"nowrap"}}>
+                    <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
+                      <button className="btn btn-primary btn-sm" onClick={()=>setModal({obra:o})}>▶</button>
+                      {isGestor && <button className="btn btn-sm btn-icon" onClick={()=>setModal({obra:o})}>✏️</button>}
+                      <button className="btn btn-sm btn-icon" title="Ocorrências" onClick={()=>{setObraAberta(o);setAbaDrawer("ocorrencias");}}>⚠️</button>
+                      <button className="btn btn-sm btn-icon" title="Acompanhamento" onClick={()=>{setObraAberta(o);setAbaDrawer("acompanhamento");}}>📐</button>
+                      <button className="btn btn-sm btn-icon" title="Diário" onClick={()=>{setObraAberta(o);setAbaDrawer("diario");}}>📓</button>
+                    </div>
                   </td>
                 </tr>
               )})}

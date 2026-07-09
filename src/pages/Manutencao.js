@@ -935,53 +935,35 @@ export default function Manutencao({ obraAtual }) {
             <>
             <div className="table-wrap">
               <table>
-                <colgroup>
-                  <col style={{width:"20%"}}/>
-                  <col style={{width:"10%"}}/>
-                  <col style={{width:"12%"}}/>
-                  <col style={{width:"10%"}}/>
-                  <col style={{width:"10%"}}/>
-                  <col style={{width:"13%"}}/>
-                  <col style={{width:"9%"}}/>
-                  <col style={{width:"7%"}}/>
-                  <col style={{width:"7%"}}/>
-                  <col style={{width:"8%"}}/>
-                  <col style={{width:"4%"}}/>
-                </colgroup>
-                <thead><tr><th>Título</th><th>Cliente</th><th>Agência</th><th>Responsável</th><th>Criado por</th><th>Alocado para</th><th>OT</th><th>Prior.</th><th>OS</th><th>Status</th><th></th></tr></thead>
+                <thead><tr><th>Título</th><th>Cliente / Agência</th><th>Responsável / Equipe</th><th>OT · Prior.</th><th>Status</th><th></th></tr></thead>
                 <tbody>
                   {filtered.map(m=>(
                     <tr key={m.id} style={{background:m.prioridade==="urgente"?"rgba(184,50,50,.03)":""}}>
-                      <td style={{fontWeight:600,fontSize:13}}>{m.titulo}</td>
-                      <td style={{fontSize:12}}>{m.cliente}</td>
-                      <td className="col-hide-lg" style={{fontSize:12}}>{m.agencia||"–"}</td>
                       <td>
-                        {m.responsavelNome?(
-                          <span style={{fontSize:11,color:"#185FA5",fontWeight:600}}>👤 {m.responsavelNome}</span>
-                        ):<span style={{color:"#aaa",fontSize:11}}>–</span>}
+                        <div style={{fontWeight:600,fontSize:13}}>{m.titulo}</div>
+                        {m.criadoPorNome&&<div style={{fontSize:10,color:"#aaa",marginTop:2}}>por {m.criadoPorNome}</div>}
                       </td>
-                      <td className="col-hide-xl">
-                        {m.criadoPorNome?(
-                          <div style={{display:"flex",alignItems:"center",gap:6}}>
-                            <div className="user-avatar" style={{width:22,height:22,fontSize:9,flexShrink:0}}>{initials(m.criadoPorNome)}</div>
-                            <span style={{fontSize:11}}>{m.criadoPorNome}</span>
-                          </div>
-                        ):<span style={{color:"#aaa",fontSize:11}}>–</span>}
+                      <td style={{fontSize:12}}>
+                        <div>{m.cliente}</div>
+                        {m.agencia&&<div style={{fontSize:11,color:"#7A7A7A"}}>📍 {m.agencia}</div>}
                       </td>
-                      <td className="col-hide-md">
+                      <td>
+                        {m.responsavelNome&&<div style={{fontSize:11,color:"#185FA5",fontWeight:600,marginBottom:3}}>👤 {m.responsavelNome}</div>}
                         {m.alocadoNomes?.length>0?(
-                          <span style={{fontSize:11,background:"var(--afine-yellow-lt)",color:"var(--afine-yellow-dk)",padding:"2px 8px",borderRadius:10,fontWeight:600}}>
+                          <span style={{fontSize:11,background:"var(--afine-yellow-lt)",color:"var(--afine-yellow-dk)",padding:"2px 7px",borderRadius:10,fontWeight:600}}>
                             👷 {m.alocadoNomes.join(", ")}
                           </span>
                         ):<span style={{color:"#aaa",fontSize:11}}>Sem alocação</span>}
                       </td>
-                      <td className="col-hide-lg" style={{fontSize:11}}>{m.semOT?<span className="badge badge-amber">S/OT</span>:m.numeroOT||"–"}</td>
-                      <td className="col-hide-xl"><span className={`badge ${m.prioridade==="urgente"?"badge-red":m.prioridade==="alta"?"badge-amber":"badge-gray"}`} style={{fontSize:10}}>{m.prioridade}</span></td>
-                      <td className="col-hide-xl">{m.osDigital?<span className="badge badge-green" style={{fontSize:10}}>✓ OS</span>:<span className="badge badge-gray" style={{fontSize:10}}>Pendente</span>}</td>
+                      <td>
+                        <div style={{fontSize:11,marginBottom:3}}>{m.semOT?<span className="badge badge-amber">S/OT</span>:<span style={{color:"#555"}}>{m.numeroOT||"–"}</span>}</div>
+                        <span className={`badge ${m.prioridade==="urgente"?"badge-red":m.prioridade==="alta"?"badge-amber":"badge-gray"}`} style={{fontSize:10}}>{m.prioridade}</span>
+                        {m.osDigital?<span className="badge badge-green" style={{fontSize:10,marginLeft:3}}>✓ OS</span>:<span className="badge badge-gray" style={{fontSize:10,marginLeft:3}}>OS Pend.</span>}
+                      </td>
                       <td><span className={`badge ${statusBadge(m.status)}`}>{m.status}</span></td>
-                      <td style={{display:"flex",gap:4}}>
+                      <td style={{whiteSpace:"nowrap"}}>
                         <button className="btn btn-sm btn-icon" onClick={()=>setModal({manut:m})}>✏️</button>
-                        {m.osDigital&&<button className="btn btn-sm" onClick={()=>exportarOSParaPDF(m.osDigital,m)} style={{fontSize:11}}>📄</button>}
+                        {m.osDigital&&<button className="btn btn-sm" onClick={()=>exportarOSParaPDF(m.osDigital,m)} style={{fontSize:11,marginLeft:3}}>📄</button>}
                       </td>
                     </tr>
                   ))}
