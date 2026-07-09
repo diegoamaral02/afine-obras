@@ -103,57 +103,148 @@ function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }
   );
 }
 
-// Modal de transferência de saldo entre obras
-function TransferenciaModal({ origem, material, obras, onClose, addToast }) {
+// Modal de transferência de saldo — Obra → Obra | Manutenção | Estoque
+function TransferenciaModal({ origem, material, obras, manutencoes, onClose, addToast }) {
   const { userProfile, currentUser } = useAuth();
-  const [destinoId, setDestinoId] = useState("");
-  const [qtd, setQtd] = useState("");
-  const [obs, setObs] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [tipoDestino, setTipoDestino] = useState("obra");   // "obra" | "manutencao" | "estoque"
+  const [destinoId,   setDestinoId]   = useState("");
+  const [qtd,         setQtd]         = useState("");
+  const [obs,         setObs]         = useState("");
+  const [saving,      setSaving]      = useState(false);
 
   const saldo = material.comprado - material.usado;
-  const destinos = obras.filter(o=>o.id!==origem.obraId);
+
+  // Lista de destinos conforme tipo selecionado
+  const listaDestinos = tipoDestino === "obra"
+    ? obras.filter(o => o.id !== origem.obraId)
+    : tipoDestino === "manutencao"
+      ? (manutencoes || []).filter(m => !["concluida","cancelada"].includes(m.status))
+      : []; // estoque não precisa de destino específico
+
+  // Label e ícone por tipo
+  const TIPOS = [
+    { id:"obra",       label:"🏗️ Obra",       placeholder:"Selecione a obra..." },
+    { id:"manutencao", label:"🔧 Manutenção",  placeholder:"Selecione a manutenção..." },
+    { id:"estoque",    label:"📦 Estoque",     placeholder:null },
+  ];
 
   async function salvar() {
-    if (!destinoId) { alert("Selecione a obra de destino."); return; }
-    if (!qtd || Number(qtd)<=0) { alert("Informe uma quantidade válida."); return; }
+    if (tipoDestino !== "estoque" && !destinoId) {
+      alert(`Selecione a ${tipoDestino === "obra" ? "obra" : "manutenção"} de destino.`); return;
+    }
+    if (!qtd || Number(qtd) <= 0) { alert("Informe uma quantidade válida."); return; }
     if (Number(qtd) > saldo) { alert(`Saldo disponível é de apenas ${saldo} ${material.un}.`); return; }
+
     setSaving(true);
-    const destino = obras.find(o=>o.id===destinoId);
     try {
+      let destinoNome = "Estoque geral";
+      if (tipoDestino === "obra") {
+        destinoNome = obras.find(o => o.id === destinoId)?.nome || destinoId;
+      } else if (tipoDestino === "manutencao") {
+        const m = (manutencoes||[]).find(m => m.id === destinoId);
+        destinoNome = m?.titulo || m?.descricao || destinoId;
+      }
+
       await addComAuditoria("transferencias_material", {
-        materialNome: material.nome, un: material.un, qtd: Number(qtd),
-        obraOrigemId: origem.obraId, obraOrigemNome: origem.obraNome,
-        obraDestinoId: destinoId, obraDestinoNome: destino?.nome||"",
-        obs, usuario: userProfile?.nome||"–",
-        data: new Date().toISOString().split("T")[0],
+        materialNome:    material.nome,
+        un:              material.un,
+        qtd:             Number(qtd),
+        obraOrigemId:    origem.obraId,
+        obraOrigemNome:  origem.obraNome,
+        tipoDestino,                       // "obra" | "manutencao" | "estoque"
+        destinoId:       destinoId || "estoque",
+        destinoNome,
+        obs,
+        usuario:         userProfile?.nome || "–",
+        data:            new Date().toISOString().split("T")[0],
       }, currentUser?.uid, userProfile?.nome);
-      addToast(`✓ ${qtd} ${material.un} de "${material.nome}" transferido(s) para ${destino?.nome}!`);
+
+      addToast(`✓ ${qtd} ${material.un} de "${material.nome}" transferido(s) para ${destinoNome}!`);
       onClose();
-    } catch(err) { addToast("Erro: "+err.message,"error"); }
+    } catch(err) { addToast("Erro: " + err.message, "error"); }
     setSaving(false);
   }
 
   return (
-    <Modal title="🔄 Transferir saldo entre obras" onClose={onClose}
-      footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" onClick={salvar} disabled={saving}>{saving?"Salvando...":"Confirmar transferência"}</button></>}>
-      <div style={{display:"flex",flexDirection:"column",gap:14}}>
-        <div style={{background:"var(--cinza-lt)",borderRadius:8,padding:10,fontSize:13}}>
+    <Modal title="🔄 Transferir material" onClose={onClose}
+      footer={
+        <>
+          <button className="btn" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" onClick={salvar} disabled={saving}>
+            {saving ? "Salvando..." : "Confirmar transferência"}
+          </button>
+        </>
+      }
+    >
+      <div style={{display:"flex", flexDirection:"column", gap:14}}>
+
+        {/* Info do material */}
+        <div style={{background:"var(--cinza-lt)", borderRadius:8, padding:10, fontSize:13}}>
           <div><strong>{material.nome}</strong> ({material.un})</div>
-          <div style={{fontSize:12,color:"#7A7A7A",marginTop:2}}>Saindo de: <strong>🏗️ {origem.obraNome}</strong></div>
-          <div style={{fontSize:12,color:"var(--verde)",fontWeight:600,marginTop:2}}>Saldo disponível: {saldo} {material.un}</div>
+          <div style={{fontSize:12, color:"#7A7A7A", marginTop:2}}>Saindo de: <strong>🏗️ {origem.obraNome}</strong></div>
+          <div style={{fontSize:12, color:"var(--verde)", fontWeight:600, marginTop:2}}>Saldo disponível: {saldo} {material.un}</div>
         </div>
-        <div className="form-group"><label className="required">Obra de destino</label>
-          <select value={destinoId} onChange={e=>setDestinoId(e.target.value)}>
-            <option value="">Selecione...</option>
-            {destinos.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}
-          </select>
+
+        {/* Tipo de destino — 3 botões */}
+        <div className="form-group">
+          <label className="required">Destino</label>
+          <div style={{display:"flex", gap:8}}>
+            {TIPOS.map(t => (
+              <button key={t.id} type="button"
+                onClick={() => { setTipoDestino(t.id); setDestinoId(""); }}
+                style={{
+                  flex:1, padding:"9px 6px", borderRadius:8, fontSize:12.5, fontWeight:600,
+                  cursor:"pointer", transition:"all .15s",
+                  border: tipoDestino === t.id ? "2px solid var(--afine-yellow)" : "1px solid #ddd",
+                  background: tipoDestino === t.id ? "#1A1A1A" : "#fff",
+                  color: tipoDestino === t.id ? "var(--afine-yellow)" : "#555",
+                }}
+              >{t.label}</button>
+            ))}
+          </div>
         </div>
-        <div className="form-group"><label className="required">Quantidade a transferir ({material.un})</label>
-          <input type="number" min="1" max={saldo} value={qtd} onChange={e=>setQtd(e.target.value)} placeholder={`Máx. ${saldo}`}/>
+
+        {/* Select de destino (Obra ou Manutenção) */}
+        {tipoDestino !== "estoque" && (
+          <div className="form-group">
+            <label className="required">
+              {tipoDestino === "obra" ? "Obra de destino" : "Manutenção de destino"}
+            </label>
+            <select value={destinoId} onChange={e => setDestinoId(e.target.value)}>
+              <option value="">{TIPOS.find(t=>t.id===tipoDestino)?.placeholder}</option>
+              {listaDestinos.map(d => (
+                <option key={d.id} value={d.id}>
+                  {tipoDestino === "obra" ? d.nome : (d.titulo || d.descricao || d.id)}
+                </option>
+              ))}
+            </select>
+            {listaDestinos.length === 0 && (
+              <span style={{fontSize:11, color:"var(--vermelho)"}}>
+                Nenhuma {tipoDestino === "obra" ? "obra" : "manutenção em aberto"} disponível.
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Estoque — aviso */}
+        {tipoDestino === "estoque" && (
+          <div style={{background:"#fffbea", border:"1px solid var(--afine-yellow)", borderRadius:8, padding:10, fontSize:12, color:"#7A7A7A"}}>
+            📦 O material será devolvido ao <strong>estoque geral</strong> e ficará disponível para saídas futuras.
+          </div>
+        )}
+
+        {/* Quantidade */}
+        <div className="form-group">
+          <label className="required">Quantidade a transferir ({material.un})</label>
+          <input type="number" min="1" max={saldo} value={qtd}
+            onChange={e => setQtd(e.target.value)} placeholder={`Máx. ${saldo}`}/>
         </div>
-        <div className="form-group"><label>Observações</label>
-          <input value={obs} onChange={e=>setObs(e.target.value)} placeholder="Ex: levado por João no dia X"/>
+
+        {/* Observações */}
+        <div className="form-group">
+          <label>Observações</label>
+          <input value={obs} onChange={e => setObs(e.target.value)}
+            placeholder="Ex: levado por João no dia X"/>
         </div>
       </div>
     </Modal>
@@ -622,7 +713,8 @@ export default function MateriaisGlobal() {
       )}
 
       {modalTransf && (
-        <TransferenciaModal origem={modalTransf.origem} material={modalTransf.material} obras={obras}
+        <TransferenciaModal origem={modalTransf.origem} material={modalTransf.material}
+          obras={obras} manutencoes={manut}
           onClose={()=>setModalTransf(null)} addToast={addToast}/>
       )}
 
