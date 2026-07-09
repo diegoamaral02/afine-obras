@@ -1142,7 +1142,7 @@ export default function Obras({ onObraSelect }) {
       {!loading && filtered.length>0 && !isMobile && (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Obra</th><th>Tipo</th><th>Cliente</th><th>Responsável</th><th>Equipe</th><th>Endereço</th><th>Vistoria</th><th>Término</th><th>Orçamento</th><th>Relatório</th><th>Progresso</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Obra</th><th>Tipo</th><th>Cliente</th><th>Responsável</th><th className="col-hide-md">Equipe</th><th className="col-hide-lg">Endereço</th><th className="col-hide-xl">Vistoria</th><th className="col-hide-lg">Término</th><th className="col-hide-xl">Orçamento</th><th className="col-hide-xl">Relatório</th><th className="col-hide-xl">Progresso</th><th>Status</th><th></th></tr></thead>
             <tbody>
               {filtered.map(o=>{
                 const temEndereco = o.logradouro&&o.numero;
@@ -1163,14 +1163,14 @@ export default function Obras({ onObraSelect }) {
                       </span>
                     ) : <span style={{color:"#aaa"}}>–</span>}
                   </td>
-                  <td style={{fontSize:11,maxWidth:160}}>
+                  <td className="col-hide-md" style={{fontSize:11,maxWidth:160}}>
                     {nomesEquipe.length>0 ? (
                       <span title={nomesEquipe.join(", ")} style={{fontSize:11,background:"var(--afine-yellow-lt)",color:"var(--afine-yellow-dk)",padding:"2px 8px",borderRadius:10,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"inline-block",maxWidth:"100%"}}>
                         👷 {nomesEquipe.join(", ")}
                       </span>
                     ) : <span style={{color:"#aaa"}}>Sem equipe</span>}
                   </td>
-                  <td style={{fontSize:11}}>
+                  <td className="col-hide-lg" style={{fontSize:11}}>
                     {temEndereco ? (
                       <button onClick={()=>{
                         const enc=encodeURIComponent(`${o.logradouro}, ${o.numero}, ${o.cidade}`);
@@ -1180,11 +1180,11 @@ export default function Obras({ onObraSelect }) {
                       </button>
                     ):"–"}
                   </td>
-                  <td style={{fontSize:12}}>{fmtDate(o.dataVistoria)}</td>
-                  <td style={{fontSize:12}}>{fmtDate(o.conclusaoReal||o.termino)}</td>
-                  <td><span className={`badge ${o.orcamentoEnviado==="SIM"?"badge-green":o.orcamentoEnviado==="PENDENTE"?"badge-amber":"badge-red"}`}>{o.orcamentoEnviado||"NÃO"}</span></td>
-                  <td><span className={`badge ${o.relatorioEnviado==="SIM"?"badge-green":"badge-red"}`}>{o.relatorioEnviado||"NÃO"}</span></td>
-                  <td style={{minWidth:90}}>
+                  <td className="col-hide-xl" style={{fontSize:12}}>{fmtDate(o.dataVistoria)}</td>
+                  <td className="col-hide-lg" style={{fontSize:12}}>{fmtDate(o.conclusaoReal||o.termino)}</td>
+                  <td className="col-hide-xl"><span className={`badge ${o.orcamentoEnviado==="SIM"?"badge-green":o.orcamentoEnviado==="PENDENTE"?"badge-amber":"badge-red"}`}>{o.orcamentoEnviado||"NÃO"}</span></td>
+                  <td className="col-hide-xl"><span className={`badge ${o.relatorioEnviado==="SIM"?"badge-green":"badge-red"}`}>{o.relatorioEnviado||"NÃO"}</span></td>
+                  <td className="col-hide-xl" style={{minWidth:90}}>
                     <div className="progress-bar" style={{marginBottom:3}}><div className={`progress-fill ${o.progresso>=100?"green":"blue"}`} style={{width:`${o.progresso||0}%`}}/></div>
                     <span style={{fontSize:11}}>{o.progresso||0}%</span>
                   </td>

@@ -230,19 +230,23 @@ select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
 .kpi-value { font-size: 22px; font-weight: 700; color: var(--afine-black); }
 
 /* ── Tables ──────────────────────────────────────────── */
-.table-wrap   { border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; overflow-x: auto; background: var(--afine-white); box-shadow: var(--shadow-sm); width: 100%; }
-table         { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: auto; }
+.table-wrap   { border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; overflow-x: auto; background: var(--afine-white); box-shadow: var(--shadow-sm); }
+table         { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 600px; }
 thead tr      { background: var(--afine-black); }
-thead th      { padding: 11px 14px; text-align: left; font-weight: 700; font-size: 10.5px; color: rgba(255,255,255,.78); text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; }
+thead th      { padding: 11px 14px; text-align: left; font-weight: 700; font-size: 10.5px; color: rgba(255,255,255,.78); text-transform: uppercase; letter-spacing: .06em; }
 tbody tr      { border-bottom: 1px solid var(--border); transition: background .1s var(--ease); }
 tbody tr:last-child { border-bottom: none; }
 tbody tr:nth-child(even) { background: rgba(243,242,239,.45); }
 tbody tr:hover { background: var(--afine-yellow-lt); }
 tbody td      { padding: 10px 14px; vertical-align: middle; }
-/* Primeira coluna (título/nome) pode crescer e quebrar linha */
-tbody td:first-child, thead th:first-child { min-width: 160px; white-space: normal; }
-/* Demais colunas: não quebram, cortam com ellipsis se necessário */
-tbody td:not(:first-child) { white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Colunas responsivas (ocultar em telas menores) ─── */
+/* Oculta em telas < 1280px */
+@media (max-width: 1279px) { .col-hide-xl { display: none !important; } }
+/* Oculta em telas < 1100px */
+@media (max-width: 1099px) { .col-hide-lg { display: none !important; } }
+/* Oculta em telas < 900px */
+@media (max-width: 899px)  { .col-hide-md { display: none !important; } }
 
 /* ── Badges ──────────────────────────────────────────── */
 .badge        { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: var(--r-full); letter-spacing: .01em; }
