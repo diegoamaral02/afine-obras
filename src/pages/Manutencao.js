@@ -376,8 +376,8 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
               Os funcionários selecionados verão esta demanda na aba "Minhas demandas". Ao finalizar, sai automaticamente da visão deles.
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:4,maxHeight:180,overflowY:"auto",background:"#fff",borderRadius:6,padding:8}}>
-              {funcionarios.filter(f=>f.status==="ATIVO"||!f.status).length===0&&<span style={{fontSize:12,color:"#7A7A7A"}}>Nenhum funcionário cadastrado</span>}
-              {funcionarios.filter(f=>f.status==="ATIVO"||!f.status).map(f=>{
+              {funcionarios.filter(f=>(f.status==="ATIVO"||!f.status)&&["campo","empreiteiro","terceiro"].includes(f.departamento||f.perfil)).length===0&&<span style={{fontSize:12,color:"#7A7A7A"}}>Nenhum colaborador de campo cadastrado</span>}
+              {funcionarios.filter(f=>(f.status==="ATIVO"||!f.status)&&["campo","empreiteiro","terceiro"].includes(f.departamento||f.perfil)).map(f=>{
                 const fid = f.id||f.uid;
                 const checked = form.alocadoIds.includes(fid);
                 return (
