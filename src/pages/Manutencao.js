@@ -734,6 +734,7 @@ export default function Manutencao({ obraAtual }) {
   const [clientes,     setClientes]     = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [aba,          setAba]          = useState("minhas");
+  const [clienteExpandido, setClienteExpandido] = useState(null);
   const [filtros,      setFiltros]      = useState({ periodo:{de:"",ate:""}, clienteNome:"", responsavelId:"", status:[] });
   const [search,       setSearch]       = useState("");
   const [modal,        setModal]        = useState(null);
@@ -800,6 +801,19 @@ export default function Manutencao({ obraAtual }) {
     return manuts.reduce((acc,m)=>{
       const ag=m.agencia||"Sem agência"; if(!acc[ag])acc[ag]=[]; acc[ag].push(m); return acc;
     },{});
+  },[manuts]);
+
+  // Agrupamento por cliente → agência (para aba Por agência com accordion igual a Obras)
+  const porCliente = useMemo(()=>{
+    const map = {};
+    manuts.forEach(m=>{
+      const cli = m.cliente||"Sem cliente";
+      if(!map[cli]) map[cli] = { nome:cli, agencias:{} };
+      const ag = m.agencia||"Sem agência";
+      if(!map[cli].agencias[ag]) map[cli].agencias[ag] = [];
+      map[cli].agencias[ag].push(m);
+    });
+    return Object.values(map).sort((a,b)=>a.nome.localeCompare(b.nome));
   },[manuts]);
 
   const excelCols=[
@@ -1012,15 +1026,45 @@ export default function Manutencao({ obraAtual }) {
       {/* ── ABA: POR AGÊNCIA ────────────────────────────── */}
       {aba==="por_agencia" && (
         <div>
-          {Object.keys(porAgencia).length===0&&<div className="empty-state"><div className="empty-icon">🏢</div><p>Nenhum registro</p></div>}
-          {Object.entries(porAgencia).sort((a,b)=>b[1].length-a[1].length).map(([ag,items])=>(
-            <div key={ag} style={{marginBottom:20}}>
-              <div style={{fontWeight:700,fontSize:14,marginBottom:8,display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"2px solid var(--afine-yellow)"}}>
-                🏢 {ag}
-                <span style={{fontSize:12,fontWeight:400,color:"#7A7A7A"}}>({items.length} chamados)</span>
-                <span style={{marginLeft:"auto",fontSize:11,color:"var(--verde)"}}>{items.filter(m=>m.status==="CONCLUÍDA").length} concluídas</span>
-              </div>
-              {items.map(m=><HistoricoCard key={m.id} manut={m} onEdit={()=>setModal({manut:m})}/>)}
+          {porCliente.length===0&&<div className="empty-state"><div className="empty-icon">🏢</div><p>Nenhum registro</p></div>}
+          {porCliente.map(cli=>(
+            <div key={cli.nome} style={{marginBottom:12}}>
+              {/* Header do cliente — accordion */}
+              <button
+                onClick={()=>setClienteExpandido(clienteExpandido===cli.nome?null:cli.nome)}
+                style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",
+                  padding:"10px 14px",border:"none",borderRadius:8,cursor:"pointer",
+                  background:"#1A1A1A",color:"#fff",textAlign:"left",marginBottom:4}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <span style={{fontSize:16}}>🏢</span>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:14,color:"#F5C400"}}>{cli.nome}</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,.5)",marginTop:1}}>
+                      {Object.values(cli.agencias).flat().length} chamado(s) · {Object.keys(cli.agencias).length} agência(s)/loja(s)
+                    </div>
+                  </div>
+                </div>
+                <span style={{color:"#F5C400",fontSize:12,transform:clienteExpandido===cli.nome?"rotate(180deg)":"",transition:"transform .2s"}}>▼</span>
+              </button>
+
+              {/* Agências do cliente */}
+              {clienteExpandido===cli.nome && Object.entries(cli.agencias).sort((a,b)=>a[0].localeCompare(b[0])).map(([ag,items])=>(
+                <div key={ag} style={{marginLeft:16,marginBottom:8}}>
+                  <div style={{fontWeight:600,fontSize:12,padding:"6px 10px",
+                    background:"var(--cinza-lt)",borderRadius:6,marginBottom:4,
+                    display:"flex",alignItems:"center",gap:6,
+                    borderLeft:"3px solid var(--afine-yellow)"}}>
+                    🏪 {ag}
+                    <span style={{fontSize:11,fontWeight:400,color:"#7A7A7A"}}>({items.length} chamado{items.length>1?"s":""})</span>
+                    <span style={{marginLeft:"auto",fontSize:11,color:"var(--verde)"}}>
+                      {items.filter(m=>m.status==="CONCLUÍDA").length} concluída{items.filter(m=>m.status==="CONCLUÍDA").length!==1?"s":""}
+                    </span>
+                  </div>
+                  <div style={{marginLeft:8}}>
+                    {items.map(m=><HistoricoCard key={m.id} manut={m} onEdit={()=>setModal({manut:m})}/>)}
+                  </div>
+                </div>
+              ))}
             </div>
           ))}
         </div>
