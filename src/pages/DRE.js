@@ -783,11 +783,11 @@ export default function DRE() {
   useEffect(()=>{
     const u1=onSnapshot(query(collection(db,"obras"),limit(200)),    snap=>{setObras(snap.docs.map(d=>({id:d.id,...d.data()})));setLoading(false);});
     const u2=onSnapshot(query(collection(db,"financeiro"),limit(500)),snap=>setLancs(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u3=onSnapshot(collection(db,"materiais_estoque"),           snap=>setMats(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u4=onSnapshot(collection(db,"movimentacoes"),               snap=>setMovs(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u3=onSnapshot(query(collection(db,"materiais_estoque"),limit(500)),           snap=>setMats(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u4=onSnapshot(query(collection(db,"movimentacoes"),limit(1000)),               snap=>setMovs(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u5=onSnapshot(query(collection(db,"compras"),limit(300)),   snap=>setCompras(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u6=onSnapshot(collection(db,"manutencoes"),                 snap=>setManuts(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u7=onSnapshot(collection(db,"despesas"),                    snap=>setDespesas(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u6=onSnapshot(query(collection(db,"manutencoes"),limit(500)),                 snap=>setManuts(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u7=onSnapshot(query(collection(db,"despesas"),limit(500)),                    snap=>setDespesas(snap.docs.map(d=>({id:d.id,...d.data()}))));
     return()=>{u1();u2();u3();u4();u5();u6();u7();};
   },[]);
 

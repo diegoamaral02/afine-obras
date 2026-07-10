@@ -14,7 +14,7 @@ import { exportarOSParaPDF, exportarTermoChavesParaPDF } from "../utils/exportPD
 import { useToast } from "../hooks/useToast";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
-import { isGestorOuAdm, isCampo as isCampoHelper, getDepartamentoEfetivo } from "../constants/departamentos";
+import { isGestorOuAdm, isCampo as isCampoHelper } from "../constants/departamentos";
 import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
 import { salvarComFallbackOffline } from "../utils/offlineQueue";
 import { registrarExecutorOffline } from "../hooks/useFilaOffline";
@@ -878,7 +878,7 @@ export default function Manutencao({ obraAtual }) {
 
   // Lista filtrada para gestores
   // Separa ativas x concluídas
-  const manutsAtivas     = useMemo(()=>manuts.filter(m=>m.status!=="CONCLUÍDA"),[manuts]);
+  const manutsAtivas     = useMemo(()=>manuts.filter(m=>m.status!=="CONCLUÍDA"&&m.status!=="CANCELADA"),[manuts]);
   const manutsConcluidas = useMemo(()=>manuts.filter(m=>m.status==="CONCLUÍDA"), [manuts]);
 
   function buildPorCliente(lista) {

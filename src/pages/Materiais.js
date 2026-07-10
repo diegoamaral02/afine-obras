@@ -1,6 +1,6 @@
 // src/pages/Materiais.js — controle global de estoque + por demanda
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, doc, query, where, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, doc, query, where, getDocs, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -516,7 +516,7 @@ export default function MateriaisGlobal() {
       setMateriais(snap.docs.map(d=>({id:d.id,...d.data()})));
       setLoading(false);
     });
-    const u2 = onSnapshot(collection(db,"movimentacoes"), snap => {
+    const u2 = onSnapshot(query(collection(db,"movimentacoes"),limit(1000)), snap => {
       const data = snap.docs.map(d=>({id:d.id,...d.data()}));
       data.sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
       setMovs(data);

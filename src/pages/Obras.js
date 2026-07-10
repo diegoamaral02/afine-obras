@@ -5,7 +5,7 @@ import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, where
 import { db } from "../firebase";
 import { statusBadge, fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
-import { isCampo, isGestorOuAdm, isExterno, isNivelIntermediario } from "../constants/departamentos";
+import { isCampo, isGestorOuAdm, isExterno } from "../constants/departamentos";
 import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
 import { salvarComFallbackOffline } from "../utils/offlineQueue";
 import { exportarObraParaPDF } from "../utils/exportPDF";
@@ -1098,12 +1098,13 @@ export default function Obras({ onObraSelect }) {
   const statusList=["EM ANDAMENTO","CONCLUÍDA","PARALISADA","PLANEJAMENTO","AGUARDANDO APROVAÇÃO"];
 
   // KPIs
-  const kpiEmAndamento  = obrasVisiveis.filter(o=>o.status==="EM ANDAMENTO").length;
-  const kpiConcluidas   = obrasVisiveis.filter(o=>o.status==="CONCLUÍDA").length;
-  const kpiPlanejamento = obrasVisiveis.filter(o=>o.status==="PLANEJAMENTO").length;
-  const kpiParalisadas  = obrasVisiveis.filter(o=>o.status==="PARALISADA").length;
+  const kpiEmAndamento    = obrasVisiveis.filter(o=>o.status==="EM ANDAMENTO").length;
+  const kpiConcluidas     = obrasVisiveis.filter(o=>o.status==="CONCLUÍDA").length;
+  const kpiPlanejamento   = obrasVisiveis.filter(o=>o.status==="PLANEJAMENTO").length;
+  const kpiParalisadas    = obrasVisiveis.filter(o=>o.status==="PARALISADA").length;
+  const kpiAguardando     = obrasVisiveis.filter(o=>o.status==="AGUARDANDO APROVAÇÃO").length;
   const hoje = new Date().toISOString().split("T")[0];
-  const kpiAtrasadas    = obrasVisiveis.filter(o=>o.termino&&o.termino<hoje&&!["CONCLUÍDA","PARALISADA"].includes(o.status)).length;
+  const kpiAtrasadas      = obrasVisiveis.filter(o=>o.termino&&o.termino<hoje&&!["CONCLUÍDA","PARALISADA","CANCELADA"].includes(o.status)).length;
   const gestoresList = funcionarios.filter(f=>isGestorOuAdm(f));
 
 
@@ -1152,6 +1153,7 @@ export default function Obras({ onObraSelect }) {
         <div className="metric" style={{borderLeft:"3px solid var(--verde)"}}><div className="metric-label">Concluídas</div><div className="metric-value green">{kpiConcluidas}</div></div>
         {kpiPlanejamento>0&&<div className="metric" style={{borderLeft:"3px solid #aaa"}}><div className="metric-label">Planejamento</div><div className="metric-value">{kpiPlanejamento}</div></div>}
         {kpiParalisadas>0&&<div className="metric" style={{borderLeft:"3px solid var(--vermelho)"}}><div className="metric-label">Paralisadas</div><div className="metric-value red">{kpiParalisadas}</div></div>}
+        {kpiAguardando>0&&<div className="metric" style={{borderLeft:"3px solid #C9A200"}}><div className="metric-label">Aguard. aprovação</div><div className="metric-value amber">{kpiAguardando}</div></div>}
         {kpiAtrasadas>0&&<div className="metric" style={{borderLeft:"3px solid var(--laranja,#F5A623)"}}><div className="metric-label">Atrasadas</div><div className="metric-value amber">{kpiAtrasadas}</div></div>}
       </div>
 
