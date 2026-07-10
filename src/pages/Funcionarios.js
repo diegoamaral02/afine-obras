@@ -328,6 +328,11 @@ function FuncionarioModal({ func, obras, onClose, addToast }) {
             🏗️ {depInfo?.label} têm acesso a todas as obras automaticamente.
           </div>
         )}
+        {form.departamento === "fiscal" && (
+          <div style={{fontSize:12,color:"#7A7A7A",background:"var(--cinza-lt)",padding:"8px 12px",borderRadius:8}}>
+            🔧 Fiscal têm acesso a todas as manutenções automaticamente.
+          </div>
+        )}
 
         <div className="alert alert-info" style={{fontSize:12}}>
           💡 Link: <strong>afine-obras.vercel.app</strong> — envie por WhatsApp com e-mail e senha.
