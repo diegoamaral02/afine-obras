@@ -151,6 +151,15 @@ service cloud.firestore {
       }
     }
 
+    // ── Custos vinculados a demandas (obras/manutenções) ─────────────
+    // Empreiteiro, terceiro e campo podem lançar; gestão aprova e exclui.
+    match /custos_demanda/{id} {
+      allow read:   if isAuth();
+      allow create: if isCampo();        // qualquer usuário autenticado lança
+      allow update: if isEncarregado();  // aprovação, status, edição
+      allow delete: if isGestor();
+    }
+
     // ── Transferências de material entre obras ──────────────────────
     match /transferencias_material/{id} {
       allow read:   if isAuth();
@@ -205,6 +214,14 @@ service cloud.firestore {
       allow create: if isAuth();
       allow update: if false;   // imutável
       allow delete: if false;   // imutável
+    }
+
+    // ── Catálogo de itens de compras ──────────────────────────────
+    match /catalogo_itens/{id} {
+      allow read:   if isAuth();
+      allow create: if isEncarregado();
+      allow update: if isEncarregado();
+      allow delete: if isGestor();
     }
 
     // ── Notificações (por usuário) ────────────────────────────────

@@ -400,7 +400,7 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
             </div>
             {form.alocadoNomes.length>0&&(
               <div style={{marginTop:6,fontSize:12,color:"var(--afine-yellow-dk)",fontWeight:600}}>
-                ✓ Executa em campo: {form.alocadoNomes.join(", ")}
+                ✓ Executa em campo: {(form.alocadoNomes||[]).join(", ")}
               </div>
             )}
           </div>
@@ -772,7 +772,7 @@ function HistoricoCard({ manut, onEdit }) {
           <div style={{fontSize:11,color:"#7A7A7A",marginTop:2}}>
             {manut.tipo} · {manut.prioridade}
             {manut.criadoPorNome&&<> · criado por <strong>{manut.criadoPorNome}</strong></>}
-            {manut.alocadoNomes?.length>0&&<> · alocado para <strong style={{color:"var(--afine-yellow-dk)"}}>{manut.alocadoNomes.join(", ")}</strong></>}
+            {manut.alocadoNomes?.length>0&&<> · alocado para <strong style={{color:"var(--afine-yellow-dk)"}}>{(manut.alocadoNomes||[]).join(", ")}</strong></>}
           </div>
           <div style={{fontSize:11,color:"#7A7A7A",marginTop:2}}>{fmtDate(manut.dataAbertura)} → {fmtDate(manut.dataConclusao)||"Em aberto"}</div>
         </div>
@@ -1073,7 +1073,7 @@ export default function Manutencao({ obraAtual }) {
                         {m.responsavelNome&&<div style={{fontSize:11,color:"#185FA5",fontWeight:600,marginBottom:3}}>👤 {m.responsavelNome}</div>}
                         {m.alocadoNomes?.length>0?(
                           <span style={{fontSize:11,background:"var(--afine-yellow-lt)",color:"var(--afine-yellow-dk)",padding:"2px 7px",borderRadius:10,fontWeight:600}}>
-                            👷 {m.alocadoNomes.join(", ")}
+                            👷 {(m.alocadoNomes||[]).join(", ")}
                           </span>
                         ):<span style={{color:"#aaa",fontSize:11}}>Sem alocação</span>}
                       </td>
@@ -1110,7 +1110,7 @@ export default function Manutencao({ obraAtual }) {
                     {m.responsavelNome&&<span className="card-meta-item">👤 {m.responsavelNome}</span>}
                     {m.alocadoNomes?.length>0&&(
                       <span style={{fontSize:11,background:"var(--afine-yellow-lt)",color:"var(--afine-yellow-dk)",padding:"2px 8px",borderRadius:10,fontWeight:600}}>
-                        👷 {m.alocadoNomes.join(", ")}
+                        👷 {(m.alocadoNomes||[]).join(", ")}
                       </span>
                     )}
                   </div>
