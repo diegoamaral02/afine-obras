@@ -464,8 +464,8 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
               Selecione os colaboradores responsáveis por esta obra. Eles aparecerão vinculados a ela na aba Equipe.
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:4,maxHeight:160,overflowY:"auto",background:"#fff",borderRadius:6,padding:8}}>
-              {(funcionarios||[]).length===0&&<span style={{fontSize:12,color:"#7A7A7A"}}>Nenhum funcionário cadastrado</span>}
-              {(funcionarios||[]).map(f=>{
+              {(funcionarios||[]).filter(f=>["campo","empreiteiro","terceiro"].includes(f.departamento||f.perfil)).length===0&&<span style={{fontSize:12,color:"#7A7A7A"}}>Nenhum colaborador de campo cadastrado</span>}
+              {(funcionarios||[]).filter(f=>["campo","empreiteiro","terceiro"].includes(f.departamento||f.perfil)).map(f=>{
                 const checked=form.equipeIds.includes(f.id);
                 return (
                   <label key={f.id} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,cursor:"pointer",padding:"4px 8px",borderRadius:6,background:checked?"var(--afine-yellow-lt)":"transparent"}}>
