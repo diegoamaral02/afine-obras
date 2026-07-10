@@ -216,6 +216,14 @@ service cloud.firestore {
       allow delete: if false;   // imutável
     }
 
+    // ── Catálogo de itens de compras ──────────────────────────────
+    match /catalogo_itens/{id} {
+      allow read:   if isAuth();
+      allow create: if isEncarregado();
+      allow update: if isEncarregado();
+      allow delete: if isEncarregado();
+    }
+
     // ── Notificações (por usuário) ────────────────────────────────
     match /notificacoes/{uid_destino}/{id} {
       allow read:   if isAuth() && uid() == uid_destino;

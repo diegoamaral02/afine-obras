@@ -40,7 +40,7 @@ const MENU = [
   { id:"principal", label:"Principal", roles:["gestor","encarregado","campo"], items:[
     { to:"/",           icon:"🏠", label:"Home",             roles:["gestor","encarregado"] },
     { to:"/calendario", icon:"📅", label:"Calendário",       roles:["gestor","encarregado","campo"] },
-    { to:"/painel",     icon:"📊", label:"Painel Gerencial", roles:["gestor"] },
+    { to:"/painel",     icon:"📊", label:"Painel Gerencial", roles:["gestor","encarregado"] },
   ]},
   { id:"operacao", label:"Operação", roles:["gestor","encarregado","campo"], items:[
     { to:"/obras",      icon:"🏗️", label:"Obras",       roles:["gestor","encarregado","campo"] },
@@ -59,7 +59,7 @@ const MENU = [
     { to:"/funcionarios", icon:"👤", label:"Funcionários", roles:["gestor"] },
   ]},
   { id:"financeiro", label:"Financeiro", roles:["gestor","encarregado","campo"], items:[
-    { to:"/dre",      icon:"📈", label:"Resultados", roles:["gestor"] },
+    { to:"/dre",      icon:"📈", label:"Resultados", roles:["gestor","encarregado"] },
     { to:"/despesas", icon:"🧾", label:"Despesas",   roles:["gestor","encarregado","campo"] },
   ]},
 ];

@@ -14,7 +14,7 @@ import { exportarOSParaPDF, exportarTermoChavesParaPDF } from "../utils/exportPD
 import { useToast } from "../hooks/useToast";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
-import { isGestorOuAdm } from "../constants/departamentos";
+import { isGestorOuAdm, isCampo as isCampoHelper, getDepartamentoEfetivo } from "../constants/departamentos";
 import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
 import { salvarComFallbackOffline } from "../utils/offlineQueue";
 import { registrarExecutorOffline } from "../hooks/useFilaOffline";
@@ -83,8 +83,7 @@ function NovoDescritivo({ onAdicionar }) {
 // ── Modal da manutenção ───────────────────────────────────────────────────────
 function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onClose, addToast }) {
   const { userProfile, currentUser } = useAuth();
-  const isCampo = (userProfile?.departamento==="campo"||(userProfile?.perfil==="campo"&&!userProfile?.departamento)) &&
-                  !["fiscal","gestao","adm","financeiro","comercial","compras"].includes(userProfile?.departamento);
+  const isCampo = isCampoHelper(userProfile);
   const isExternoUser = (userProfile?.departamento==="empreiteiro"||userProfile?.departamento==="terceiro");
   const uid     = currentUser?.uid;
   const nomeUser= userProfile?.nome || currentUser?.email || "–";
@@ -841,8 +840,7 @@ export default function Manutencao({ obraAtual }) {
   const [modal,        setModal]        = useState(null);
 
   const uid     = currentUser?.uid;
-  const isCampo  = (userProfile?.departamento==="campo"||(userProfile?.perfil==="campo"&&!userProfile?.departamento)) &&
-                   !["fiscal","gestao","adm","financeiro","comercial","compras"].includes(userProfile?.departamento);
+  const isCampo  = isCampoHelper(userProfile);
   const isGestor = !isCampo;
   const hoje    = new Date().toISOString().split("T")[0];
 

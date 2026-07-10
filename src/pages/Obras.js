@@ -5,7 +5,7 @@ import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, where
 import { db } from "../firebase";
 import { statusBadge, fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
-import { isCampo, isGestorOuAdm, isExterno } from "../constants/departamentos";
+import { isCampo, isGestorOuAdm, isExterno, isNivelIntermediario } from "../constants/departamentos";
 import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
 import { salvarComFallbackOffline } from "../utils/offlineQueue";
 import { exportarObraParaPDF } from "../utils/exportPDF";
@@ -1039,7 +1039,7 @@ export default function Obras({ onObraSelect }) {
   const [obraAberta, setObraAberta] = useState(null);
   const [confirmarExclusao, setConfirmarExclusao] = useState(null); // {id, nome}
   const [abaDrawer, setAbaDrawer]   = useState("ocorrencias");
-  const isGestor = isGestorOuAdm(userProfile);
+  const isGestor = isGestorOuAdm(userProfile) || userProfile?.departamento === "fiscal";
   const [aba, setAba] = useState("lista");
 
   useEffect(() => {
