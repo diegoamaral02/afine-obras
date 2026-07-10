@@ -83,7 +83,8 @@ function NovoDescritivo({ onAdicionar }) {
 // ── Modal da manutenção ───────────────────────────────────────────────────────
 function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onClose, addToast }) {
   const { userProfile, currentUser } = useAuth();
-  const isCampo = userProfile?.departamento==="campo" || (userProfile?.perfil==="campo"&&!userProfile?.departamento);
+  const isCampo = (userProfile?.departamento==="campo"||(userProfile?.perfil==="campo"&&!userProfile?.departamento)) &&
+                  !["fiscal","gestao","adm","financeiro","comercial","compras"].includes(userProfile?.departamento);
   const isExternoUser = (userProfile?.departamento==="empreiteiro"||userProfile?.departamento==="terceiro");
   const uid     = currentUser?.uid;
   const nomeUser= userProfile?.nome || currentUser?.email || "–";
@@ -840,8 +841,9 @@ export default function Manutencao({ obraAtual }) {
   const [modal,        setModal]        = useState(null);
 
   const uid     = currentUser?.uid;
-  const isCampo = userProfile?.departamento==="campo"||(userProfile?.perfil==="campo"&&!userProfile?.departamento);
-  const isGestor= !isCampo;
+  const isCampo  = (userProfile?.departamento==="campo"||(userProfile?.perfil==="campo"&&!userProfile?.departamento)) &&
+                   !["fiscal","gestao","adm","financeiro","comercial","compras"].includes(userProfile?.departamento);
+  const isGestor = !isCampo;
   const hoje    = new Date().toISOString().split("T")[0];
 
   useEffect(()=>{
