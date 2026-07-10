@@ -272,14 +272,17 @@ function AppShell() {
 
       <div className="main-content">
         <div className="topbar">
-          <div>
-            <div className="topbar-title">{obraAtual?obraAtual.nome:"AFINE · ERP"}</div>
-            {obraAtual&&(
-              <div className="topbar-obra">
-                <span className="obra-tag">{obraAtual.cliente}</span>
-                <button onClick={()=>setObraAtual(null)} style={{background:"none",border:"none",fontSize:11,color:"var(--vermelho)",cursor:"pointer",padding:0}}>✕</button>
-              </div>
-            )}
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <button className="btn btn-sm" onClick={()=>setSideOpen(s=>!s)}>☰</button>
+            <div>
+              <div className="topbar-title">{obraAtual?obraAtual.nome:"AFINE · ERP"}</div>
+              {obraAtual&&(
+                <div className="topbar-obra">
+                  <span className="obra-tag">{obraAtual.cliente}</span>
+                  <button onClick={()=>setObraAtual(null)} style={{background:"none",border:"none",fontSize:11,color:"var(--vermelho)",cursor:"pointer",padding:0}}>✕</button>
+                </div>
+              )}
+            </div>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:"auto"}}>
             {filaOffline.pendentes>0 && (
@@ -300,7 +303,6 @@ function AppShell() {
                 </span>
               )}
             </button>
-            <button className="btn btn-sm" onClick={()=>setSideOpen(s=>!s)}>☰</button>
           </div>
         </div>
 
