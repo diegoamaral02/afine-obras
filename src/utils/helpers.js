@@ -2,17 +2,25 @@
 
 export function statusBadge(status) {
   const map = {
-    "CONCLUÍDO":     "badge-green",
-    "EM ANDAMENTO":  "badge-blue",
-    "NÃO INICIADO":  "badge-gray",
-    "PARALISADO":    "badge-red",
-    "ATIVO":         "badge-green",
-    "AFASTADO":      "badge-amber",
-    "DESLIGADO":     "badge-gray",
-    "ABERTA":        "badge-red",
-    "EM TRATAMENTO": "badge-amber",
-    "CONCLUÍDA":     "badge-green",
-    "CANCELADA":     "badge-gray",
+    // Obras
+    "EM ANDAMENTO":         "badge-blue",
+    "CONCLUÍDA":            "badge-green",
+    "CONCLUÍDO":            "badge-green",
+    "PLANEJAMENTO":         "badge-gray",
+    "PARALISADA":           "badge-red",
+    "PARALISADO":           "badge-red",
+    "AGUARDANDO APROVAÇÃO": "badge-amber",
+    // Manutenção
+    "ABERTA":               "badge-red",
+    "EM TRATAMENTO":        "badge-amber",
+    "AGUARDANDO PEÇAS":     "badge-amber",
+    "CANCELADA":            "badge-gray",
+    // Funcionários
+    "ATIVO":                "badge-green",
+    "AFASTADO":             "badge-amber",
+    "DESLIGADO":            "badge-gray",
+    // Genérico
+    "NÃO INICIADO":         "badge-gray",
   };
   return map[status] || "badge-gray";
 }

@@ -283,11 +283,11 @@ tbody td      { padding: 9px 12px; vertical-align: middle; }
 
 /* ── Badges ──────────────────────────────────────────── */
 .badge        { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: var(--r-full); letter-spacing: .01em; }
-.badge-green  { background: var(--verde-lt);    color: #195A2C; }
-.badge-blue   { background: var(--afine-yellow-lt); color: var(--afine-yellow-dk); }
-.badge-amber  { background: #FCEDC4;            color: #7A5400; }
-.badge-red    { background: var(--vermelho-lt); color: var(--vermelho); }
-.badge-gray   { background: var(--n-100);       color: var(--afine-gray-dk); }
+.badge-green  { background: #E4F3EC;  color: #195A2C; }
+.badge-blue   { background: #E6F1FB;  color: #0C447C; }
+.badge-amber  { background: #FCEDC4;  color: #7A5400; }
+.badge-red    { background: #FDEAEA;  color: #A32D2D; }
+.badge-gray   { background: var(--n-100); color: var(--afine-gray-dk); }
 .badge-purple { background: #EFEBFF;            color: #4730B8; }
 .badge-yellow { background: var(--afine-yellow); color: var(--afine-black); }
 
