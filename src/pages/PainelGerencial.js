@@ -238,8 +238,8 @@ export default function PainelGerencial() {
         <div className="card">
           <div style={{marginBottom:14}}><div style={{fontWeight:600,fontSize:14}}>📊 Saúde financeira</div></div>
           <div style={{display:"flex",gap:16,justifyContent:"center",marginBottom:12}}>
-            <Gauge pct={kpis.totalRec>0?Math.min(100,Math.round(kpis.totalRec/(kpis.totalRec+kpis.totalPag)*100)):50} cor="var(--verde)" label="Receber"/>
-            <Gauge pct={kpis.totalPag>0?Math.min(100,Math.round(kpis.totalPag/(kpis.totalRec+kpis.totalPag)*100)):50} cor="var(--vermelho)" label="Pagar"/>
+            <Gauge pct={kpis.totalRec>0&&(kpis.totalRec+kpis.totalPag)>0?Math.min(100,Math.round(kpis.totalRec/(kpis.totalRec+kpis.totalPag)*100)):0} cor="var(--verde)" label="Receber"/>
+            <Gauge pct={kpis.totalPag>0&&(kpis.totalRec+kpis.totalPag)>0?Math.min(100,Math.round(kpis.totalPag/(kpis.totalRec+kpis.totalPag)*100)):0} cor="var(--vermelho)" label="Pagar"/>
             <Gauge pct={comercialStats.txConv} cor="var(--afine-yellow-dk)" label="Conversão"/>
           </div>
           <div style={{fontSize:12,color:"#7A7A7A"}}>
