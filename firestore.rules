@@ -216,12 +216,20 @@ service cloud.firestore {
       allow delete: if false;   // imutável
     }
 
+    // ── Gerenciamento de demandas ─────────────────────────────
+    match /gerenciamento/{id} {
+      allow read:   if isAuth();
+      allow create: if isEncarregado();
+      allow update: if isAuth();
+      allow delete: if isGestor();
+    }
+
     // ── Catálogo de itens de compras ──────────────────────────────
     match /catalogo_itens/{id} {
       allow read:   if isAuth();
       allow create: if isEncarregado();
       allow update: if isEncarregado();
-      allow delete: if isEncarregado();
+      allow delete: if isGestor();
     }
 
     // ── Notificações (por usuário) ────────────────────────────────
