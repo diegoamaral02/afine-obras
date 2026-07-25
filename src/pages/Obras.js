@@ -82,7 +82,10 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   const { userProfile, currentUser } = useAuth();
   const isCampoUser = isCampo(userProfile);
   const nomeUser = userProfile?.nome || currentUser?.email || "–";
-  const [aba, setAba] = useState(isCampoUser ? "materiais" : "dados");
+  const [aba, setAba] = useState(() => {
+    if (!isCampoUser) return "dados";
+    return isExterno(userProfile) ? "materiais" : "custos";
+  });
   const [form, setForm] = useState({
     nome: obra?.nome||"", tipo: obra?.tipo||"", cliente: obra?.cliente||"",
     clienteId: obra?.clienteId||"",
@@ -146,7 +149,7 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
       const ehDevolucao = qtd < 0;
       const qtdAbs = Math.abs(qtd);
       await addDoc(collection(db,"movimentacoes"), {
-        itemId: found.id, itemNome: nome, tipo: ehDevolucao ? "entrada" : "saida", qtd: qtdAbs,
+        itemId: found.id, itemNome: nome, tipo: ehDevolucao ? "entrada" : "saida", quantidade: qtdAbs,
         data: new Date().toISOString().split("T")[0],
         demandaTipo: "obra", demandaId: obra.id, demandaNome: obra.nome,
         origem: ehDevolucao ? "devolucao_lancamento" : origem, usuario: nomeUser, createdAt: new Date().toISOString(),

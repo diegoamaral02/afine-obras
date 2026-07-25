@@ -212,9 +212,8 @@ function StatusBadge({ status }) {
 // ── KPI Card ──────────────────────────────────────────────────────────────────
 function KPICard({ label, valor, sub, cor, icon, trend, trendLabel, alerta }) {
   return (
-    <div style={{background:"#fff",border:`1px solid ${alerta?"rgba(184,50,50,.3)":"var(--border)"}`,borderRadius:10,
-      padding:"12px 14px",position:"relative",overflow:"hidden",
-      background:alerta?"rgba(184,50,50,.03)":"#fff"}}>
+    <div style={{background:alerta?"rgba(184,50,50,.03)":"#fff",border:`1px solid ${alerta?"rgba(184,50,50,.3)":"var(--border)"}`,borderRadius:10,
+      padding:"12px 14px",position:"relative",overflow:"hidden"}}>
       {icon&&<div style={{position:"absolute",top:10,right:12,fontSize:22,opacity:.1}}>{icon}</div>}
       <div style={{fontSize:10,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".05em",marginBottom:3}}>{label}</div>
       <div style={{fontSize:18,fontWeight:700,color:cor||"#1A1A1A",lineHeight:1,marginBottom:3}}>{valor}</div>

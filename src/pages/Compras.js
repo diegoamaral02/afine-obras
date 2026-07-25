@@ -384,7 +384,7 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
 
       const movRef = doc(collection(db,"movimentacoes"));
       batch.set(movRef, {
-        itemId, itemNome: it.nome, tipo: "entrada", qtd: Number(it.qtd)||0,
+        itemId, itemNome: it.nome, tipo: "entrada", quantidade: Number(it.qtd)||0,
         data: new Date().toISOString().split("T")[0],
         demandaTipo, demandaId: demandaTipo==="geral"?"":demandaId, demandaNome: demandaNomeAtual,
         origem: "compra", compraId: compra.id, usuario: nomeUser, createdAt: agora(),

@@ -80,7 +80,6 @@ export default function PainelGerencial() {
 
   useEffect(() => {
     // MELHORIA: todos os listeners com limit() para não baixar dados infinitos
-    const hoje = new Date().toISOString().split("T")[0];
     const u1 = onSnapshot(query(collection(db,"obras"),limit(100)), snap=>{
       setObras(snap.docs.map(d=>({id:d.id,...d.data()})));
       setLoading(false);

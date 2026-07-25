@@ -247,6 +247,11 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
   const PASSO_BASE = isCampo ? 3 : 1;
   const passoVisual = passo - PASSO_BASE + 1;
   const totalPassos = PASSOS.length;
+  const P_CUSTOS = !isExternoUser ? (PASSO_BASE + PASSOS.indexOf("Custos")) : -1;
+  const P_MAT    = PASSO_BASE + PASSOS.indexOf("Materiais");
+  const P_FOTOS  = PASSO_BASE + PASSOS.indexOf("Fotos & Checklist");
+  const P_TERMO  = PASSO_BASE + PASSOS.indexOf("Termo de Chaves");
+  const P_OS     = PASSO_BASE + PASSOS.indexOf("OS Digital");
 
   return (
     <Modal title={manut?.id?"Editar manutenção":"Nova manutenção"} onClose={onClose}
@@ -508,13 +513,13 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
         </div>
       )}
 
-      {/* ── PASSO 3 — CUSTOS DA DEMANDA ──────────────────── */}
-      {passo===3 && !manut?.id && (
+      {/* ── PASSO CUSTOS — CUSTOS DA DEMANDA ──────────────────── */}
+      {passo===P_CUSTOS && !manut?.id && (
         <div className="alert alert-info" style={{fontSize:13}}>
           💡 Salve a manutenção primeiro para poder registrar custos.
         </div>
       )}
-      {passo===3 && manut?.id && (
+      {passo===P_CUSTOS && manut?.id && (
         <CustosDemanda
           demandaTipo="manutencao"
           demandaId={manut.id}
@@ -523,8 +528,8 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
         />
       )}
 
-      {/* ── PASSO 4 — MATERIAIS ─────────────────────────── */}
-      {passo===4 && (
+      {/* ── PASSO MATERIAIS ─────────────────────────── */}
+      {passo===P_MAT && (
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
           {isCampo&&(
             <div style={{background:"#1A1A1A",borderRadius:8,padding:12,color:"#fff"}}>
@@ -591,8 +596,8 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
         </div>
       )}
 
-      {/* ── PASSO 5 — FOTOS & CHECKLIST ─────────────────── */}
-      {passo===5 && (
+      {/* ── PASSO FOTOS — FOTOS & CHECKLIST ─────────────────── */}
+      {passo===P_FOTOS && (
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
           <PhotoUploader fotos={fotos} onChange={setFotos} minFotos={MIN_FOTOS}/>
           <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>
@@ -612,8 +617,8 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
         </div>
       )}
 
-      {/* ── PASSO 7 — OS DIGITAL ────────────────────────── */}
-      {passo===7 && (
+      {/* ── PASSO OS DIGITAL ────────────────────────── */}
+      {passo===P_OS && (
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
           {/* Resumo para o técnico */}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,fontSize:11}}>
@@ -678,8 +683,8 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
         </div>
       )}
 
-      {/* ── PASSO 6 — TERMO DE ENTREGA DE CHAVES ──────────── */}
-      {passo===6 && (
+      {/* ── PASSO TERMO — TERMO DE ENTREGA DE CHAVES ──────────── */}
+      {passo===P_TERMO && (
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
           <div className="form-group">
             <label className="required">Tem chave a ser devolvida?</label>
