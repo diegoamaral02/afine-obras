@@ -1,6 +1,6 @@
-// src/pages/Gerenciamento.js — v2: atraso visual, fotos no histórico, filtros persistentes, PDF/Excel
+// src/pages/Gerenciamento.js — v3: dashboard, filtros avançados, export lista, dias atraso, docs
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import { fmtDate, statusBadge } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -32,6 +32,66 @@ function isAtrasada(d) {
   if (STATUS_ENCERRADOS.has(d.status)) return false;
   if (!d.terminoPrevisto) return false;
   return new Date().toISOString().split("T")[0] > d.terminoPrevisto;
+}
+
+function diasAtraso(d) {
+  if (!isAtrasada(d) || !d.terminoPrevisto) return 0;
+  const diff = new Date() - new Date(d.terminoPrevisto + "T00:00:00");
+  return Math.floor(diff / 86400000);
+}
+
+function exportarExcelLista(demandas) {
+  const esc = v => String(v||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const rows = demandas.map(d=>`
+  <Row>
+    <Cell><Data ss:Type="String">${esc(d.clienteNome)}</Data></Cell>
+    <Cell><Data ss:Type="String">${esc(d.agenciaNome)}</Data></Cell>
+    <Cell><Data ss:Type="String">${esc(d.tipoDemanda)}</Data></Cell>
+    <Cell><Data ss:Type="String">${esc(d.status)}</Data></Cell>
+    <Cell><Data ss:Type="String">${esc(d.responsavel)}</Data></Cell>
+    <Cell><Data ss:Type="String">${esc(fmtDate(d.inicio))}</Data></Cell>
+    <Cell><Data ss:Type="String">${esc(fmtDate(d.terminoPrevisto))}</Data></Cell>
+    <Cell><Data ss:Type="String">${isAtrasada(d)?"SIM — "+diasAtraso(d)+" dias":""}</Data></Cell>
+    <Cell><Data ss:Type="String">${esc(d.gmudNumero)}</Data></Cell>
+    <Cell><Data ss:Type="String">${esc(d.gmudStatus)}</Data></Cell>
+    <Cell><Data ss:Type="Number">${Number(d.orcConstrutora)||0}</Data></Cell>
+    <Cell><Data ss:Type="Number">${Number(d.orcInstaladora)||0}</Data></Cell>
+    <Cell><Data ss:Type="String">${d.enviadoFinanceiro?"Sim":"Não"}</Data></Cell>
+    <Cell><Data ss:Type="String">${esc(d.projSAP)}</Data></Cell>
+    <Cell><Data ss:Type="String">${esc(d.codUPE)}</Data></Cell>
+    <Cell><Data ss:Type="Number">${(d.historico||[]).length}</Data></Cell>
+  </Row>`).join("");
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Worksheet ss:Name="Gerenciamento"><Table>
+  <Row>
+    <Cell ss:StyleID="h"><Data ss:Type="String">Cliente</Data></Cell>
+    <Cell ss:StyleID="h"><Data ss:Type="String">Agência</Data></Cell>
+    <Cell ss:StyleID="h"><Data ss:Type="String">Tipo</Data></Cell>
+    <Cell ss:StyleID="h"><Data ss:Type="String">Status</Data></Cell>
+    <Cell ss:StyleID="h"><Data ss:Type="String">Responsável</Data></Cell>
+    <Cell ss:StyleID="h"><Data ss:Type="String">Início</Data></Cell>
+    <Cell ss:StyleID="h"><Data ss:Type="String">Término previsto</Data></Cell>
+    <Cell ss:StyleID="h"><Data ss:Type="String">Atraso</Data></Cell>
+    <Cell ss:StyleID="h"><Data ss:Type="String">GMUD Nº</Data></Cell>
+    <Cell ss:StyleID="h"><Data ss:Type="String">GMUD Status</Data></Cell>
+    <Cell ss:StyleID="h"><Data ss:Type="String">Orç. Construtora</Data></Cell>
+    <Cell ss:StyleID="h"><Data ss:Type="String">Orç. Instaladora</Data></Cell>
+    <Cell ss:StyleID="h"><Data ss:Type="String">Enviado Financeiro</Data></Cell>
+    <Cell ss:StyleID="h"><Data ss:Type="String">Proj SAP</Data></Cell>
+    <Cell ss:StyleID="h"><Data ss:Type="String">COD UPE</Data></Cell>
+    <Cell ss:StyleID="h"><Data ss:Type="String">Qtd. Atualizações</Data></Cell>
+  </Row>
+  ${rows}
+</Table></Worksheet>
+</Workbook>`;
+  const blob = new Blob([xml], {type:"application/vnd.ms-excel;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Gerenciamento_Lista_${new Date().toISOString().slice(0,10)}.xls`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── COMPRESSÃO DE IMAGEM (base64, igual PhotoUploader existente) ──────────────
@@ -664,16 +724,19 @@ function DrawerDetalhes({ demanda, onClose, onEdit, onRegistrarAtualizacao, onCo
   const { userProfile, currentUser } = useAuth();
   const historico = [...(demanda.historico||[])].reverse();
   const atrasada = isAtrasada(demanda);
+  const dias = diasAtraso(demanda);
   const fmtMoeda = v => v ? `R$ ${Number(v).toLocaleString("pt-BR",{minimumFractionDigits:2})}` : "–";
+  const [confirmarRemocao, setConfirmarRemocao] = useState(null);
 
   async function excluirEntrada(idx) {
-    if (!window.confirm("Remover esta entrada do histórico?")) return;
     const novoHist = [...(demanda.historico||[])];
     const idxOriginal = (demanda.historico||[]).length-1-idx;
     novoHist.splice(idxOriginal,1);
     try {
       await updateComAuditoria("gerenciamento",demanda.id,{historico:novoHist,updatedAt:new Date().toISOString()},currentUser?.uid,userProfile?.nome);
+      addToast("Entrada removida.");
     } catch(e) { addToast("Erro ao remover entrada: "+e.message,"error"); }
+    setConfirmarRemocao(null);
   }
 
   return (
@@ -708,7 +771,7 @@ function DrawerDetalhes({ demanda, onClose, onEdit, onRegistrarAtualizacao, onCo
 
         {atrasada && (
           <div style={{background:"#FDEAEA",border:"1px solid #BD3838",borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:"#BD3838",fontWeight:600}}>
-            ⚠️ Demanda atrasada — término previsto: {fmtDate(demanda.terminoPrevisto)}
+            ⚠️ Demanda atrasada há <strong>{dias} {dias===1?"dia":"dias"}</strong> — término previsto: {fmtDate(demanda.terminoPrevisto)}
           </div>
         )}
 
@@ -772,6 +835,18 @@ function DrawerDetalhes({ demanda, onClose, onEdit, onRegistrarAtualizacao, onCo
           </div>
         )}
 
+        {/* Documentação */}
+        {(demanda.docConstrutora||demanda.docAfine||demanda.entradaGestor)&&(
+          <>
+            <div style={{fontSize:10,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",marginBottom:6}}>Documentação</div>
+            <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:14}}>
+              {demanda.docConstrutora&&<div style={{background:"#F3F2EF",borderRadius:7,padding:"7px 10px",fontSize:12}}><b>Doc. Construtora:</b> {demanda.docConstrutora}</div>}
+              {demanda.docAfine&&<div style={{background:"#F3F2EF",borderRadius:7,padding:"7px 10px",fontSize:12}}><b>Doc. AFINE:</b> {demanda.docAfine}</div>}
+              {demanda.entradaGestor&&<div style={{background:"#F3F2EF",borderRadius:7,padding:"7px 10px",fontSize:12}}><b>Entrada Gestor:</b> {demanda.entradaGestor}</div>}
+            </div>
+          </>
+        )}
+
         {/* Histórico */}
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
           <div style={{fontSize:10,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase"}}>
@@ -792,7 +867,15 @@ function DrawerDetalhes({ demanda, onClose, onEdit, onRegistrarAtualizacao, onCo
               <div style={{fontSize:11,color:"#7A7A7A"}}>
                 <b style={{color:"#1A1A1A"}}>{h.autor}</b> — {h.data?new Date(h.data).toLocaleString("pt-BR"):""}
               </div>
-              {isGestor&&<button onClick={()=>excluirEntrada(idx)} style={{background:"none",border:"none",cursor:"pointer",color:"#BD3838",fontSize:12,padding:0}}>✕</button>}
+              {isGestor&&(confirmarRemocao===idx?(
+                <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                  <span style={{fontSize:10,color:"#BD3838",fontWeight:600}}>Remover?</span>
+                  <button onClick={()=>excluirEntrada(idx)} style={{background:"#BD3838",border:"none",borderRadius:4,padding:"1px 7px",color:"#fff",cursor:"pointer",fontSize:11,fontWeight:700}}>Sim</button>
+                  <button onClick={()=>setConfirmarRemocao(null)} style={{background:"#eee",border:"none",borderRadius:4,padding:"1px 7px",cursor:"pointer",fontSize:11}}>Não</button>
+                </div>
+              ):(
+                <button onClick={()=>setConfirmarRemocao(idx)} style={{background:"none",border:"none",cursor:"pointer",color:"#BD3838",fontSize:12,padding:0}}>✕</button>
+              ))}
             </div>
             {(h.eventos||[]).map((ev,i)=>(
               <span key={i} style={{display:"inline-block",background:"#F3F2EF",padding:"1px 7px",borderRadius:8,fontSize:11,fontWeight:600,marginRight:4,marginBottom:3}}>✓ {ev}</span>
@@ -822,6 +905,7 @@ function DrawerDetalhes({ demanda, onClose, onEdit, onRegistrarAtualizacao, onCo
 // ── CARD DA DEMANDA ───────────────────────────────────────────────────────────
 function CardDemanda({ d, onAbrir, onEdit, onExcluir, isGestor }) {
   const atrasada = isAtrasada(d);
+  const dias = diasAtraso(d);
   const bordaCor = d.status==="CONCLUÍDA"?"var(--verde)":atrasada?"#BD3838":d.status==="EXECUÇÃO"?"#185FA5":d.status==="SUSPENSA"||d.status==="CANCELADA"?"#888":"#C9A200";
   const ult = d.historico?.length>0 ? d.historico[d.historico.length-1] : null;
 
@@ -831,7 +915,7 @@ function CardDemanda({ d, onAbrir, onEdit, onExcluir, isGestor }) {
         <div style={{flex:1,minWidth:0}}>
           <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:2}}>
             <span style={{fontWeight:700,fontSize:13}}>{d.agenciaNome}</span>
-            {atrasada&&<span style={{background:"#FDEAEA",color:"#BD3838",padding:"1px 6px",borderRadius:8,fontSize:10,fontWeight:700}}>⚠️ Atrasada</span>}
+            {atrasada&&<span style={{background:"#FDEAEA",color:"#BD3838",padding:"1px 6px",borderRadius:8,fontSize:10,fontWeight:700}}>⚠️ {dias}d atraso</span>}
           </div>
           <div style={{fontSize:11,color:"#7A7A7A",marginBottom:4}}>{d.tipoDemanda} · {d.clienteNome}</div>
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -844,10 +928,12 @@ function CardDemanda({ d, onAbrir, onEdit, onExcluir, isGestor }) {
         </div>
         <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:5,flexShrink:0}} onClick={e=>e.stopPropagation()}>
           <span className={`badge ${statusGerBadge(d.status)}`} style={{fontSize:10}}>{d.status}</span>
-          <div style={{display:"flex",gap:3}}>
-            <button className="btn btn-sm btn-icon" onClick={()=>onEdit(d)} title="Editar">✏️</button>
-            {isGestor&&<button className="btn btn-sm btn-icon" onClick={()=>onExcluir(d)} title="Excluir" style={{color:"var(--vermelho)"}}>🗑️</button>}
-          </div>
+          {isGestor&&(
+            <div style={{display:"flex",gap:3}}>
+              <button className="btn btn-sm btn-icon" onClick={()=>onEdit(d)} title="Editar">✏️</button>
+              <button className="btn btn-sm btn-icon" onClick={()=>onExcluir(d)} title="Excluir" style={{color:"var(--vermelho)"}}>🗑️</button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -870,6 +956,12 @@ export default function Gerenciamento() {
   const [aba, setAba] = useState("lista");
   const [search, setSearch] = useState("");
   const [clienteExpandido, setClienteExpandido] = useState(null);
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
+  const [filtroStatus, setFiltroStatus] = useState("");
+  const [filtroResponsavel, setFiltroResponsavel] = useState("");
+  const [filtroCliente, setFiltroCliente] = useState("");
+  const [filtroSoAtrasadas, setFiltroSoAtrasadas] = useState(false);
+  const [filtroTerminoAte, setFiltroTerminoAte] = useState("");
 
   // ── Modais ─────────────────────────────────────────────────────────────────
   const [modalDemanda, setModalDemanda] = useState(null);
@@ -881,7 +973,7 @@ export default function Gerenciamento() {
   // ── Dados com tratamento de erro de conexão ────────────────────────────────
   useEffect(()=>{
     const u1 = onSnapshot(
-      collection(db,"gerenciamento"),
+      query(collection(db,"gerenciamento"), orderBy("updatedAt","desc"), limit(500)),
       snap=>{
         setDemandas(snap.docs.map(d=>({id:d.id,...d.data()})));
         setLoading(false);
@@ -921,15 +1013,32 @@ export default function Gerenciamento() {
   const kpiAtrasadas   = demandasAtivas.filter(d=>isAtrasada(d)).length;
   const kpiConclMes    = demandasConcluidas.filter(d=>{ const u=d.concluidaEm||d.updatedAt||""; return u.startsWith(new Date().toISOString().slice(0,7)); }).length;
 
+  // Listas auxiliares para selects de filtros
+  const listaResponsaveis = useMemo(()=>[...new Set(demandasVisiveis.map(d=>d.responsavel).filter(Boolean))].sort(),[demandasVisiveis]);
+  const listaClientes     = useMemo(()=>[...new Set(demandasVisiveis.map(d=>d.clienteNome).filter(Boolean))].sort(),[demandasVisiveis]);
+
+  const filtrosAtivos = !!(filtroStatus||filtroResponsavel||filtroCliente||filtroSoAtrasadas||filtroTerminoAte);
+
+  function limparFiltros() {
+    setFiltroStatus(""); setFiltroResponsavel(""); setFiltroCliente("");
+    setFiltroSoAtrasadas(false); setFiltroTerminoAte(""); setSearch("");
+  }
+
   // Filtered (busca persistente entre abas)
   const filtered = useMemo(()=>{
     const q = search.toLowerCase();
-    return demandasAtivas.filter(d=>
-      !q||d.agenciaNome?.toLowerCase().includes(q)||d.clienteNome?.toLowerCase().includes(q)||
-      d.tipoDemanda?.toLowerCase().includes(q)||d.responsavel?.toLowerCase().includes(q)||
-      d.projSAP?.toLowerCase().includes(q)||d.gmudNumero?.toLowerCase().includes(q)
-    );
-  },[demandasAtivas,search]);
+    return demandasAtivas.filter(d=>{
+      if (q && !d.agenciaNome?.toLowerCase().includes(q) && !d.clienteNome?.toLowerCase().includes(q) &&
+          !d.tipoDemanda?.toLowerCase().includes(q) && !d.responsavel?.toLowerCase().includes(q) &&
+          !d.projSAP?.toLowerCase().includes(q) && !d.gmudNumero?.toLowerCase().includes(q)) return false;
+      if (filtroStatus && d.status !== filtroStatus) return false;
+      if (filtroResponsavel && d.responsavel !== filtroResponsavel) return false;
+      if (filtroCliente && d.clienteNome !== filtroCliente) return false;
+      if (filtroSoAtrasadas && !isAtrasada(d)) return false;
+      if (filtroTerminoAte && d.terminoPrevisto && d.terminoPrevisto > filtroTerminoAte) return false;
+      return true;
+    });
+  },[demandasAtivas,search,filtroStatus,filtroResponsavel,filtroCliente,filtroSoAtrasadas,filtroTerminoAte]);
 
   function buildPorCliente(lista) {
     const map = {};
@@ -1007,7 +1116,7 @@ export default function Gerenciamento() {
   return (
     <div className="page">
       <div className="toast-container">
-        {toasts.map(t=><div key={t.id} className={`toast toast-${t.type||"success"}`}>{t.message}</div>)}
+        {toasts.map(t=><div key={t.id} className={`toast toast-${t.type||"success"}`}>{t.msg}</div>)}
       </div>
 
       {/* Banner erro de conexão */}
@@ -1024,7 +1133,10 @@ export default function Gerenciamento() {
           <h1>Gerenciamento</h1>
           <div style={{fontSize:12,color:"#7A7A7A"}}>{demandasVisiveis.length} demanda(s) · {demandasAtivas.length} em andamento</div>
         </div>
-        {isGestor&&<button className="btn btn-primary" onClick={()=>setModalDemanda({})}>+ Nova demanda</button>}
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          {isGestor&&<button className="btn" onClick={()=>exportarExcelLista(demandasVisiveis)} title="Exportar lista completa">📊 Excel</button>}
+          {isGestor&&<button className="btn btn-primary" onClick={()=>setModalDemanda({})}>+ Nova demanda</button>}
+        </div>
       </div>
 
       {/* KPIs */}
@@ -1037,19 +1149,62 @@ export default function Gerenciamento() {
       </div>
 
       {/* Busca persistente — aparece em todas as abas */}
-      <div className="search-bar">
-        🔍<input placeholder="Buscar por agência, cliente, tipo, responsável, SAP ou GMUD..."
-          value={search} onChange={e=>setSearch(e.target.value)}/>
-        {search&&<button onClick={()=>setSearch("")} style={{background:"none",border:"none",cursor:"pointer",color:"#aaa",fontSize:15,padding:0}}>×</button>}
+      <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap",alignItems:"center"}}>
+        <div className="search-bar" style={{flex:1,minWidth:200,marginBottom:0}}>
+          🔍<input placeholder="Buscar por agência, cliente, tipo, responsável, SAP ou GMUD..."
+            value={search} onChange={e=>setSearch(e.target.value)}/>
+          {search&&<button onClick={()=>setSearch("")} style={{background:"none",border:"none",cursor:"pointer",color:"#aaa",fontSize:15,padding:0}}>×</button>}
+        </div>
+        <button onClick={()=>setFiltrosAbertos(p=>!p)}
+          style={{padding:"7px 12px",border:`1px solid ${filtrosAtivos?"var(--afine-yellow)":"var(--border)"}`,borderRadius:7,background:filtrosAtivos?"#1A1A1A":"var(--cinza-lt)",color:filtrosAtivos?"var(--afine-yellow)":"#555",cursor:"pointer",fontSize:12,fontWeight:filtrosAtivos?700:400,whiteSpace:"nowrap"}}>
+          🔧 Filtros{filtrosAtivos?" ●":""}
+        </button>
+        {filtrosAtivos&&<button onClick={limparFiltros} style={{padding:"7px 10px",border:"1px solid var(--border)",borderRadius:7,background:"var(--cinza-lt)",cursor:"pointer",fontSize:11,color:"#7A7A7A",whiteSpace:"nowrap"}}>Limpar</button>}
       </div>
+
+      {/* Painel de filtros avançados */}
+      {filtrosAbertos&&(
+        <div style={{background:"var(--cinza-lt)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px",marginBottom:12,display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:10}}>
+          <div className="form-group" style={{marginBottom:0}}>
+            <label style={{fontSize:11}}>Status</label>
+            <select value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value)}>
+              <option value="">Todos</option>
+              {STATUS_LIST.map(s=><option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="form-group" style={{marginBottom:0}}>
+            <label style={{fontSize:11}}>Responsável</label>
+            <select value={filtroResponsavel} onChange={e=>setFiltroResponsavel(e.target.value)}>
+              <option value="">Todos</option>
+              {listaResponsaveis.map(r=><option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div className="form-group" style={{marginBottom:0}}>
+            <label style={{fontSize:11}}>Cliente</label>
+            <select value={filtroCliente} onChange={e=>setFiltroCliente(e.target.value)}>
+              <option value="">Todos</option>
+              {listaClientes.map(c=><option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="form-group" style={{marginBottom:0}}>
+            <label style={{fontSize:11}}>Término previsto até</label>
+            <input type="date" value={filtroTerminoAte} onChange={e=>setFiltroTerminoAte(e.target.value)}/>
+          </div>
+          <div className="form-group" style={{marginBottom:0,display:"flex",alignItems:"center",gap:8,paddingTop:18}}>
+            <input type="checkbox" id="soAtrasadas" checked={filtroSoAtrasadas} onChange={e=>setFiltroSoAtrasadas(e.target.checked)} style={{width:15,height:15,accentColor:"#BD3838"}}/>
+            <label htmlFor="soAtrasadas" style={{cursor:"pointer",fontSize:12,fontWeight:600,color:"#BD3838"}}>Só atrasadas</label>
+          </div>
+        </div>
+      )}
 
       {/* Abas */}
       {!isCampoUser&&(
         <div style={{display:"flex",gap:0,marginBottom:16,borderRadius:8,overflow:"hidden",border:"1px solid var(--border)",flexWrap:"wrap"}}>
           {[
-            {id:"lista",      label:"📋 Lista completa"},
+            {id:"lista",      label:"📋 Lista"},
             {id:"por_cliente",label:"🏢 Por cliente"},
             {id:"concluidas", label:`✅ Concluídas (${demandasConcluidas.length})`},
+            {id:"dashboard",  label:"📊 Dashboard"},
           ].map((a,i,arr)=>(
             <button key={a.id} onClick={()=>setAba(a.id)}
               style={{flex:"1 1 auto",padding:"9px 10px",border:"none",cursor:"pointer",
@@ -1106,6 +1261,89 @@ export default function Gerenciamento() {
           "c_"
         )}
       </>)}
+
+      {/* ── DASHBOARD ── */}
+      {aba==="dashboard"&&!isCampoUser&&(()=>{
+        const porStatus = STATUS_LIST.map(s=>({s, n:demandasVisiveis.filter(d=>d.status===s).length})).filter(x=>x.n>0);
+        const total = demandasVisiveis.length || 1;
+        const cores = {"AGENDAMENTO":"#C9A200","SOLICITAÇÃO MATERIAL":"#E8A800","EXECUÇÃO":"#185FA5","ANDAMENTO DEMANDA EXTRA":"#1E7A9A","SUSPENSA":"#BD3838","FINALIZADA — EXEC. DOCUMENTAÇÃO":"#7A5400","CONCLUÍDA":"#1E7A3C","CANCELADA":"#888"};
+        const porCli = [...new Set(demandasVisiveis.map(d=>d.clienteNome).filter(Boolean))].map(cli=>({cli,n:demandasVisiveis.filter(d=>d.clienteNome===cli).length})).sort((a,b)=>b.n-a.n).slice(0,8);
+        const maxCli = Math.max(...porCli.map(x=>x.n),1);
+        const hoje2 = new Date();
+        function vencendoEm(dias2){ return demandasAtivas.filter(d=>{ if(!d.terminoPrevisto||isAtrasada(d)) return false; const diff=(new Date(d.terminoPrevisto+("T00:00:00"))-hoje2)/86400000; return diff>=0&&diff<=dias2; }).length; }
+        const v7=vencendoEm(7), v15=vencendoEm(15), v30=vencendoEm(30);
+        const concluidas30 = demandasConcluidas.filter(d=>{const c=d.concluidaEm||d.updatedAt||"";const dt=new Date(c);return (hoje2-dt)/86400000<=30;});
+        const slaMedia = concluidas30.length>0 ? Math.round(concluidas30.filter(d=>d.inicio&&(d.concluidaEm||d.updatedAt)).reduce((s,d)=>{const ini=new Date(d.inicio+"T00:00:00");const fim=new Date(d.concluidaEm||d.updatedAt);return s+(fim-ini)/86400000;},0)/concluidas30.length) : null;
+
+        return (
+          <div style={{display:"flex",flexDirection:"column",gap:16}}>
+            {/* Vencimentos */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:8}}>
+              {[[v7,"Vencem em 7 dias","#BD3838"],[v15,"Vencem em 15 dias","#C9A200"],[v30,"Vencem em 30 dias","#185FA5"],[kpiAtrasadas,"Atrasadas","#BD3838"],[slaMedia!==null?`${slaMedia}d`:"–","SLA médio (30d)","#1E7A3C"]].map(([v,l,c])=>(
+                <div key={l} className="metric" style={{borderLeft:`3px solid ${c}`}}>
+                  <div className="metric-label">{l}</div>
+                  <div className="metric-value" style={{color:c,fontSize:22}}>{v}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+              {/* Gráfico por status */}
+              <div className="card">
+                <div style={{fontWeight:700,fontSize:13,marginBottom:12}}>Demandas por status</div>
+                {porStatus.map(({s,n})=>(
+                  <div key={s} style={{marginBottom:6}}>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2}}>
+                      <span style={{color:cores[s]||"#555",fontWeight:600}}>{s}</span>
+                      <span style={{fontWeight:700}}>{n}</span>
+                    </div>
+                    <div style={{background:"#E0DED8",borderRadius:4,height:7,overflow:"hidden"}}>
+                      <div style={{width:`${n/total*100}%`,height:"100%",background:cores[s]||"#888",borderRadius:4,transition:"width .4s"}}/>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Gráfico por cliente */}
+              <div className="card">
+                <div style={{fontWeight:700,fontSize:13,marginBottom:12}}>Top clientes (demandas ativas)</div>
+                {porCli.length===0&&<div style={{fontSize:12,color:"#aaa",textAlign:"center",padding:16}}>Sem dados</div>}
+                {porCli.map(({cli,n})=>(
+                  <div key={cli} style={{marginBottom:6}}>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2}}>
+                      <span style={{fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"75%"}}>{cli}</span>
+                      <span style={{fontWeight:700}}>{n}</span>
+                    </div>
+                    <div style={{background:"#E0DED8",borderRadius:4,height:7,overflow:"hidden"}}>
+                      <div style={{width:`${n/maxCli*100}%`,height:"100%",background:"#F5C400",borderRadius:4,transition:"width .4s"}}/>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Demandas vencendo em breve */}
+            <div className="card">
+              <div style={{fontWeight:700,fontSize:13,marginBottom:10}}>📅 Vencendo nos próximos 30 dias</div>
+              {demandasAtivas.filter(d=>{if(!d.terminoPrevisto||isAtrasada(d))return false;const diff=(new Date(d.terminoPrevisto+"T00:00:00")-hoje2)/86400000;return diff>=0&&diff<=30;}).sort((a,b)=>a.terminoPrevisto.localeCompare(b.terminoPrevisto)).length===0
+                ? <div style={{fontSize:12,color:"#aaa",textAlign:"center",padding:8}}>Nenhuma demanda vencendo nos próximos 30 dias.</div>
+                : <div className="table-wrap"><table><thead><tr><th>Agência</th><th>Cliente</th><th>Tipo</th><th>Término</th><th>Dias restantes</th></tr></thead><tbody>
+                  {demandasAtivas.filter(d=>{if(!d.terminoPrevisto||isAtrasada(d))return false;const diff=(new Date(d.terminoPrevisto+"T00:00:00")-hoje2)/86400000;return diff>=0&&diff<=30;}).sort((a,b)=>a.terminoPrevisto.localeCompare(b.terminoPrevisto)).map(d=>{
+                    const diff=Math.ceil((new Date(d.terminoPrevisto+"T00:00:00")-hoje2)/86400000);
+                    return(<tr key={d.id} style={{cursor:"pointer"}} onClick={()=>setDrawerAberto(d)}>
+                      <td style={{fontWeight:600}}>{d.agenciaNome}</td>
+                      <td style={{fontSize:12}}>{d.clienteNome}</td>
+                      <td style={{fontSize:12}}>{d.tipoDemanda}</td>
+                      <td style={{fontSize:12}}>{fmtDate(d.terminoPrevisto)}</td>
+                      <td><span style={{background:diff<=7?"#FDEAEA":diff<=15?"#FFFBEA":"#EAF7EE",color:diff<=7?"#BD3838":diff<=15?"#C9A200":"#1E7A3C",borderRadius:8,padding:"1px 7px",fontSize:11,fontWeight:700}}>{diff}d</span></td>
+                    </tr>);
+                  })}
+                </tbody></table></div>
+              }
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── DRAWER ── */}
       {drawerAberto&&(<>
