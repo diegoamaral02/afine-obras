@@ -1,6 +1,6 @@
 // src/pages/Comercial.js — CRM + Funil de vendas + Kanban
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, doc, deleteDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
@@ -347,10 +347,19 @@ function ClienteModal({ cliente, onClose, addToast }) {
 
 // Sub-página clientes — CRUD completo
 function ClientesPage({ addToast, toasts }) {
-  const [clientes, setClientes] = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [search,   setSearch]   = useState("");
-  const [modal,    setModal]    = useState(null);
+  const [clientes,    setClientes]    = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [search,      setSearch]      = useState("");
+  const [modal,       setModal]       = useState(null);
+  const [excluindo,   setExcluindo]   = useState(null); // id do cliente pendente de confirmação
+
+  async function excluirCliente(id, nome) {
+    try {
+      await deleteDoc(doc(db,"clientes",id));
+      addToast(`Cliente "${nome}" excluído.`);
+    } catch(err) { addToast("Erro ao excluir: "+err.message,"error"); }
+    setExcluindo(null);
+  }
 
   useEffect(()=>{
     return onSnapshot(collection(db,"clientes"),snap=>{
@@ -404,7 +413,13 @@ function ClientesPage({ addToast, toasts }) {
                     ) : <span style={{color:"#aaa",fontSize:11}}>–</span>}
                   </td>
                   <td><span className={`badge ${c.status==="ATIVO"?"badge-green":"badge-gray"}`}>{c.status}</span></td>
-                  <td><button className="btn btn-sm btn-icon" onClick={()=>setModal({cliente:c})}>✏️</button></td>
+                  <td style={{display:"flex",gap:4}}>
+                    <button className="btn btn-sm btn-icon" onClick={()=>setModal({cliente:c})}>✏️</button>
+                    {excluindo===c.id
+                      ? <><button className="btn btn-sm" style={{background:"var(--vermelho)",color:"#fff",fontSize:11}} onClick={()=>excluirCliente(c.id,c.razaoSocial)}>Confirmar</button><button className="btn btn-sm" style={{fontSize:11}} onClick={()=>setExcluindo(null)}>Cancelar</button></>
+                      : <button className="btn btn-sm btn-icon" style={{color:"var(--vermelho)"}} onClick={()=>setExcluindo(c.id)} title="Excluir cliente">🗑️</button>
+                    }
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -1,6 +1,7 @@
 // src/pages/Equipe.js — v2: alocação cruzada (obras + manutenções) com reatribuição direta
 import React, { useEffect, useState, useMemo } from "react";
 import { collection, onSnapshot, query, where, addDoc, updateDoc, doc } from "firebase/firestore";
+import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
 import { db } from "../firebase";
 import { statusBadge, fmtDate, initials } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -63,7 +64,7 @@ function ReatribuirModal({ colaborador, demandasAbertas, onClose, addToast }) {
   }
 
   async function reatribuir(manutOrigemId) {
-    if(!demandaSelecionada){alert("Selecione a nova manutenção.");return;}
+    if(!demandaSelecionada){addToast("Selecione a nova manutenção.","error");return;}
     setSaving(true);
     try {
       const origem = demandasAbertas.find(d=>d.id===manutOrigemId);
@@ -81,7 +82,7 @@ function ReatribuirModal({ colaborador, demandasAbertas, onClose, addToast }) {
   }
 
   async function alocarDireto() {
-    if(!demandaSelecionada){alert("Selecione a manutenção.");return;}
+    if(!demandaSelecionada){addToast("Selecione a manutenção.","error");return;}
     setSaving(true);
     try {
       const destino = demandasAbertas.find(d=>d.id===demandaSelecionada);
@@ -143,9 +144,14 @@ function ReatribuirModal({ colaborador, demandasAbertas, onClose, addToast }) {
             ))}
           </select>
           {alocacoesAtuais.length>0 ? (
-            <button className="btn btn-primary" disabled={saving||!demandaSelecionada} onClick={()=>reatribuir(alocacoesAtuais[0].id)} style={{width:"100%"}}>
-              {saving?"Movendo...":"🔄 Mover alocação"}
-            </button>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              {alocacoesAtuais.map(m=>(
+                <button key={m.id} className="btn btn-primary" disabled={saving||!demandaSelecionada}
+                  onClick={()=>reatribuir(m.id)} style={{width:"100%",fontSize:12}}>
+                  {saving?"Movendo...": `🔄 Mover de "${m.titulo}"`}
+                </button>
+              ))}
+            </div>
           ) : (
             <button className="btn btn-primary" disabled={saving||!demandaSelecionada} onClick={alocarDireto} style={{width:"100%"}}>
               {saving?"Alocando...":"👷 Alocar nesta manutenção"}
@@ -360,14 +366,14 @@ function OcorrModal({ ocorr, obraAtual, onClose, addToast }) {
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
 
   async function save() {
-    if(!form.descricao){alert("Descreva a ocorrência.");return;}
+    if(!form.descricao){addToast("Descreva a ocorrência.","error");return;}
     setSaving(true);
     const agora=new Date().toISOString();
     const func = funcionarios.find(f=>f.id===form.funcId||f.uid===form.funcId);
     const payload={...form, fotos, obraId:obraAtual, responsavel: func?.nome||form.responsavel, updatedAt:agora, autorNome:userProfile?.nome||currentUser?.email};
     try {
-      if(ocorr?.id){await updateDoc(doc(db,"ocorrencias",ocorr.id),payload);addToast("Atualizada!");}
-      else{payload.createdAt=agora;await addDoc(collection(db,"ocorrencias"),payload);addToast("Registrada!");}
+      if(ocorr?.id){await updateComAuditoria("ocorrencias",ocorr.id,payload,currentUser?.uid,userProfile?.nome);addToast("Atualizada!");}
+      else{payload.createdAt=agora;await addComAuditoria("ocorrencias",payload,currentUser?.uid,userProfile?.nome);addToast("Registrada!");}
       onClose();
     } catch(err){addToast("Erro: "+err.message,"error");}
     setSaving(false);

@@ -297,26 +297,29 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
     else window.open(`https://www.google.com/maps/search/?api=1&query=${end}`,"_blank");
   }
 
-  const fotosOk = fotos.length>=MIN_FOTOS_OBRA;
-  const matOk   = form.materiais.length>0 || (form.semMaterial && form.motivoSemMaterial?.trim());
-  const osOk    = !!osDigital;
-  const endOk   = form.logradouro&&form.numero&&form.cep;
-  const podeConcluir = fotosOk&&matOk&&osOk&&endOk;
+  const fotosOk       = fotos.length>=MIN_FOTOS_OBRA;
+  const matOk         = form.materiais.length>0 || (form.semMaterial && form.motivoSemMaterial?.trim());
+  const osOk          = !!osDigital;
+  const endOk         = form.logradouro&&form.numero&&form.cep;
+  const descaractOk   = !isDescaracterizacao || itensDescaractPreenchidos >= itensDescaractTotal;
+  const podeConcluir  = fotosOk&&matOk&&osOk&&endOk&&descaractOk;
 
-  async function save() {
+  async function save(statusOverride) {
+    const statusFinal = statusOverride ?? form.status;
     if (!form.nome||!form.cliente) { alert("Nome e cliente são obrigatórios."); return; }
-    if (form.status==="CONCLUÍDA"&&!podeConcluir) {
+    if (statusFinal==="CONCLUÍDA"&&!podeConcluir) {
       const msgs=[];
-      if(!fotosOk) msgs.push(`• ${MIN_FOTOS_OBRA} fotos (você tem ${fotos.length})`);
-      if(!matOk)   msgs.push("• Materiais utilizados (ou justificar ausência)");
-      if(!osOk)    msgs.push("• OS digital assinada");
-      if(!endOk)   msgs.push("• Endereço completo");
+      if(!fotosOk)     msgs.push(`• ${MIN_FOTOS_OBRA} fotos (você tem ${fotos.length})`);
+      if(!matOk)       msgs.push("• Materiais utilizados (ou justificar ausência)");
+      if(!osOk)        msgs.push("• OS digital assinada");
+      if(!endOk)       msgs.push("• Endereço completo");
+      if(!descaractOk) msgs.push(`• Checklist de descaracterização (${itensDescaractPreenchidos}/${itensDescaractTotal} itens)`);
       alert("Para concluir:\n"+msgs.join("\n"));
       return;
     }
     setSaving(true);
     const agora = new Date().toISOString();
-    const payload = { ...form, progresso: Number(form.progresso)||0, fotos, checklist, checklistDescaract, osDigital: osDigital||null, updatedAt: agora };
+    const payload = { ...form, status: statusFinal, progresso: Number(form.progresso)||0, fotos, checklist, checklistDescaract, osDigital: osDigital||null, updatedAt: agora };
 
     const resultado = await salvarComFallbackOffline(
       obra?.id ? "obra:update" : "obra:create",
@@ -890,7 +893,7 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
 
           {podeConcluir&&(
             <button className="btn btn-primary" style={{background:"var(--verde)",borderColor:"var(--verde)",padding:14,fontSize:14,marginTop:4}}
-              onClick={()=>{set("status","CONCLUÍDA");setTimeout(save,100);}}>
+              onClick={()=>save("CONCLUÍDA")}>
               🏁 Concluir obra
             </button>
           )}

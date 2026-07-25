@@ -1,6 +1,6 @@
 // src/pages/Compras.js — v5: permissões revisadas + recusa/revisão + rastreio por etapa + PDF + catálogo de itens
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, doc, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, doc, getDocs, writeBatch } from "firebase/firestore";
 import { db } from "../firebase";
 import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -302,7 +302,7 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
   const podeCorrigirVinculo = !isNova && (userProfile?.adm===true || userProfile?.departamento==="gestao") && !["SOLICITAÇÃO","EM REVISÃO"].includes(etapaAtual);
 
   async function salvarCorrecaoVinculo() {
-    if (!demandaId && demandaTipo!=="geral") { alert("Selecione a demanda correta."); return; }
+    if (!demandaId && demandaTipo!=="geral") { addToast("Selecione a demanda correta.","error"); return; }
     const demandaNomeCorrigido = demandaTipo==="geral" ? "" : (demandas.find(d=>d.id===demandaId)?.nome || demandas.find(d=>d.id===demandaId)?.titulo || "");
     setSaving(true);
     try {
@@ -317,7 +317,7 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
   }
 
   function addItem() {
-    if (!itemNome||!itemQtd) { alert("Informe o item e a quantidade."); return; }
+    if (!itemNome||!itemQtd) { addToast("Informe o item e a quantidade.","error"); return; }
     setItens(p=>[...p,{nome:itemNome,qtd:Number(itemQtd),un:itemUn}]);
     setItemNome(""); setItemQtd("");
   }
@@ -365,6 +365,7 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
     const snap = await getDocs(collection(db,"materiais_estoque"));
     const existentes = snap.docs.map(d=>({id:d.id,...d.data()}));
     const demandaNomeAtual = demandaTipo==="geral" ? "" : (demandas.find(d=>d.id===demandaId)?.nome || demandas.find(d=>d.id===demandaId)?.titulo || "");
+    const batch = writeBatch(db);
 
     for (const it of itens) {
       const nomeNorm = it.nome.trim().toLowerCase();
@@ -374,34 +375,46 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
       if (found) {
         itemId = found.id; saldoAnterior = found.saldo||0; entradasAnt = found.totalEntradas||0;
       } else {
+        const novoRef = doc(collection(db,"materiais_estoque"));
+        itemId = novoRef.id; saldoAnterior = 0; entradasAnt = 0;
         const novo = { nome: it.nome, un: it.un, categoria: "", saldo: 0, estoqueMin: 0, totalEntradas: 0, totalSaidas: 0, criadoAutomaticamente: true, createdAt: agora() };
-        const ref = await addDoc(collection(db,"materiais_estoque"), novo);
-        itemId = ref.id; saldoAnterior = 0; entradasAnt = 0;
+        batch.set(novoRef, novo);
         existentes.push({ id: itemId, ...novo }); // evita duplicar item se houver 2 linhas iguais na mesma compra
       }
 
-      await addDoc(collection(db,"movimentacoes"), {
+      const movRef = doc(collection(db,"movimentacoes"));
+      batch.set(movRef, {
         itemId, itemNome: it.nome, tipo: "entrada", qtd: Number(it.qtd)||0,
         data: new Date().toISOString().split("T")[0],
         demandaTipo, demandaId: demandaTipo==="geral"?"":demandaId, demandaNome: demandaNomeAtual,
         origem: "compra", compraId: compra.id, usuario: nomeUser, createdAt: agora(),
         obs: `Recebido conforme — compra "${titulo}"`,
       });
-      await updateDoc(doc(db,"materiais_estoque",itemId), {
+      batch.update(doc(db,"materiais_estoque",itemId), {
         saldo: saldoAnterior + (Number(it.qtd)||0),
         totalEntradas: entradasAnt + (Number(it.qtd)||0),
       });
     }
+
+    await batch.commit();
   }
 
   async function salvar(novoStatus) {
-    if (!titulo) { alert("Informe o título."); return; }
-    if (isNova && !itens.length) { alert("Adicione pelo menos 1 item."); return; }
+    if (!titulo) { addToast("Informe o título.","error"); return; }
+    if (isNova && !itens.length) { addToast("Adicione pelo menos 1 item.","error"); return; }
+    // Validação de campos obrigatórios por etapa
+    if (etapaAtual === "COTAÇÃO" && novoStatus && novoStatus !== "COTAÇÃO" && novoStatus !== "EM REVISÃO" && novoStatus !== "RECUSADA") {
+      if (!fornecedorId) { addToast("Selecione o fornecedor antes de avançar.","error"); return; }
+      if (!valorCotado)  { addToast("Informe o valor cotado antes de avançar.","error"); return; }
+    }
+    if (etapaAtual === "AGUARD. NF" && novoStatus === "NF VINCULADA") {
+      if (!numeroNF?.trim()) { addToast("Informe o número da NF antes de vincular.","error"); return; }
+    }
     // Validação de aprovação
     if (novoStatus === "APROVADA" && !canAprovar) {
-      alert(demandaTipo==="obra"
+      addToast(demandaTipo==="obra"
         ? "Somente o ADM pode aprovar compras vinculadas a obras."
-        : "Você não tem permissão para aprovar esta compra.");
+        : "Você não tem permissão para aprovar esta compra.", "error");
       return;
     }
     setSaving(true);
@@ -429,7 +442,7 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
   }
 
   async function recusarOuRevisar(tipo) {
-    if (!motivoRecusa.trim()) { alert(`Informe o motivo ${tipo==="recusa"?"da recusa":"da revisão"}.`); return; }
+    if (!motivoRecusa.trim()) { addToast(`Informe o motivo ${tipo==="recusa"?"da recusa":"da revisão"}.`,"error"); return; }
     setSaving(true);
     const novoStatus = tipo==="recusa" ? "RECUSADA" : "EM REVISÃO";
     try {

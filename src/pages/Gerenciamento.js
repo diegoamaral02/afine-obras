@@ -501,6 +501,9 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
       entradaGestor:form.entradaGestor, enviadoFinanceiro:form.enviadoFinanceiro,
       eventosConfig:form.eventosConfig, updatedAt:agora,
     };
+    // Registra data de conclusão apenas na primeira vez que status muda para encerrado
+    const eraEncerrada = demanda && STATUS_ENCERRADOS.has(demanda.status);
+    if (STATUS_ENCERRADOS.has(form.status) && !eraEncerrada) payload.concluidaEm = agora;
     try {
       if (isNova) {
         await addComAuditoria("gerenciamento",{...payload,historico:[],createdAt:agora},currentUser?.uid,userProfile?.nome);
@@ -916,7 +919,7 @@ export default function Gerenciamento() {
   const kpiAgendamento = demandasAtivas.filter(d=>["AGENDAMENTO","SOLICITAÇÃO MATERIAL"].includes(d.status)).length;
   const kpiSuspenso    = demandasAtivas.filter(d=>d.status==="SUSPENSA").length;
   const kpiAtrasadas   = demandasAtivas.filter(d=>isAtrasada(d)).length;
-  const kpiConclMes    = demandasConcluidas.filter(d=>{ const u=d.updatedAt||""; return u.startsWith(new Date().toISOString().slice(0,7)); }).length;
+  const kpiConclMes    = demandasConcluidas.filter(d=>{ const u=d.concluidaEm||d.updatedAt||""; return u.startsWith(new Date().toISOString().slice(0,7)); }).length;
 
   // Filtered (busca persistente entre abas)
   const filtered = useMemo(()=>{

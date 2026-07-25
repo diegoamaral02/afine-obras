@@ -1,6 +1,6 @@
 // src/pages/Funcionarios.js — com departamentos, permissões e gestão completa
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, doc, setDoc, deleteDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db, auth } from "../firebase";
 import { statusBadge, fmtDate, initials } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -25,20 +25,14 @@ async function criarLoginFirebase(email, senha) {
 
 // ── Modal Alterar Senha ────────────────────────────────────────────────────────
 function AlterarSenhaModal({ func, onClose, addToast }) {
-  const [novaSenha, setNovaSenha] = useState("");
-  const [confirmar, setConfirmar] = useState("");
-  const [show1,     setShow1]     = useState(false);
-  const [show2,     setShow2]     = useState(false);
-  const [saving,    setSaving]    = useState(false);
+  const [saving, setSaving] = useState(false);
 
   async function save() {
-    if (novaSenha.length < 6) { alert("Mínimo 6 caracteres."); return; }
-    if (novaSenha !== confirmar) { alert("As senhas não coincidem."); return; }
     setSaving(true);
     try {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(func.email)) {
-        addToast(`E-mail inválido (${func.email}). Cadastre um e-mail válido para enviar o link.`, "error");
+        addToast(`E-mail inválido (${func.email}). Corrija o e-mail do funcionário primeiro.`, "error");
         setSaving(false); return;
       }
       await sendPasswordResetEmail(auth, func.email);
@@ -49,7 +43,7 @@ function AlterarSenhaModal({ func, onClose, addToast }) {
   }
 
   return (
-    <Modal title={`Alterar senha — ${func.nome}`} onClose={onClose}
+    <Modal title={`Redefinir senha — ${func.nome}`} onClose={onClose}
       footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving?"Enviando...":"Enviar link de redefinição"}</button></>}>
       <div style={{display:"flex",flexDirection:"column",gap:14}}>
         <div style={{background:"var(--cinza-lt)",borderRadius:8,padding:12}}>
@@ -58,27 +52,7 @@ function AlterarSenhaModal({ func, onClose, addToast }) {
           <div style={{fontSize:12,color:"#7A7A7A"}}>{func.email}</div>
         </div>
         <div className="alert alert-info" style={{fontSize:12}}>
-          🔐 Um link de redefinição será enviado para o e-mail do funcionário. Ele clica e define a nova senha. O e-mail precisa ser válido (ex: nome@gmail.com).
-        </div>
-        <div className="form-group">
-          <label>Nova senha (para anotação interna)</label>
-          <div style={{position:"relative"}}>
-            <input type={show1?"text":"password"} value={novaSenha} onChange={e=>setNovaSenha(e.target.value)} placeholder="Mínimo 6 caracteres" style={{paddingRight:40}}/>
-            <button type="button" onClick={()=>setShow1(!show1)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:15}}>
-              {show1?"🙈":"👁️"}
-            </button>
-          </div>
-        </div>
-        <div className="form-group">
-          <label>Confirmar</label>
-          <div style={{position:"relative"}}>
-            <input type={show2?"text":"password"} value={confirmar} onChange={e=>setConfirmar(e.target.value)} placeholder="Repita a senha"
-              style={{paddingRight:40,borderColor:confirmar&&novaSenha!==confirmar?"var(--vermelho)":""}}/>
-            <button type="button" onClick={()=>setShow2(!show2)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:15}}>
-              {show2?"🙈":"👁️"}
-            </button>
-          </div>
-          {confirmar&&novaSenha!==confirmar&&<span style={{fontSize:11,color:"var(--vermelho)"}}>Senhas não coincidem</span>}
+          🔐 Um link de redefinição de senha será enviado para o e-mail acima. O funcionário clica no link e define a nova senha diretamente.
         </div>
       </div>
     </Modal>
@@ -167,10 +141,35 @@ function FuncionarioModal({ func, obras, onClose, addToast }) {
     compras:    "Ver e editar: Fornecedores, Compras (Cotação, OC, Recebido, NF), Materiais",
   };
 
+  function validarCNPJ(v) {
+    const n = (v||"").replace(/\D/g,"");
+    if (n.length !== 14) return false;
+    if (/^(\d)\1+$/.test(n)) return false;
+    const calc = (arr, len) => {
+      let s=0, p=len-7;
+      for (let i=len;i>=1;i--){s+=arr[len-i]*(p--);if(p<2)p=9;}
+      const r=s%11;
+      return r<2?0:11-r;
+    };
+    const a = n.split("").map(Number);
+    return calc(a,12)===a[12] && calc(a,13)===a[13];
+  }
+  function validarCPF(v) {
+    const n = (v||"").replace(/\D/g,"");
+    if (n.length !== 11 || /^(\d)\1+$/.test(n)) return false;
+    const s1 = n.slice(0,9).split("").reduce((s,d,i)=>s+Number(d)*(10-i),0);
+    const d1 = (s1*10)%11; const r1 = d1>=10?0:d1;
+    const s2 = n.slice(0,10).split("").reduce((s,d,i)=>s+Number(d)*(11-i),0);
+    const d2 = (s2*10)%11; const r2 = d2>=10?0:d2;
+    return r1===Number(n[9]) && r2===Number(n[10]);
+  }
+
   async function save() {
-    if (!form.nome||!form.email) { alert("Nome e e-mail são obrigatórios."); return; }
-    if (isNovo&&modoSenha==="criar"&&!senha) { alert("Defina uma senha."); return; }
-    if (isNovo&&modoSenha==="criar"&&senha.length<6) { alert("Senha mínimo 6 caracteres."); return; }
+    if (!form.nome||!form.email) { addToast("Nome e e-mail são obrigatórios.","error"); return; }
+    if (isNovo&&modoSenha==="criar"&&!senha) { addToast("Defina uma senha.","error"); return; }
+    if (isNovo&&modoSenha==="criar"&&senha.length<6) { addToast("Senha mínimo 6 caracteres.","error"); return; }
+    if (form.cnpj && !validarCNPJ(form.cnpj)) { addToast("CNPJ inválido.","error"); return; }
+    if (form.cpf && !validarCPF(form.cpf))   { addToast("CPF inválido.","error"); return; }
     setSaving(true);
     try {
       let uid = func?.uid;
@@ -192,7 +191,11 @@ function FuncionarioModal({ func, obras, onClose, addToast }) {
         }
       }
       const payload = { ...form, uid, pendente:uid?.startsWith("pending_")||false, updatedAt:new Date().toISOString(), createdAt:func?.createdAt||new Date().toISOString() };
-      await setDoc(doc(db,"usuarios",uid), payload);
+      if (isNovo) {
+        await setDoc(doc(db,"usuarios",uid), payload);
+      } else {
+        await updateDoc(doc(db,"usuarios",uid), payload);
+      }
       addToast(isNovo?"Funcionário cadastrado!":"Funcionário atualizado!");
       onClose();
     } catch(err) { addToast("Erro: "+(err.message||err.code||"Tente novamente"),"error"); }

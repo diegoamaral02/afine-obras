@@ -621,7 +621,7 @@ function AbaContasReceber({ lancs, obras, addToast }) {
 }
 
 // ── Sub-aba: Fluxo de Caixa ───────────────────────────────────────────────────
-function AbaFluxoCaixa({ lancs }) {
+function AbaFluxoCaixa({ lancs, compras, despesas }) {
   const hj = hoje();
   const meses = useMemo(()=>{
     return Array.from({length:12},(_,i)=>{
@@ -629,13 +629,19 @@ function AbaFluxoCaixa({ lancs }) {
       const m=d.toISOString().slice(0,7);
       const l=lancs.filter(x=>(x.vencimento||"").startsWith(m));
       const rec    =l.filter(x=>x.tipo==="RECEBER").reduce((s,x)=>s+(x.valor||0),0);
-      const pag    =l.filter(x=>x.tipo==="PAGAR").reduce((s,x)=>s+(x.valor||0),0);
+      const pagLanc=l.filter(x=>x.tipo==="PAGAR").reduce((s,x)=>s+(x.valor||0),0);
+      // Compras aprovadas/em andamento com prazo no mês e despesas do mês
+      const pagComp=(compras||[]).filter(c=>["APROVADA","ORDEM DE COMPRA","RECEBIDO","AGUARD. NF","NF VINCULADA"].includes(c.status)&&(c.prazoEntrega||c.dataPedido||"").slice(0,7)===m).reduce((s,c)=>s+(c.valorAprovado||c.valorCotado||0),0);
+      const pagDes =(despesas||[]).filter(de=>(de.data||"").startsWith(m)).reduce((s,de)=>s+(de.valor||0),0);
+      const pag    =pagLanc+pagComp+pagDes;
       const recReal=l.filter(x=>x.tipo==="RECEBER"&&x.status==="RECEBIDO").reduce((s,x)=>s+(x.valor||0),0);
-      const pagReal=l.filter(x=>x.tipo==="PAGAR"&&x.status==="PAGO").reduce((s,x)=>s+(x.valor||0),0);
+      const pagRealLanc=l.filter(x=>x.tipo==="PAGAR"&&x.status==="PAGO").reduce((s,x)=>s+(x.valor||0),0);
+      const pagRealComp=(compras||[]).filter(c=>["RECEBIDO","AGUARD. NF","NF VINCULADA"].includes(c.status)&&(c.dataRecebimento||"").slice(0,7)===m).reduce((s,c)=>s+(c.valorAprovado||c.valorCotado||0),0);
+      const pagReal=pagRealLanc+pagRealComp;
       const nf=lancs.filter(x=>x.tipo==="PAGAR"&&(x.numeroNF)&&(x.vencimento||"").startsWith(m)).length;
       return {mes:["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][d.getMonth()]+" "+(d.getFullYear()%100),m,rec,pag,saldo:rec-pag,recReal,pagReal,saldoReal:recReal-pagReal,nf,isPast:m<hj.slice(0,7),isCurrent:m===hj.slice(0,7)};
     });
-  },[lancs]);
+  },[lancs,compras,despesas]);
 
   const maxVal=useMemo(()=>Math.max(...meses.map(m=>Math.max(m.rec,m.pag)),1),[meses]);
   const H=90;
@@ -758,10 +764,11 @@ function AbaCustoObra({ lancs, obras, compras, despesas, addToast }) {
                 <div style={{fontWeight:700,fontSize:14}}>{o.nome}</div>
                 <div style={{fontSize:12,color:"#7A7A7A"}}>{o.cliente} · {o.status}</div>
               </div>
-              <div style={{textAlign:"right"}}>
+              <div style={{textAlign:"right",display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end"}}>
                 <div style={{fontSize:18,fontWeight:700,color:lucro?"var(--verde)":"var(--vermelho)"}}>{fmt(o.margem)}</div>
                 <div style={{fontSize:11,color:"#7A7A7A"}}>margem {o.pctMarg}%</div>
                 <span className={`badge ${desvio>0?"badge-red":desvio<0?"badge-green":"badge-gray"}`} style={{fontSize:10}}>{desvio>0?"⚠ Acima":"✓ Dentro"} do orçado</span>
+                <button className="btn btn-sm" style={{fontSize:11}} onClick={()=>setModal({lanc:{obraId:o.id,obraNome:o.nome}})}>+ Lançamento</button>
               </div>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:8,marginBottom:8}}>
@@ -954,7 +961,7 @@ export default function Financeiro() {
           {aba==="lancamentos"   &&<AbaLancamentos    lancs={lancs} obras={obras} addToast={addToast}/>}
           {aba==="contas_pagar"  &&<AbaContasPagar    lancs={lancs} obras={obras} addToast={addToast}/>}
           {aba==="contas_receber"&&<AbaContasReceber  lancs={lancs} obras={obras} addToast={addToast}/>}
-          {aba==="fluxo"         &&<AbaFluxoCaixa     lancs={lancs}/>}
+          {aba==="fluxo"         &&<AbaFluxoCaixa     lancs={lancs} compras={compras} despesas={despesas}/>}
           {aba==="custo_obra"    &&<AbaCustoObra      lancs={lancs} obras={obras} compras={compras} despesas={despesas} addToast={addToast}/>}
           {aba==="aging"         &&<AbaAging          lancs={lancs} obras={obras} addToast={addToast}/>}
         </>

@@ -725,7 +725,7 @@ function AbaCurvaABC({ movs, mats }) {
 }
 
 // ── Sub-aba: Rentabilidade por Cliente ────────────────────────────────────────
-function AbaCliente({ lancs, obras }) {
+function AbaCliente({ lancs, obras, compras, despesas }) {
   const porCliente = useMemo(()=>{
     const clientes = [...new Set(obras.map(o=>o.cliente).filter(Boolean))];
     return clientes.map(cli=>{
@@ -733,10 +733,13 @@ function AbaCliente({ lancs, obras }) {
       const ids    = obrasC.map(o=>o.id);
       const l      = lancs.filter(x=>ids.includes(x.obraId));
       const rec    = l.filter(x=>x.tipo==="RECEBER"&&(x.status==="PAGO"||x.status==="RECEBIDO")).reduce((s,x)=>s+(x.valor||0),0);
-      const cus    = l.filter(x=>x.tipo==="PAGAR"&&x.status==="PAGO").reduce((s,x)=>s+(x.valor||0),0);
+      const cusLanc = l.filter(x=>x.tipo==="PAGAR"&&x.status==="PAGO").reduce((s,x)=>s+(x.valor||0),0);
+      const cusComp = compras.filter(c=>ids.includes(c.demandaId)&&["RECEBIDO","AGUARD. NF","NF VINCULADA"].includes(c.status)).reduce((s,c)=>s+(c.valorAprovado||c.valorCotado||0),0);
+      const cusDes  = despesas.filter(d=>ids.includes(d.obraId)).reduce((s,d)=>s+(d.valor||0),0);
+      const cus     = cusLanc + cusComp + cusDes;
       return { cliente:cli, obras:obrasC.length, receita:rec, custo:cus, resultado:rec-cus, pctMg:pctN(rec-cus,rec) };
     }).sort((a,b)=>b.receita-a.receita);
-  },[lancs,obras]);
+  },[lancs,obras,compras,despesas]);
 
   if(porCliente.length===0) return <div className="empty-state"><div className="empty-icon">🏢</div><p>Nenhum cliente com lançamentos ainda</p></div>;
 
@@ -780,12 +783,15 @@ export default function DRE() {
   const [loading, setLoading] = useState(true);
   const [aba,     setAba]     = useState("mensal");
 
+  const [avisoLimite, setAvisoLimite] = useState([]);
   useEffect(()=>{
-    const u1=onSnapshot(query(collection(db,"obras"),limit(200)),    snap=>{setObras(snap.docs.map(d=>({id:d.id,...d.data()})));setLoading(false);});
-    const u2=onSnapshot(query(collection(db,"financeiro"),limit(500)),snap=>setLancs(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const avisos=[];
+    const check=(col,lim,snap)=>{if(snap.docs.length>=lim&&!avisos.includes(col)){avisos.push(col);setAvisoLimite([...avisos]);}};
+    const u1=onSnapshot(query(collection(db,"obras"),limit(200)),    snap=>{check("obras",200,snap);setObras(snap.docs.map(d=>({id:d.id,...d.data()})));setLoading(false);});
+    const u2=onSnapshot(query(collection(db,"financeiro"),limit(500)),snap=>{check("financeiro",500,snap);setLancs(snap.docs.map(d=>({id:d.id,...d.data()})));});
     const u3=onSnapshot(query(collection(db,"materiais_estoque"),limit(500)),           snap=>setMats(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u4=onSnapshot(query(collection(db,"movimentacoes"),limit(1000)),               snap=>setMovs(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u5=onSnapshot(query(collection(db,"compras"),limit(300)),   snap=>setCompras(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u5=onSnapshot(query(collection(db,"compras"),limit(300)),   snap=>{check("compras",300,snap);setCompras(snap.docs.map(d=>({id:d.id,...d.data()})));});
     const u6=onSnapshot(query(collection(db,"manutencoes"),limit(500)),                 snap=>setManuts(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u7=onSnapshot(query(collection(db,"despesas"),limit(500)),                    snap=>setDespesas(snap.docs.map(d=>({id:d.id,...d.data()}))));
     return()=>{u1();u2();u3();u4();u5();u6();u7();};
@@ -802,6 +808,11 @@ export default function DRE() {
 
   return (
     <div>
+      {avisoLimite.length > 0 && (
+        <div className="alert alert-warning" style={{fontSize:12,marginBottom:12}}>
+          ⚠️ Atenção: os dados de <strong>{avisoLimite.join(", ")}</strong> estão truncados pelo limite de consulta. Registros mais antigos podem não aparecer nos relatórios.
+        </div>
+      )}
       <div className="panel-header">
         <div>
           <div className="panel-title">Resultados</div>
@@ -829,7 +840,7 @@ export default function DRE() {
           {aba==="mensal"     &&<AbaVisaoMensal       lancs={lancs} compras={compras} despesas={despesas}/>}
           {aba==="resultado"  &&<AbaResultadoProjeto lancs={lancs} obras={obras} compras={compras} despesas={despesas} manuts={manuts}/>}
           {aba==="comparativo"&&<AbaComparativo      lancs={lancs} obras={obras} compras={compras} despesas={despesas}/>}
-          {aba==="clientes"   &&<AbaCliente          lancs={lancs} obras={obras}/>}
+          {aba==="clientes"   &&<AbaCliente          lancs={lancs} obras={obras} compras={compras} despesas={despesas}/>}
           {aba==="indicadores"&&<AbaIndicadores      lancs={lancs} obras={obras} compras={compras} manuts={manuts}/>}
           {aba==="abc"        &&<AbaCurvaABC         movs={movs} mats={mats}/>}
         </>

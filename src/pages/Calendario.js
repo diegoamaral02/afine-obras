@@ -34,24 +34,27 @@ function toISO(date) {
   return date.toISOString().split("T")[0];
 }
 
-// Modal de novo agendamento
-function AgendaModal({ diaInicial, onClose, addToast }) {
+// Modal de criar/editar agendamento
+function AgendaModal({ diaInicial, agendamento, onClose, addToast }) {
   const { obras, manutencoes, funcionarios, criarAgendamento, atualizarAgendamento, funcOcupado } = useAgenda();
   const { userProfile, currentUser } = useAuth();
-  const temPrivacidade = agendaPrivadaPorPadrao(userProfile); // gestão, financeiro e ADM
+  const isEdicao = !!agendamento?.id;
+  const temPrivacidade = agendaPrivadaPorPadrao(userProfile);
   const [form, setForm] = useState({
-    titulo: "", demandaTipo: "obra", demandaId: "",
-    dataInicio: diaInicial || new Date().toISOString().split("T")[0],
-    dataFim:    diaInicial || new Date().toISOString().split("T")[0],
-    turno: "integral", obs: "",
-    funcionarios: [],
-    publico: !temPrivacidade, // gestão/financeiro/ADM começam privado; demais já públicos
+    titulo:       agendamento?.titulo       || "",
+    demandaTipo:  agendamento?.demandaTipo  || "obra",
+    demandaId:    agendamento?.demandaId    || "",
+    dataInicio:   agendamento?.dataInicio   || diaInicial || new Date().toISOString().split("T")[0],
+    dataFim:      agendamento?.dataFim      || diaInicial || new Date().toISOString().split("T")[0],
+    turno:        agendamento?.turno        || "integral",
+    obs:          agendamento?.obs          || "",
+    funcionarios: agendamento?.funcionarios || [],
+    publico:      agendamento ? !agendamento.privado : !temPrivacidade,
   });
   const [saving, setSaving] = useState(false);
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
 
   const demandas = form.demandaTipo==="obra" ? obras : manutencoes;
-  const demandaSel = demandas.find(d=>d.id===form.demandaId);
 
   function handleDemanda(id) {
     const d = demandas.find(x=>x.id===id);
@@ -68,21 +71,27 @@ function AgendaModal({ diaInicial, onClose, addToast }) {
   }
 
   async function save() {
-    if (!form.demandaId) { alert("Selecione a demanda."); return; }
-    if (!form.dataInicio||!form.dataFim) { alert("Informe as datas."); return; }
-    if (form.dataFim < form.dataInicio) { alert("Data fim anterior à data início."); return; }
+    if (!form.demandaId) { addToast("Selecione a demanda.","error"); return; }
+    if (!form.dataInicio||!form.dataFim) { addToast("Informe as datas.","error"); return; }
+    if (form.dataFim < form.dataInicio) { addToast("Data fim anterior à data início.","error"); return; }
     setSaving(true);
     const demanda = demandas.find(d=>d.id===form.demandaId);
     const payload = {
       ...form,
-      demandaNome: demanda?.nome||demanda?.titulo||"",
-      autor: userProfile?.nome||"–",
-      criadorId: currentUser?.uid||"", criadorNome: userProfile?.nome||"–",
+      demandaNome: demanda?.nome||demanda?.titulo||form.titulo||"",
       privado: temPrivacidade && !form.publico,
     };
     try {
-      await criarAgendamento(payload);
-      addToast("Agendamento criado!");
+      if (isEdicao) {
+        await atualizarAgendamento(agendamento.id, payload);
+        addToast("Agendamento atualizado!");
+      } else {
+        payload.autor = userProfile?.nome||"–";
+        payload.criadorId = currentUser?.uid||"";
+        payload.criadorNome = userProfile?.nome||"–";
+        await criarAgendamento(payload);
+        addToast("Agendamento criado!");
+      }
       onClose();
     } catch(err) { addToast("Erro: "+err.message,"error"); }
     setSaving(false);
@@ -94,9 +103,9 @@ function AgendaModal({ diaInicial, onClose, addToast }) {
   );
 
   return (
-    <Modal title="Novo agendamento" onClose={onClose}
+    <Modal title={isEdicao?"Editar agendamento":"Novo agendamento"} onClose={onClose}
       footer={<><button className="btn" onClick={onClose}>Cancelar</button>
-        <button className="btn btn-primary" onClick={save} disabled={saving}>{saving?"Salvando...":"Salvar agendamento"}</button></>}>
+        <button className="btn btn-primary" onClick={save} disabled={saving}>{saving?"Salvando...":isEdicao?"Salvar alterações":"Salvar agendamento"}</button></>}>
       <div style={{display:"flex",flexDirection:"column",gap:14}}>
 
         <div className="form-grid">
@@ -193,7 +202,7 @@ const COR_UNICO   = "#7B4F00"; // marrom — quando início e término caem no m
 // Card de evento no calendário
 // diaISO = dia da célula onde este card está sendo renderizado (para saber se é o
 // dia de início, término, ou um dia intermediário do intervalo do evento)
-function EventoCard({ ag, funcionarios, diaISO }) {
+function EventoCard({ ag, funcionarios, diaISO, onEditar, onExcluir, canEdit }) {
   const [open, setOpen] = useState(false);
   const cor = corDemanda(ag.demandaId);
   const isInicio = diaISO === ag.dataInicio;
@@ -238,6 +247,12 @@ function EventoCard({ ag, funcionarios, diaISO }) {
             </div>
           )}
           {ag.obs&&<div style={{fontSize:11,color:"rgba(255,255,255,.5)",marginTop:6,borderTop:"1px solid rgba(255,255,255,.1)",paddingTop:6}}>{ag.obs}</div>}
+          {canEdit && ag.origem==="manual" && (
+            <div style={{display:"flex",gap:6,marginTop:8,borderTop:"1px solid rgba(255,255,255,.15)",paddingTop:8}}>
+              <button onClick={e=>{e.stopPropagation();setOpen(false);onEditar(ag);}} className="btn btn-sm" style={{flex:1,fontSize:11,background:"rgba(255,255,255,.1)",color:"#fff",border:"none"}}>✏️ Editar</button>
+              <button onClick={e=>{e.stopPropagation();if(window.confirm("Excluir este agendamento?"))onExcluir(ag.id);}} className="btn btn-sm" style={{flex:1,fontSize:11,background:"rgba(184,50,50,.4)",color:"#fff",border:"none"}}>🗑️ Excluir</button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -283,7 +298,7 @@ function DiaInfoModal({ diaISO, ags, funcionarios, onClose }) {
 }
 
 export default function Calendario() {
-  const { agendamentos, obras, manutencoes, funcionarios, loading } = useAgenda();
+  const { agendamentos, obras, manutencoes, funcionarios, loading, deletarAgendamento } = useAgenda();
   const { userProfile, currentUser } = useAuth();
   const souCampo = isCampo(userProfile);
   const isMobile = useIsMobile();
@@ -293,7 +308,15 @@ export default function Calendario() {
   const [ano,  setAno]  = useState(hoje.getFullYear());
   const [modalVer,    setModalVer]    = useState(null); // null | { dia }
   const [modalCriar,  setModalCriar]  = useState(null); // null | { dia }
+  const [modalEditar, setModalEditar] = useState(null); // null | agendamento
   const [vista,setVista]= useState("mes"); // "mes" | "semana"
+
+  async function handleExcluir(id) {
+    try {
+      await deletarAgendamento(id);
+      addToast("Agendamento excluído.");
+    } catch(err) { addToast("Erro: "+err.message,"error"); }
+  }
 
   // Obras em que o usuário de campo está alocado (via equipeIds[]) — mostrado
   // como informação fixa na agenda, independente de haver agendamento datado
@@ -522,7 +545,7 @@ export default function Calendario() {
                   </div>
                   {/* Eventos */}
                   {ags.slice(0,3).map(ag=>(
-                    <EventoCard key={ag.id} ag={ag} funcionarios={funcionarios} diaISO={dISO}/>
+                    <EventoCard key={ag.id} ag={ag} funcionarios={funcionarios} diaISO={dISO} canEdit={!souCampo} onEditar={setModalEditar} onExcluir={handleExcluir}/>
                   ))}
                   {ags.length>3&&(
                     <div style={{fontSize:10,color:"#7A7A7A",padding:"1px 4px"}}>+{ags.length-3} mais</div>
@@ -569,6 +592,14 @@ export default function Calendario() {
         <AgendaModal
           diaInicial={modalCriar.dia}
           onClose={()=>setModalCriar(null)}
+          addToast={addToast}
+        />
+      )}
+
+      {modalEditar && (
+        <AgendaModal
+          agendamento={modalEditar}
+          onClose={()=>setModalEditar(null)}
           addToast={addToast}
         />
       )}

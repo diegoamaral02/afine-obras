@@ -310,7 +310,7 @@ function TransferenciaModal({ origem, material, obras, manutencoes, onClose, add
   const listaDestinos = tipoDestino === "obra"
     ? obras.filter(o => o.id !== origem.obraId)
     : tipoDestino === "manutencao"
-      ? (manutencoes || []).filter(m => !["concluida","cancelada"].includes(m.status))
+      ? (manutencoes || []).filter(m => !["CONCLUÍDA","CANCELADA"].includes(m.status))
       : []; // estoque não precisa de destino específico
 
   // Label e ícone por tipo
@@ -322,10 +322,10 @@ function TransferenciaModal({ origem, material, obras, manutencoes, onClose, add
 
   async function salvar() {
     if (tipoDestino !== "estoque" && !destinoId) {
-      alert(`Selecione a ${tipoDestino === "obra" ? "obra" : "manutenção"} de destino.`); return;
+      addToast(`Selecione a ${tipoDestino === "obra" ? "obra" : "manutenção"} de destino.`,"error"); return;
     }
-    if (!qtd || Number(qtd) <= 0) { alert("Informe uma quantidade válida."); return; }
-    if (Number(qtd) > saldo) { alert(`Saldo disponível é de apenas ${saldo} ${material.un}.`); return; }
+    if (!qtd || Number(qtd) <= 0) { addToast("Informe uma quantidade válida.","error"); return; }
+    if (Number(qtd) > saldo) { addToast(`Saldo disponível é de apenas ${saldo} ${material.un}.`,"error"); return; }
 
     setSaving(true);
     try {
@@ -337,13 +337,28 @@ function TransferenciaModal({ origem, material, obras, manutencoes, onClose, add
         destinoNome = m?.titulo || m?.descricao || destinoId;
       }
 
+      // Para transferências "obra→estoque", credita saldo no materiais_estoque
+      if (tipoDestino === "estoque") {
+        const qMat = query(collection(db,"materiais_estoque"), where("nome","==",material.nome));
+        const snap = await getDocs(qMat);
+        if (!snap.empty) {
+          const matDoc = snap.docs[0];
+          const d = matDoc.data();
+          await updateDoc(doc(db,"materiais_estoque",matDoc.id), {
+            saldo:         (d.saldo||0) + Number(qtd),
+            totalEntradas: (d.totalEntradas||0) + Number(qtd),
+          });
+        }
+      }
+
       await addComAuditoria("transferencias_material", {
         materialNome:    material.nome,
         un:              material.un,
         qtd:             Number(qtd),
         obraOrigemId:    origem.obraId,
         obraOrigemNome:  origem.obraNome,
-        tipoDestino,                       // "obra" | "manutencao" | "estoque"
+        tipoDestino,
+        obraDestinoId:   tipoDestino === "obra" ? destinoId : null,
         destinoId:       destinoId || "estoque",
         destinoNome,
         obs,
@@ -452,7 +467,7 @@ function NovoMaterialModal({ onClose, addToast }) {
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
 
   async function save() {
-    if (!form.nome) { alert("Informe o nome do material."); return; }
+    if (!form.nome) { addToast("Informe o nome do material.","error"); return; }
     setSaving(true);
     try {
       await addDoc(collection(db,"materiais_estoque"), {
@@ -551,10 +566,10 @@ export default function MateriaisGlobal() {
 
     obras.forEach(o => (o.materiais||[]).forEach(m => add(o.id, m.nome, m.un, "usado", Number(m.qtd)||0)));
 
-    // Transferências: entra como "comprado" na obra destino, sai como "usado" na obra origem
+    // Transferências: entra como "comprado" na obra destino (obra→obra), sai como "usado" na obra origem
     transferencias.forEach(t => {
-      add(t.obraDestinoId, t.materialNome, t.un, "comprado", Number(t.qtd)||0);
-      add(t.obraOrigemId,  t.materialNome, t.un, "usado",    Number(t.qtd)||0);
+      if (t.obraDestinoId) add(t.obraDestinoId, t.materialNome, t.un, "comprado", Number(t.qtd)||0);
+      add(t.obraOrigemId, t.materialNome, t.un, "usado", Number(t.qtd)||0);
     });
 
     // Remove obras sem nenhum material comprado/usado

@@ -409,7 +409,10 @@ export default function Despesas() {
       </div>
 
       {/* Filtros */}
-      <div className="search-bar" style={{marginBottom:8}}>🔍<input placeholder="Buscar por descrição, funcionário, obra ou manutenção..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
+      <div className="search-bar" style={{marginBottom:8,position:"relative",display:"flex",alignItems:"center"}}>
+        🔍<input placeholder="Buscar por descrição, funcionário, obra ou manutenção..." value={search} onChange={e=>setSearch(e.target.value)} style={{paddingRight:search?28:undefined}}/>
+        {search && <button onClick={()=>setSearch("")} title="Limpar busca" style={{position:"absolute",right:8,background:"none",border:"none",cursor:"pointer",color:"#7A7A7A",fontSize:16,lineHeight:1,padding:0}}>✕</button>}
+      </div>
 
       <FiltroAvancado
         campos={[

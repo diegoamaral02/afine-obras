@@ -15,7 +15,7 @@ import { useToast } from "../hooks/useToast";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
 import { isGestorOuAdm, isCampo as isCampoHelper } from "../constants/departamentos";
-import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
+import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 import { salvarComFallbackOffline } from "../utils/offlineQueue";
 import { registrarExecutorOffline } from "../hooks/useFilaOffline";
 
@@ -509,6 +509,11 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
       )}
 
       {/* ── PASSO 3 — CUSTOS DA DEMANDA ──────────────────── */}
+      {passo===3 && !manut?.id && (
+        <div className="alert alert-info" style={{fontSize:13}}>
+          💡 Salve a manutenção primeiro para poder registrar custos.
+        </div>
+      )}
       {passo===3 && manut?.id && (
         <CustosDemanda
           demandaTipo="manutencao"
@@ -1285,7 +1290,7 @@ export default function Manutencao({ obraAtual }) {
           onCancelar={()=>setConfirmarExclusao(null)}
           onConfirmar={async()=>{
             try {
-              await deleteDoc(doc(db,"manutencoes",confirmarExclusao.id));
+              await deleteComAuditoria("manutencoes", confirmarExclusao.id, currentUser?.uid, userProfile?.nome, confirmarExclusao);
               addToast(`Manutenção "${confirmarExclusao.nome}" excluída.`);
             } catch(e) { addToast("Erro ao excluir: "+e.message,"error"); }
             setConfirmarExclusao(null);

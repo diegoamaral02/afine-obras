@@ -2,8 +2,8 @@
 import { useMemo } from "react";
 
 export function useFinanceiroKPIs(lancs) {
-  const hoje = new Date().toISOString().split("T")[0];
   return useMemo(() => {
+    const hoje = new Date().toISOString().split("T")[0];
     // "em aberto" = ABERTO ou VENCIDO (ainda não pago/recebido)
     const emAberto = s => ["ABERTO","VENCIDO"].includes(s);
     const pago     = s => ["PAGO","RECEBIDO"].includes(s);
@@ -23,5 +23,5 @@ export function useFinanceiroKPIs(lancs) {
       return {label:meses[d.getMonth()],valor:rec-pag,rec,pag};
     });
     return { totalRec, totalPag, totalPago, saldo, vencidos, vencidosCount: vencidos.length, fluxo6m };
-  }, [lancs, hoje]);
+  }, [lancs]);
 }

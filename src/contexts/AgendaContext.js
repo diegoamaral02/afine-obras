@@ -1,6 +1,6 @@
 // src/contexts/AgendaContext.js — v2: filtrado por perfil + memoizado
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, doc, query, where, limit, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, where, limit, orderBy } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "./AuthContext";
 
@@ -115,10 +115,14 @@ export function AgendaProvider({ children }) {
     }
   }
 
+  async function deletarAgendamento(id) {
+    await deleteDoc(doc(db,"agendamentos",id));
+  }
+
   const value = useMemo(() => ({
     agendamentos, obras, manutencoes, funcionarios, loading,
     agendamentosDodia, agendaFuncionario, funcOcupado,
-    criarAgendamento, atualizarAgendamento, equipeHoje,
+    criarAgendamento, atualizarAgendamento, deletarAgendamento, equipeHoje,
   }), [agendamentos, obras, manutencoes, funcionarios, loading,
       agendamentosDodia, agendaFuncionario, funcOcupado, equipeHoje]);
 

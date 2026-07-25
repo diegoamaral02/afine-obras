@@ -24,7 +24,11 @@ export function AuthProvider({ children }) {
     // SEGURANÇA: removido bypass de teste — toda autenticação passa pelo Firebase
     const cred = await signInWithEmailAndPassword(auth, email, password);
     const profile = await fetchProfile(cred.user.uid);
-    setUserProfile(profile || { nome: cred.user.email, perfil: "campo", obras: [] });
+    if (!profile) {
+      await signOut(auth);
+      throw new Error("Usuário sem cadastro no sistema. Contate o administrador.");
+    }
+    setUserProfile(profile);
     return cred;
   }
 
@@ -39,11 +43,19 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
       if (user) {
         const profile = await fetchProfile(user.uid);
-        setUserProfile(profile || { nome: user.email, perfil: "campo", obras: [] });
+        if (!profile) {
+          await signOut(auth);
+          setCurrentUser(null);
+          setUserProfile(null);
+          setLoading(false);
+          return;
+        }
+        setUserProfile(profile);
+        setCurrentUser(user);
       } else {
+        setCurrentUser(null);
         setUserProfile(null);
       }
       setLoading(false);
