@@ -28,6 +28,7 @@ import Calendario      from "./pages/Calendario";
 import Comercial       from "./pages/Comercial";
 import MateriaisGlobal from "./pages/Materiais";
 import Gerenciamento   from "./pages/Gerenciamento";
+import SeedPage        from "./pages/SeedPage";
 import { Equipe, Ocorrencias } from "./pages/Equipe";
 
 import "./index.css";
@@ -334,6 +335,7 @@ function AppShell() {
             <Route path="/despesas"           element={<Despesas/>}/>
             <Route path="/dre"                element={<DRE/>}/>
             <Route path="/materiais"          element={<MateriaisGlobal/>}/>
+            <Route path="/seed"               element={<SeedPage/>}/>
             <Route path="*"                   element={<Navigate to="/" replace/>}/>
           </Routes>
         </div>
