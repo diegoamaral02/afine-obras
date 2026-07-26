@@ -1019,6 +1019,135 @@ export default function Gerenciamento() {
 
   const filtrosAtivos = !!(filtroStatus||filtroResponsavel||filtroCliente||filtroSoAtrasadas||filtroTerminoAte);
 
+  const [seeding, setSeeding] = useState(false);
+  async function seedDemandas() {
+    if (!clientes.length) { addToast("Cadastre pelo menos 1 cliente antes de gerar dados de teste.","error"); return; }
+    setSeeding(true);
+    const agora = new Date().toISOString();
+    const hoje = new Date();
+    const d = (offset)=>{ const x=new Date(hoje); x.setDate(x.getDate()+offset); return x.toISOString().split("T")[0]; };
+
+    const responsaveis = ["Diego Amaral","Ana Lima","Carlos Silva"];
+    const tipos = ["Reforma Geral","Manutenção Predial","Instalação Elétrica","Adequação de Layout","Cabeamento Estruturado"];
+    const construtoras = ["Construtora Alpha Ltda","Beta Engenharia","Gama Obras ME","Delta Construções","Ômega Reformas"];
+    const instaladoras = ["TechInstala Ltda","ElecPro ME","InstalaFácil","VoltSystem","FiberNet"];
+
+    // Distribui clientes/agências disponíveis
+    const pool = [];
+    clientes.forEach(c=>(c.agencias||[]).forEach(a=>pool.push({clienteId:c.id,clienteNome:c.nome,agenciaId:a.id,agenciaNome:`${a.numero||""} ${a.nome||""}`.trim()})));
+    if (!pool.length) { addToast("Cadastre agências nos clientes antes de gerar dados de teste.","error"); setSeeding(false); return; }
+
+    const pick = (arr,i)=>arr[i%arr.length];
+    let created = 0;
+
+    const demandas = [
+      // ── AGENDAMENTO (5) ─────────────────────────────────────────────────────
+      { status:"AGENDAMENTO", tipoDemanda:"Reforma Geral",           inicio:d(-5),  terminoPrevisto:d(10),  responsavel:pick(responsaveis,0), gestorCliente:"Marcelo Gomes",   projSAP:"SAP-001", codUPE:"UPE-A01", construtora:pick(construtoras,0), construtoraContato:"(11) 99001-0001" },
+      { status:"AGENDAMENTO", tipoDemanda:"Manutenção Predial",      inicio:d(2),   terminoPrevisto:d(20),  responsavel:pick(responsaveis,1), gestorCliente:"Fernanda Costa",  projSAP:"SAP-002", codUPE:"UPE-A02", construtora:pick(construtoras,1), construtoraContato:"(11) 99001-0002" },
+      { status:"AGENDAMENTO", tipoDemanda:"Adequação de Layout",     inicio:d(5),   terminoPrevisto:d(30),  responsavel:pick(responsaveis,2), gestorCliente:"Rafael Souza",    projSAP:"SAP-003", codUPE:"UPE-A03", construtora:pick(construtoras,2), construtoraContato:"(11) 99001-0003" },
+      { status:"AGENDAMENTO", tipoDemanda:"Instalação Elétrica",     inicio:d(7),   terminoPrevisto:d(25),  responsavel:pick(responsaveis,0), gestorCliente:"Luciana Pereira", projSAP:"SAP-004", codUPE:"UPE-A04", construtora:pick(construtoras,3), construtoraContato:"(11) 99001-0004" },
+      { status:"AGENDAMENTO", tipoDemanda:"Cabeamento Estruturado",  inicio:d(10),  terminoPrevisto:d(35),  responsavel:pick(responsaveis,1), gestorCliente:"Pedro Almeida",   projSAP:"SAP-005", codUPE:"UPE-A05", construtora:pick(construtoras,4), construtoraContato:"(11) 99001-0005" },
+
+      // ── SOLICITAÇÃO MATERIAL (5) ─────────────────────────────────────────────
+      { status:"SOLICITAÇÃO MATERIAL", tipoDemanda:"Reforma Geral",           inicio:d(-10), terminoPrevisto:d(15),  responsavel:pick(responsaveis,2), gestorCliente:"Mariana Torres",  projSAP:"SAP-006", codUPE:"UPE-B01", reservaMaterial:"RM-2024-001", construtora:pick(construtoras,0) },
+      { status:"SOLICITAÇÃO MATERIAL", tipoDemanda:"Instalação Elétrica",     inicio:d(-3),  terminoPrevisto:d(12),  responsavel:pick(responsaveis,0), gestorCliente:"Gustavo Neves",   projSAP:"SAP-007", codUPE:"UPE-B02", reservaMaterial:"RM-2024-002", construtora:pick(construtoras,1) },
+      { status:"SOLICITAÇÃO MATERIAL", tipoDemanda:"Cabeamento Estruturado",  inicio:d(-7),  terminoPrevisto:d(8),   responsavel:pick(responsaveis,1), gestorCliente:"Camila Rocha",    projSAP:"SAP-008", codUPE:"UPE-B03", reservaMaterial:"RM-2024-003", construtora:pick(construtoras,2) },
+      { status:"SOLICITAÇÃO MATERIAL", tipoDemanda:"Manutenção Predial",      inicio:d(-2),  terminoPrevisto:d(18),  responsavel:pick(responsaveis,2), gestorCliente:"Bruno Martins",   projSAP:"SAP-009", codUPE:"UPE-B04", reservaMaterial:"RM-2024-004", construtora:pick(construtoras,3) },
+      { status:"SOLICITAÇÃO MATERIAL", tipoDemanda:"Adequação de Layout",     inicio:d(-15), terminoPrevisto:d(5),   responsavel:pick(responsaveis,0), gestorCliente:"Juliana Freitas", projSAP:"SAP-010", codUPE:"UPE-B05", reservaMaterial:"RM-2024-005", construtora:pick(construtoras,4) },
+
+      // ── EXECUÇÃO (5) ─────────────────────────────────────────────────────────
+      { status:"EXECUÇÃO", tipoDemanda:"Reforma Geral",          inicio:d(-20), terminoPrevisto:d(3),   responsavel:pick(responsaveis,1), gestorCliente:"Renata Barbosa", projSAP:"SAP-011", codUPE:"UPE-C01", construtora:pick(construtoras,0), instaladora:pick(instaladoras,0), orcConstrutora:"R$ 45.000,00", orcInstaladora:"R$ 12.000,00" },
+      { status:"EXECUÇÃO", tipoDemanda:"Instalação Elétrica",    inicio:d(-30), terminoPrevisto:d(-5),  responsavel:pick(responsaveis,2), gestorCliente:"Henrique Lima",  projSAP:"SAP-012", codUPE:"UPE-C02", construtora:pick(construtoras,1), instaladora:pick(instaladoras,1), orcConstrutora:"R$ 28.000,00", orcInstaladora:"R$ 8.500,00"  },
+      { status:"EXECUÇÃO", tipoDemanda:"Adequação de Layout",    inicio:d(-15), terminoPrevisto:d(7),   responsavel:pick(responsaveis,0), gestorCliente:"Tatiana Melo",   projSAP:"SAP-013", codUPE:"UPE-C03", construtora:pick(construtoras,2), instaladora:pick(instaladoras,2), orcConstrutora:"R$ 62.000,00", orcInstaladora:"R$ 15.000,00" },
+      { status:"EXECUÇÃO", tipoDemanda:"Manutenção Predial",     inicio:d(-8),  terminoPrevisto:d(14),  responsavel:pick(responsaveis,1), gestorCliente:"Alexandre Cruz", projSAP:"SAP-014", codUPE:"UPE-C04", construtora:pick(construtoras,3), instaladora:pick(instaladoras,3), orcConstrutora:"R$ 18.500,00", orcInstaladora:"R$ 4.200,00"  },
+      { status:"EXECUÇÃO", tipoDemanda:"Cabeamento Estruturado", inicio:d(-25), terminoPrevisto:d(-2),  responsavel:pick(responsaveis,2), gestorCliente:"Bianca Dias",    projSAP:"SAP-015", codUPE:"UPE-C05", construtora:pick(construtoras,4), instaladora:pick(instaladoras,4), orcConstrutora:"R$ 35.000,00", orcInstaladora:"R$ 9.800,00"  },
+
+      // ── ANDAMENTO DEMANDA EXTRA (5) ──────────────────────────────────────────
+      { status:"ANDAMENTO DEMANDA EXTRA", tipoDemanda:"GMUD",               inicio:d(-5),  terminoPrevisto:d(20),  responsavel:pick(responsaveis,0), gestorCliente:"Sérgio Faria",    projSAP:"SAP-016", gmudNumero:"GMUD-2024-001", gmudStatus:"APROVADA",  gmudData:d(5),  gmudObs:"Aprovado pelo comitê de mudanças" },
+      { status:"ANDAMENTO DEMANDA EXTRA", tipoDemanda:"GMUD",               inicio:d(-12), terminoPrevisto:d(10),  responsavel:pick(responsaveis,1), gestorCliente:"Priscila Vieira", projSAP:"SAP-017", gmudNumero:"GMUD-2024-002", gmudStatus:"ENVIADA",   gmudData:d(2),  gmudObs:"Aguardando aprovação" },
+      { status:"ANDAMENTO DEMANDA EXTRA", tipoDemanda:"Reforma Geral",      inicio:d(-18), terminoPrevisto:d(15),  responsavel:pick(responsaveis,2), gestorCliente:"Rodrigo Paiva",   projSAP:"SAP-018", gmudNumero:"GMUD-2024-003", gmudStatus:"PENDENTE",  gmudData:d(8),  gmudObs:"Em preparação" },
+      { status:"ANDAMENTO DEMANDA EXTRA", tipoDemanda:"Instalação Elétrica",inicio:d(-3),  terminoPrevisto:d(25),  responsavel:pick(responsaveis,0), gestorCliente:"Natália Cunha",   projSAP:"SAP-019", gmudNumero:"GMUD-2024-004", gmudStatus:"EXECUTADA", gmudData:d(-1), gmudObs:"Executada com sucesso no janela prevista" },
+      { status:"ANDAMENTO DEMANDA EXTRA", tipoDemanda:"Adequação de Layout",inicio:d(-9),  terminoPrevisto:d(30),  responsavel:pick(responsaveis,1), gestorCliente:"Eduardo Santos",  projSAP:"SAP-020", gmudNumero:"GMUD-2024-005", gmudStatus:"APROVADA",  gmudData:d(12), gmudObs:"Aprovado — aguardando execução" },
+
+      // ── SUSPENSA (5) ─────────────────────────────────────────────────────────
+      { status:"SUSPENSA", tipoDemanda:"Reforma Geral",          inicio:d(-40), terminoPrevisto:d(-10), responsavel:pick(responsaveis,2), gestorCliente:"Vinícius Ramos",  projSAP:"SAP-021", codUPE:"UPE-E01", construtora:pick(construtoras,0) },
+      { status:"SUSPENSA", tipoDemanda:"Manutenção Predial",     inicio:d(-25), terminoPrevisto:d(-8),  responsavel:pick(responsaveis,0), gestorCliente:"Larissa Campos",  projSAP:"SAP-022", codUPE:"UPE-E02", construtora:pick(construtoras,1) },
+      { status:"SUSPENSA", tipoDemanda:"Cabeamento Estruturado", inicio:d(-50), terminoPrevisto:d(-20), responsavel:pick(responsaveis,1), gestorCliente:"Fábio Mendes",    projSAP:"SAP-023", codUPE:"UPE-E03", construtora:pick(construtoras,2) },
+      { status:"SUSPENSA", tipoDemanda:"Instalação Elétrica",    inicio:d(-35), terminoPrevisto:d(-15), responsavel:pick(responsaveis,2), gestorCliente:"Simone Azevedo",  projSAP:"SAP-024", codUPE:"UPE-E04", construtora:pick(construtoras,3) },
+      { status:"SUSPENSA", tipoDemanda:"Adequação de Layout",    inicio:d(-45), terminoPrevisto:d(-5),  responsavel:pick(responsaveis,0), gestorCliente:"Thiago Carvalho", projSAP:"SAP-025", codUPE:"UPE-E05", construtora:pick(construtoras,4) },
+
+      // ── FINALIZADA — EXEC. DOCUMENTAÇÃO (5) ──────────────────────────────────
+      { status:"FINALIZADA — EXEC. DOCUMENTAÇÃO", tipoDemanda:"Reforma Geral",          inicio:d(-60), terminoPrevisto:d(-30), responsavel:pick(responsaveis,1), gestorCliente:"Roberto Lopes",   projSAP:"SAP-026", codUPE:"UPE-F01", construtora:pick(construtoras,0), medicaoConstrutora:"R$ 44.500,00", docConstrutora:"NF-4521",  docAfine:"AF-DOC-2024-001" },
+      { status:"FINALIZADA — EXEC. DOCUMENTAÇÃO", tipoDemanda:"Instalação Elétrica",    inicio:d(-55), terminoPrevisto:d(-25), responsavel:pick(responsaveis,2), gestorCliente:"Mônica Teixeira", projSAP:"SAP-027", codUPE:"UPE-F02", construtora:pick(construtoras,1), medicaoConstrutora:"R$ 27.800,00", docConstrutora:"NF-4522",  docAfine:"AF-DOC-2024-002" },
+      { status:"FINALIZADA — EXEC. DOCUMENTAÇÃO", tipoDemanda:"Manutenção Predial",     inicio:d(-70), terminoPrevisto:d(-40), responsavel:pick(responsaveis,0), gestorCliente:"Cláudio Pinto",   projSAP:"SAP-028", codUPE:"UPE-F03", construtora:pick(construtoras,2), medicaoConstrutora:"R$ 18.200,00", docConstrutora:"NF-4523",  docAfine:"AF-DOC-2024-003" },
+      { status:"FINALIZADA — EXEC. DOCUMENTAÇÃO", tipoDemanda:"Cabeamento Estruturado", inicio:d(-45), terminoPrevisto:d(-18), responsavel:pick(responsaveis,1), gestorCliente:"Daniela Corrêa",  projSAP:"SAP-029", codUPE:"UPE-F04", construtora:pick(construtoras,3), medicaoConstrutora:"R$ 34.600,00", docConstrutora:"NF-4524",  docAfine:"AF-DOC-2024-004" },
+      { status:"FINALIZADA — EXEC. DOCUMENTAÇÃO", tipoDemanda:"Adequação de Layout",    inicio:d(-80), terminoPrevisto:d(-50), responsavel:pick(responsaveis,2), gestorCliente:"Paulo Nunes",     projSAP:"SAP-030", codUPE:"UPE-F05", construtora:pick(construtoras,4), medicaoConstrutora:"R$ 61.300,00", docConstrutora:"NF-4525",  docAfine:"AF-DOC-2024-005" },
+
+      // ── CONCLUÍDA (5) ────────────────────────────────────────────────────────
+      { status:"CONCLUÍDA", tipoDemanda:"Reforma Geral",          inicio:d(-90), terminoPrevisto:d(-60), responsavel:pick(responsaveis,0), gestorCliente:"Eliane Monteiro",  projSAP:"SAP-031", codUPE:"UPE-G01", construtora:pick(construtoras,0), medicaoConstrutora:"R$ 48.000,00", docConstrutora:"NF-4601", docAfine:"AF-DOC-2024-006", entradaGestor:"Aprovado pelo cliente — obra entregue conforme escopo.", enviadoFinanceiro:true  },
+      { status:"CONCLUÍDA", tipoDemanda:"Instalação Elétrica",    inicio:d(-75), terminoPrevisto:d(-45), responsavel:pick(responsaveis,1), gestorCliente:"Adriano Moreira",  projSAP:"SAP-032", codUPE:"UPE-G02", construtora:pick(construtoras,1), medicaoConstrutora:"R$ 29.500,00", docConstrutora:"NF-4602", docAfine:"AF-DOC-2024-007", entradaGestor:"Instalação concluída sem pendências.", enviadoFinanceiro:true  },
+      { status:"CONCLUÍDA", tipoDemanda:"Manutenção Predial",     inicio:d(-65), terminoPrevisto:d(-35), responsavel:pick(responsaveis,2), gestorCliente:"Regina Cardoso",   projSAP:"SAP-033", codUPE:"UPE-G03", construtora:pick(construtoras,2), medicaoConstrutora:"R$ 19.800,00", docConstrutora:"NF-4603", docAfine:"AF-DOC-2024-008", entradaGestor:"Manutenção concluída e documentação OK.", enviadoFinanceiro:false },
+      { status:"CONCLUÍDA", tipoDemanda:"Cabeamento Estruturado", inicio:d(-100),terminoPrevisto:d(-70), responsavel:pick(responsaveis,0), gestorCliente:"Francisco Pires",  projSAP:"SAP-034", codUPE:"UPE-G04", construtora:pick(construtoras,3), medicaoConstrutora:"R$ 37.200,00", docConstrutora:"NF-4604", docAfine:"AF-DOC-2024-009", entradaGestor:"Rede estruturada entregue e testada.", enviadoFinanceiro:true  },
+      { status:"CONCLUÍDA", tipoDemanda:"Adequação de Layout",    inicio:d(-85), terminoPrevisto:d(-55), responsavel:pick(responsaveis,1), gestorCliente:"Solange Ribeiro",  projSAP:"SAP-035", codUPE:"UPE-G05", construtora:pick(construtoras,4), medicaoConstrutora:"R$ 52.700,00", docConstrutora:"NF-4605", docAfine:"AF-DOC-2024-010", entradaGestor:"Layout adequado aprovado pelo gestor da loja.", enviadoFinanceiro:true  },
+
+      // ── CANCELADA (5) ────────────────────────────────────────────────────────
+      { status:"CANCELADA", tipoDemanda:"Reforma Geral",          inicio:d(-50), terminoPrevisto:d(-20), responsavel:pick(responsaveis,2), gestorCliente:"Marcos Oliveira",   projSAP:"SAP-036", codUPE:"UPE-H01", construtora:pick(construtoras,0) },
+      { status:"CANCELADA", tipoDemanda:"Instalação Elétrica",    inicio:d(-40), terminoPrevisto:d(-10), responsavel:pick(responsaveis,0), gestorCliente:"Ivone Nascimento",  projSAP:"SAP-037", codUPE:"UPE-H02", construtora:pick(construtoras,1) },
+      { status:"CANCELADA", tipoDemanda:"Manutenção Predial",     inicio:d(-30), terminoPrevisto:d(-5),  responsavel:pick(responsaveis,1), gestorCliente:"Leandro Araújo",    projSAP:"SAP-038", codUPE:"UPE-H03", construtora:pick(construtoras,2) },
+      { status:"CANCELADA", tipoDemanda:"Cabeamento Estruturado", inicio:d(-60), terminoPrevisto:d(-30), responsavel:pick(responsaveis,2), gestorCliente:"Patrícia Xavier",   projSAP:"SAP-039", codUPE:"UPE-H04", construtora:pick(construtoras,3) },
+      { status:"CANCELADA", tipoDemanda:"Adequação de Layout",    inicio:d(-45), terminoPrevisto:d(-15), responsavel:pick(responsaveis,0), gestorCliente:"Waldir Cavalcanti", projSAP:"SAP-040", codUPE:"UPE-H05", construtora:pick(construtoras,4) },
+    ];
+
+    const STATUS_CONCL = new Set(["CONCLUÍDA","CANCELADA","FINALIZADA — EXEC. DOCUMENTAÇÃO"]);
+    try {
+      for (let i = 0; i < demandas.length; i++) {
+        const base = demandas[i];
+        const slot = pick(pool, i);
+        const eraEncerrada = STATUS_CONCL.has(base.status);
+        const conclOffset = { "CONCLUÍDA": -5, "CANCELADA": -8, "FINALIZADA — EXEC. DOCUMENTAÇÃO": -3 };
+        await addDoc(collection(db,"gerenciamento"), {
+          ...slot,
+          tipoDemanda:        base.tipoDemanda,
+          tiposConfig:        [],
+          status:             base.status,
+          responsavel:        base.responsavel,
+          gestorCliente:      base.gestorCliente     || "",
+          inicio:             base.inicio            || "",
+          terminoPrevisto:    base.terminoPrevisto   || "",
+          termoChaves:        "",
+          construtora:        base.construtora       || "",
+          construtoraContato: base.construtoraContato|| "",
+          instaladora:        base.instaladora       || "",
+          fornecedorACM:      "",
+          projSAP:            base.projSAP           || "",
+          codUPE:             base.codUPE            || "",
+          reservaMaterial:    base.reservaMaterial   || "",
+          formAutodesk:       false,
+          gmudNumero:         base.gmudNumero        || "",
+          gmudData:           base.gmudData          || "",
+          gmudStatus:         base.gmudStatus        || "PENDENTE",
+          gmudObs:            base.gmudObs           || "",
+          orcConstrutora:     base.orcConstrutora    || "",
+          orcInstaladora:     base.orcInstaladora    || "",
+          medicaoConstrutora: base.medicaoConstrutora|| "",
+          docConstrutora:     base.docConstrutora    || "",
+          docAfine:           base.docAfine          || "",
+          entradaGestor:      base.entradaGestor     || "",
+          enviadoFinanceiro:  base.enviadoFinanceiro || false,
+          eventosConfig:      [],
+          createdAt:          agora,
+          updatedAt:          agora,
+          ...(eraEncerrada ? { concluidaEm: new Date(new Date().setDate(hoje.getDate()+(conclOffset[base.status]||0))).toISOString() } : {}),
+        });
+        created++;
+      }
+      addToast(`✓ ${created} demandas de teste criadas com sucesso!`,"success");
+    } catch(err) {
+      addToast(`Erro ao criar seeds: ${err.message}`,"error");
+    }
+    setSeeding(false);
+  }
+
   function limparFiltros() {
     setFiltroStatus(""); setFiltroResponsavel(""); setFiltroCliente("");
     setFiltroSoAtrasadas(false); setFiltroTerminoAte(""); setSearch("");
@@ -1134,6 +1263,13 @@ export default function Gerenciamento() {
           <div style={{fontSize:12,color:"#7A7A7A"}}>{demandasVisiveis.length} demanda(s) · {demandasAtivas.length} em andamento</div>
         </div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          {process.env.NODE_ENV==="development"&&isGestor&&(
+            <button className="btn" onClick={seedDemandas} disabled={seeding}
+              style={{borderColor:"#C9A200",color:"#C9A200",fontSize:11}}
+              title="Cria 5 demandas de teste por status (40 no total)">
+              {seeding?"⏳ Criando...":"🌱 Seed dados"}
+            </button>
+          )}
           {isGestor&&<button className="btn" onClick={()=>exportarExcelLista(demandasVisiveis)} title="Exportar lista completa">📊 Excel</button>}
           {isGestor&&<button className="btn btn-primary" onClick={()=>setModalDemanda({})}>+ Nova demanda</button>}
         </div>
