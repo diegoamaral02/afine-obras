@@ -54,17 +54,22 @@ export default function AssinaturaDigital({ label, assinatura, onChange, requere
 
   function desenhar(e) {
     e.preventDefault();
-    if (!desenhando) return;
+    if (!desenhando || !ultimoPonto.current) return;
     const pos = getPos(e, canvasRef.current);
     const ctx = canvasRef.current.getContext("2d");
     ctx.lineWidth = 2.5;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.strokeStyle = "#1a1a1a";
-    ctx.lineTo(pos.x, pos.y);
+    // Bézier quadrática: suaviza o traço entre o ponto anterior e o atual
+    const mid = {
+      x: (ultimoPonto.current.x + pos.x) / 2,
+      y: (ultimoPonto.current.y + pos.y) / 2,
+    };
+    ctx.quadraticCurveTo(ultimoPonto.current.x, ultimoPonto.current.y, mid.x, mid.y);
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(pos.x, pos.y);
+    ctx.moveTo(mid.x, mid.y);
     ultimoPonto.current = pos;
     setTemAssinatura(true);
   }
@@ -162,12 +167,12 @@ export default function AssinaturaDigital({ label, assinatura, onChange, requere
               📍 Esta assinatura exige confirmação de localização do dispositivo, para autenticar a identidade do responsável.
             </div>
           )}
-          <div style={{ position: "relative", border: "2px dashed #ccc", borderRadius: 8, background: "#fafafa", touchAction: "none" }}>
+          <div style={{ position: "relative", border: "2px dashed #ccc", borderRadius: 8, background: "#fafafa" }}>
             <canvas
               ref={canvasRef}
-              width={500}
-              height={140}
-              style={{ display: "block", width: "100%", height: 140, cursor: "crosshair", borderRadius: 6 }}
+              width={800}
+              height={200}
+              style={{ display: "block", width: "100%", height: 160, cursor: "crosshair", borderRadius: 6, touchAction: "none" }}
               onMouseDown={iniciar}
               onMouseMove={desenhar}
               onMouseUp={parar}

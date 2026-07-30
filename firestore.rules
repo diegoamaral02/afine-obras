@@ -222,6 +222,10 @@ service cloud.firestore {
       allow create: if isEncarregado();
       allow update: if isAuth();
       allow delete: if isGestor();
+      match /historico/{hid} {
+        allow read:  if isAuth();
+        allow write: if isAuth();
+      }
     }
 
     // ── Catálogo de itens de compras ──────────────────────────────

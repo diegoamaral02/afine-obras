@@ -430,8 +430,8 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
             <div style={{background:"var(--cinza-lt)",borderRadius:8,padding:12}}>
               <div style={{fontSize:12,fontWeight:600,marginBottom:8}}>Campos específicos — {form.cliente}</div>
               <div className="form-grid">
-                <div className="form-group"><label>Protocolo / Nº documento</label><input value={form.camposCustom?.protocolo||""} onChange={e=>setCustom("protocolo",e.target.value)}/></div>
-                <div className="form-group"><label>Centro de custo</label><input value={form.camposCustom?.centroCusto||""} onChange={e=>setCustom("centroCusto",e.target.value)}/></div>
+                <div className="form-group"><label>Protocolo / Nº documento</label><input value={form.camposCustom?.protocolo||""} onChange={e=>setCustom("protocolo",e.target.value)} placeholder="Ex: PROT-2024-00123"/></div>
+                <div className="form-group"><label>Centro de custo</label><input value={form.camposCustom?.centroCusto||""} onChange={e=>setCustom("centroCusto",e.target.value)} placeholder="Ex: CC-TI-001 / Facilities"/></div>
               </div>
             </div>
           )}
