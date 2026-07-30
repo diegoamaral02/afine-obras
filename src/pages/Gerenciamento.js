@@ -477,7 +477,7 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
     agenciaId:          demanda?.agenciaId          || "",
     agenciaNome:        demanda?.agenciaNome        || "",
     tipoDemanda:        demanda?.tipoDemanda        || "",
-    tiposConfig:        demanda?.tiposConfig        || [],
+    tiposConfig:        [...new Set([...(demanda?.tiposConfig||[]), ...(demanda?.tipoDemanda?[demanda.tipoDemanda]:[])])],
     novoTipo:           "",
     status:             demanda?.status             || "AGENDAMENTO",
     responsavel:        demanda?.responsavel        || userProfile?.nome || "",
@@ -515,12 +515,15 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
 
   function selecionarCliente(id) {
     const c = clientes.find(x=>x.id===id);
-    set("clienteId", id);
-    set("clienteNome", c?.razaoSocial||c?.nomeFantasia||c?.nome||"");
-    set("agenciaId","");
-    set("agenciaNome","");
-    set("tiposConfig", c?.tiposDemandaGerenciamento || []);
-    set("tipoDemanda","");
+    const novostipos = c?.tiposDemandaGerenciamento || [];
+    setForm(p => ({
+      ...p,
+      clienteId:   id,
+      clienteNome: c?.razaoSocial||c?.nomeFantasia||c?.nome||"",
+      agenciaId:   "",
+      agenciaNome: "",
+      tiposConfig: [...new Set([...novostipos, ...(p.tipoDemanda?[p.tipoDemanda]:[])])],
+    }));
   }
 
   function selecionarAgencia(id) {
