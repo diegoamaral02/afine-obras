@@ -516,7 +516,7 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
   function selecionarCliente(id) {
     const c = clientes.find(x=>x.id===id);
     set("clienteId", id);
-    set("clienteNome", c?.nome||"");
+    set("clienteNome", c?.razaoSocial||c?.nomeFantasia||c?.nome||"");
     set("agenciaId","");
     set("agenciaNome","");
     set("tiposConfig", c?.tiposDemandaGerenciamento || []);
@@ -592,7 +592,7 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
             <label className="required">Cliente</label>
             <select value={form.clienteId} onChange={e=>selecionarCliente(e.target.value)}>
               <option value="">Selecione...</option>
-              {clientes.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}
+              {clientes.map(c=><option key={c.id} value={c.id}>{c.razaoSocial||c.nomeFantasia||c.nome}</option>)}
             </select>
           </div>
           <div className="form-group">
@@ -1034,7 +1034,7 @@ export default function Gerenciamento() {
 
     // Distribui clientes/agências disponíveis
     const pool = [];
-    clientes.forEach(c=>(c.agencias||[]).forEach(a=>pool.push({clienteId:c.id,clienteNome:c.nome,agenciaId:a.id,agenciaNome:`${a.numero||""} ${a.nome||""}`.trim()})));
+    clientes.forEach(c=>(c.agencias||[]).forEach(a=>pool.push({clienteId:c.id,clienteNome:c.razaoSocial||c.nomeFantasia||c.nome||"",agenciaId:a.id,agenciaNome:`${a.numero||""} ${a.nome||""}`.trim()})));
     if (!pool.length) { addToast("Cadastre agências nos clientes antes de gerar dados de teste.","error"); setSeeding(false); return; }
 
     const pick = (arr,i)=>arr[i%arr.length];
