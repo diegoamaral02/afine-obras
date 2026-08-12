@@ -32,7 +32,11 @@ import SeedPage        from "./pages/SeedPage";
 import Contratos       from "./pages/Contratos";
 import SLADashboard    from "./pages/SLADashboard";
 import SLAConfig       from "./pages/SLAConfig";
+import ChecklistTemplates from "./pages/ChecklistTemplates";
 import PontoEletronico from "./pages/PontoEletronico";
+import AuditLog       from "./pages/AuditLog";
+import BITendencias   from "./pages/BITendencias";
+import Garantias      from "./pages/Garantias";
 import { Equipe, Ocorrencias } from "./pages/Equipe";
 
 import "./index.css";
@@ -72,8 +76,14 @@ const MENU = [
     { to:"/despesas", icon:"🧾", label:"Despesas",   roles:["gestor","encarregado","campo"] },
   ]},
   { id:"sla", label:"SLA & Qualidade", roles:["gestor","encarregado"], items:[
-    { to:"/sla",        icon:"⏰", label:"Dashboard SLA",  roles:["gestor","encarregado"] },
-    { to:"/sla/config", icon:"⚙️", label:"Configurar SLA", roles:["gestor","encarregado"] },
+    { to:"/sla",                  icon:"⏰", label:"Dashboard SLA",         roles:["gestor","encarregado"] },
+    { to:"/sla/config",           icon:"⚙️", label:"Configurar SLA",        roles:["gestor","encarregado"] },
+    { to:"/checklist-templates",  icon:"📋", label:"Templates Checklist",   roles:["gestor","encarregado"] },
+    { to:"/garantias",            icon:"🛡️", label:"Garantias",             roles:["gestor","encarregado"] },
+  ]},
+  { id:"bi", label:"Inteligência", roles:["gestor","encarregado"], items:[
+    { to:"/bi",        icon:"📊", label:"BI & Tendências", roles:["gestor","encarregado"] },
+    { to:"/audit-log", icon:"🔍", label:"Audit Log",       roles:["gestor"] },
   ]},
 ];
 
@@ -347,8 +357,12 @@ function AppShell() {
             <Route path="/materiais"          element={<MateriaisGlobal/>}/>
             <Route path="/contratos"          element={<Contratos/>}/>
             <Route path="/sla"               element={<SLADashboard/>}/>
-            <Route path="/sla/config"        element={<SLAConfig/>}/>
+            <Route path="/sla/config"             element={<SLAConfig/>}/>
+            <Route path="/checklist-templates"    element={<ChecklistTemplates/>}/>
             <Route path="/ponto"             element={<PontoEletronico/>}/>
+            <Route path="/garantias"         element={<Garantias/>}/>
+            <Route path="/bi"               element={<BITendencias/>}/>
+            <Route path="/audit-log"        element={<AuditLog/>}/>
             <Route path="/seed"               element={<SeedPage/>}/>
             <Route path="*"                   element={<Navigate to="/" replace/>}/>
           </Routes>

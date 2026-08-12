@@ -11,6 +11,7 @@ import { exportarExcel, BtnExcel } from "../utils/exportExcel";
 import { exportarDespesasParaPDF } from "../utils/exportPDF";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
 import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
+import OCRViewer from "../components/OCRViewer";
 
 const METODOS = ["Cartão","PIX","Transferência","Dinheiro","Boleto","Outro"];
 
@@ -99,6 +100,7 @@ function DespesaModal({ despesa, funcionarios, obras, manutencoes, onClose, addT
   });
   const [saving,      setSaving]      = useState(false);
   const [processando, setProcessando] = useState(false);
+  const [ocrAberto,   setOcrAberto]   = useState(false);
   const fotoRef    = useRef(null);
   const arquivoRef = useRef(null);
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
@@ -148,6 +150,33 @@ function DespesaModal({ despesa, funcionarios, obras, manutencoes, onClose, addT
   function handleManutencao(id) {
     const m = manutencoes.find(x=>x.id===id);
     set("manutencaoId", id); set("manutencaoTitulo", m?.titulo||"");
+  }
+
+  function handleOCRResultado(texto, dadosExtraidos) {
+    setOcrAberto(false);
+    // Preenche valor
+    if (dadosExtraidos?.valorTotal) {
+      set("valor", dadosExtraidos.valorTotal);
+    }
+    // Preenche data (converte DD/MM/AAAA -> YYYY-MM-DD)
+    if (dadosExtraidos?.data) {
+      const d = dadosExtraidos.data;
+      if (d.includes("/")) {
+        const [dia, mes, ano] = d.split("/");
+        set("data", `${ano}-${mes}-${dia}`);
+      } else {
+        set("data", d);
+      }
+    }
+    // Preenche descrição com a linha mais longa não numérica (até 60 chars)
+    if (texto) {
+      const linhas = texto.split("\n").map(l => l.trim()).filter(l => l.length > 3 && !/^\d[\d\s\.,\/\-:]*$/.test(l));
+      if (linhas.length > 0) {
+        const maisLonga = linhas.reduce((a, b) => b.length > a.length ? b : a, "");
+        set("descricao", maisLonga.slice(0, 60));
+      }
+    }
+    addToast("✓ Dados preenchidos pelo OCR — revise antes de salvar");
   }
 
   async function save() {
@@ -343,6 +372,7 @@ function DespesaModal({ despesa, funcionarios, obras, manutencoes, onClose, addT
               <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
                 <button type="button" className="btn" onClick={()=>fotoRef.current.click()}>📸 Tirar foto</button>
                 <button type="button" className="btn" onClick={()=>arquivoRef.current.click()}>📁 Subir arquivo</button>
+                <button type="button" className="btn" onClick={()=>setOcrAberto(true)}>🔍 Ler com OCR</button>
               </div>
               {!despesa?.id && (
                 <div style={{fontSize:11,color:"var(--vermelho)",marginTop:8}}>Obrigatório para registrar a despesa.</div>
@@ -372,6 +402,13 @@ function DespesaModal({ despesa, funcionarios, obras, manutencoes, onClose, addT
 
         <div className="form-group span-2"><label>Observações</label><textarea rows={2} value={form.obs} onChange={e=>set("obs",e.target.value)}/></div>
       </div>
+      {ocrAberto && (
+        <OCRViewer
+          titulo="Ler nota fiscal"
+          onResultado={handleOCRResultado}
+          onFechar={()=>setOcrAberto(false)}
+        />
+      )}
     </Modal>
   );
 }

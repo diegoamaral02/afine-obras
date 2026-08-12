@@ -254,6 +254,20 @@ service cloud.firestore {
       allow delete: if isGestor();
     }
 
+    // ── Garantias ─────────────────────────────────────────────────
+    match /garantias/{id} {
+      allow read:   if isAuth();
+      allow create: if isEncarregado();
+      allow update: if isEncarregado();
+      allow delete: if isGestor();
+    }
+
+    // ── Templates de Checklist ────────────────────────────────────
+    match /checklist_templates/{id} {
+      allow read:  if isAuth();
+      allow write: if isEncarregado();
+    }
+
     // ── Catálogo de itens de compras ──────────────────────────────
     match /catalogo_itens/{id} {
       allow read:   if isAuth();

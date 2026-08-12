@@ -1,7 +1,7 @@
 // src/pages/Manutencao.js — v2: sub-abas, alocação de campo, rastreio de criador, demandas filtradas
 import { buscarCEP } from "../utils/cep";
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, onSnapshot, query, where, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, query, where, addDoc, updateDoc, deleteDoc, doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { statusBadge, fmtDate, initials } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -142,6 +142,17 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
   const [matNome,     setMatNome]     = useState("");
   const [matQtd,      setMatQtd]      = useState("");
   const [matUn,       setMatUn]       = useState("un");
+  const [templateInfo, setTemplateInfo] = useState(null); // { tipoServico, itens }
+
+  // Busca template de checklist quando form.tipo muda
+  useEffect(()=>{
+    if(!form.tipo) { setTemplateInfo(null); return; }
+    const tmplId = form.tipo.toLowerCase().replace(/\s+/g,"-");
+    getDoc(doc(db,"checklist_templates",tmplId)).then(snap=>{
+      if(snap.exists()) setTemplateInfo({ tipoServico: snap.data().tipoServico, itens: snap.data().itens||[] });
+      else setTemplateInfo(null);
+    }).catch(()=>setTemplateInfo(null));
+  },[form.tipo]); // eslint-disable-line
 
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
   function setCustom(f,v) { setForm(p=>({...p,camposCustom:{...p.camposCustom,[f]:v}})); }
@@ -191,6 +202,20 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
   const endOk   = form.logradouro&&form.numero&&form.cep;
   const matOk   = form.materiais.length>0 || (form.semMaterial && form.motivoSemMaterial?.trim());
   const podeConcluir = fotosOk&&osOk&&otOk&&endOk&&matOk;
+
+  // Itens obrigatórios do template não marcados
+  const itensObrigatoriosPendentes = templateInfo
+    ? (templateInfo.itens||[]).filter(it=>it.obrigatorio&&!checklist[it.texto])
+    : [];
+  const checklistObrigatoriosOk = itensObrigatoriosPendentes.length===0;
+
+  function proximoPasso() {
+    if(passo===P_FOTOS && !checklistObrigatoriosOk) {
+      alert(`Marque todos os itens obrigatórios do checklist antes de avançar:\n${itensObrigatoriosPendentes.map(it=>`• ${it.texto}`).join("\n")}`);
+      return;
+    }
+    setPasso(p=>p+1);
+  }
 
   async function save() {
     if(!form.titulo||!form.cliente){alert("Título e cliente são obrigatórios.");return;}
@@ -260,7 +285,7 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
           <button className="btn" onClick={onClose}>Fechar</button>
           {passo>PASSO_BASE&&<button className="btn" onClick={()=>setPasso(p=>p-1)}>← Anterior</button>}
           {passo<(PASSO_BASE+totalPassos-1)
-            ?<button className="btn btn-primary" onClick={()=>setPasso(p=>p+1)}>Próximo →</button>
+            ?<button className="btn btn-primary" onClick={proximoPasso}>Próximo →</button>
             :<button className="btn btn-primary" onClick={save} disabled={saving}>{saving?"Salvando...":"💾 Salvar"}</button>
           }
         </>
@@ -600,20 +625,64 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
       {passo===P_FOTOS && (
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
           <PhotoUploader fotos={fotos} onChange={setFotos} minFotos={MIN_FOTOS}/>
-          <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>
-            Checklist de vistoria ({Object.values(checklist).filter(Boolean).length}/{CHECKLIST_ITENS.length})
-          </div>
-          <div style={{display:"flex",flexDirection:"column",gap:3,maxHeight:240,overflowY:"auto"}}>
-            {CHECKLIST_ITENS.map(item=>(
-              <label key={item} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,cursor:"pointer",padding:"5px 8px",borderRadius:5,
-                background:checklist[item]?"var(--verde-lt)":"var(--cinza-lt)",
-                border:`1px solid ${checklist[item]?"rgba(45,106,31,.2)":"var(--border)"}`,transition:".15s"}}>
-                <input type="checkbox" checked={!!checklist[item]} onChange={()=>toggleCheck(item)} style={{width:15,height:15}}/>
-                <span style={{color:checklist[item]?"var(--verde)":"#4A4A4A"}}>{item}</span>
-                {checklist[item]&&<span style={{marginLeft:"auto",fontSize:14}}>✓</span>}
-              </label>
-            ))}
-          </div>
+
+          {/* Badge de template carregado */}
+          {templateInfo && (
+            <div style={{display:"inline-flex",alignItems:"center",gap:6,background:"#E6F1FB",border:"1px solid rgba(12,68,124,.18)",borderRadius:6,padding:"5px 10px",fontSize:11,color:"#0C447C",fontWeight:600,alignSelf:"flex-start"}}>
+              📋 Template: {templateInfo.tipoServico}
+            </div>
+          )}
+
+          {/* Itens obrigatórios pendentes */}
+          {!checklistObrigatoriosOk && (
+            <div className="alert alert-danger" style={{fontSize:12}}>
+              <strong>Itens obrigatórios pendentes:</strong> marque todos antes de avançar.
+            </div>
+          )}
+
+          {templateInfo ? (
+            // Checklist de template
+            <>
+              <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>
+                Checklist — {templateInfo.tipoServico} ({Object.values(checklist).filter(Boolean).length}/{templateInfo.itens.length})
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:3,maxHeight:240,overflowY:"auto"}}>
+                {templateInfo.itens.map(item=>(
+                  <label key={item.id||item.texto} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,cursor:"pointer",padding:"5px 8px",borderRadius:5,
+                    background:checklist[item.texto]?"var(--verde-lt)":item.obrigatorio?"rgba(189,56,56,.04)":"var(--cinza-lt)",
+                    border:`1px solid ${checklist[item.texto]?"rgba(45,106,31,.2)":item.obrigatorio&&!checklist[item.texto]?"rgba(189,56,56,.25)":"var(--border)"}`,transition:".15s"}}>
+                    <input type="checkbox" checked={!!checklist[item.texto]} onChange={()=>toggleCheck(item.texto)} style={{width:15,height:15}}/>
+                    <span style={{color:checklist[item.texto]?"var(--verde)":"#4A4A4A",flex:1}}>
+                      {item.texto}
+                      {item.obrigatorio&&<span style={{color:"var(--vermelho)",fontWeight:700,marginLeft:3}}>*</span>}
+                    </span>
+                    {checklist[item.texto]&&<span style={{marginLeft:"auto",fontSize:14}}>✓</span>}
+                  </label>
+                ))}
+              </div>
+              {templateInfo.itens.some(it=>it.obrigatorio) && (
+                <div style={{fontSize:11,color:"var(--vermelho)"}}>* Itens obrigatórios devem ser marcados para avançar.</div>
+              )}
+            </>
+          ) : (
+            // Checklist genérico (sem template)
+            <>
+              <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>
+                Checklist de vistoria ({Object.values(checklist).filter(Boolean).length}/{CHECKLIST_ITENS.length})
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:3,maxHeight:240,overflowY:"auto"}}>
+                {CHECKLIST_ITENS.map(item=>(
+                  <label key={item} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,cursor:"pointer",padding:"5px 8px",borderRadius:5,
+                    background:checklist[item]?"var(--verde-lt)":"var(--cinza-lt)",
+                    border:`1px solid ${checklist[item]?"rgba(45,106,31,.2)":"var(--border)"}`,transition:".15s"}}>
+                    <input type="checkbox" checked={!!checklist[item]} onChange={()=>toggleCheck(item)} style={{width:15,height:15}}/>
+                    <span style={{color:checklist[item]?"var(--verde)":"#4A4A4A"}}>{item}</span>
+                    {checklist[item]&&<span style={{marginLeft:"auto",fontSize:14}}>✓</span>}
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
