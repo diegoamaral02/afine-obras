@@ -93,8 +93,9 @@ function Skeleton({ h = 200 }) {
 export default function BITendencias() {
   const { userProfile } = useAuth();
 
-  // Acesso restrito
-  const podeVer = ["gestor", "encarregado"].includes(userProfile?.role);
+  // Acesso restrito — adm master nunca bloqueado
+  const dep = userProfile?.adm ? "gestao" : (userProfile?.departamento || userProfile?.perfil || "campo");
+  const podeVer = userProfile?.adm || ["gestao","gestor","encarregado","financeiro","comercial","fiscal","compras"].includes(dep);
 
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState(null);
