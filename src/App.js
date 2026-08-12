@@ -76,14 +76,14 @@ const MENU = [
     { to:"/despesas", icon:"🧾", label:"Despesas",   roles:["gestor","encarregado","campo"] },
   ]},
   { id:"sla", label:"SLA & Qualidade", roles:["gestor","encarregado"], items:[
-    { to:"/sla",                  icon:"⏰", label:"Dashboard SLA",         roles:["gestor","encarregado"] },
-    { to:"/sla/config",           icon:"⚙️", label:"Configurar SLA",        roles:["gestor","encarregado"] },
-    { to:"/checklist-templates",  icon:"📋", label:"Templates Checklist",   roles:["gestor","encarregado"] },
-    { to:"/garantias",            icon:"🛡️", label:"Garantias",             roles:["gestor","encarregado"] },
+    { to:"/sla",       icon:"⏰", label:"Dashboard SLA",  roles:["gestor","encarregado"] },
+    { to:"/sla/config",icon:"⚙️", label:"Configurar SLA", roles:["gestor","encarregado"] },
   ]},
-  { id:"bi", label:"Inteligência", roles:["gestor","encarregado"], items:[
-    { to:"/bi",        icon:"📊", label:"BI & Tendências", roles:["gestor","encarregado"] },
-    { to:"/audit-log", icon:"🔍", label:"Audit Log",       roles:["gestor"] },
+  { id:"gestao", label:"Gestão", roles:["gestor","encarregado"], items:[
+    { to:"/bi",                   icon:"📊", label:"BI & Tendências",      roles:["gestor","encarregado"] },
+    { to:"/checklist-templates",  icon:"📋", label:"Templates Checklist",  roles:["gestor","encarregado"] },
+    { to:"/garantias",            icon:"🛡️", label:"Garantias",            roles:["gestor","encarregado"] },
+    { to:"/audit-log",            icon:"🔍", label:"Audit Log",            roles:["gestor","encarregado"] },
   ]},
 ];
 
