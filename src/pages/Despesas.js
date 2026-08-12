@@ -1,6 +1,6 @@
 // src/pages/Despesas.js — Controle de gastos / reembolsos por funcionário
 // (migrado da antiga aba "Controle de Gasto" da planilha)
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
@@ -13,6 +13,44 @@ import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
 import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 
 const METODOS = ["Cartão","PIX","Transferência","Dinheiro","Boleto","Outro"];
+
+// Converte imagem para efeito de documento escaneado (escala de cinza + contraste)
+async function aplicarFiltroEscaneado(file) {
+  return new Promise((resolve) => {
+    if (file.type === "application/pdf") {
+      const reader = new FileReader();
+      reader.onload = e => resolve({ tipo: "pdf", data: e.target.result, nome: file.name });
+      reader.readAsDataURL(file);
+      return;
+    }
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const maxW = 1000;
+      const scale = img.width > maxW ? maxW / img.width : 1;
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, w, h);
+      const imgData = ctx.getImageData(0, 0, w, h);
+      const d = imgData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        // Escala de cinza
+        const g = d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114;
+        // Boost de contraste (fator 1.5) + leve clareamento (simula scanner)
+        const c = Math.min(255, Math.max(0, (g - 128) * 1.5 + 148));
+        d[i] = d[i+1] = d[i+2] = c;
+      }
+      ctx.putImageData(imgData, 0, 0);
+      URL.revokeObjectURL(url);
+      resolve({ tipo: "imagem", data: canvas.toDataURL("image/jpeg", 0.82), nome: file.name });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
 // Gastos recorrentes — categorias rápidas para acelerar o lançamento
 const CATEGORIAS = [
   "Pedágio","Gasolina","Alimentação","Compra para escritório","Estacionamento",
@@ -45,14 +83,10 @@ function DespesaModal({ despesa, funcionarios, obras, manutencoes, onClose, addT
     metodoPagamento: despesa?.metodoPagamento || "Cartão",
     cartao:          despesa?.cartao          || "",
     cartaoPessoal:   despesa?.cartaoPessoal   || false,
-    // ANEXO4: reembolso passa a ser uma escolha explícita obrigatória, sem
-    // valor padrão — "" força o usuário a decidir sim ou não.
     reembolsoEscolha: despesa?.id ? (despesa?.reembolso ? "sim" : "nao") : "",
     reembolsado:     despesa?.reembolsado     || false,
     dataReembolso:   despesa?.dataReembolso   || "",
     revisado:        despesa?.revisado        || false,
-    // ANEXO2: funcionário já vem preenchido com quem está logado (Campo fica
-    // travado nisso; os demais podem trocar, por ex. ao lançar em nome de outro)
     funcionarioId:   despesa?.funcionarioId   || currentUser?.uid || "",
     funcionarioNome: despesa?.funcionarioNome || nomeUser,
     vinculoTipo:     vinculoInicial(),
@@ -61,9 +95,23 @@ function DespesaModal({ despesa, funcionarios, obras, manutencoes, onClose, addT
     manutencaoId:    despesa?.manutencaoId    || "",
     manutencaoTitulo:despesa?.manutencaoTitulo|| "",
     obs:             despesa?.obs             || "",
+    comprovante:     despesa?.comprovante     || null,
   });
-  const [saving, setSaving] = useState(false);
+  const [saving,      setSaving]      = useState(false);
+  const [processando, setProcessando] = useState(false);
+  const fotoRef    = useRef(null);
+  const arquivoRef = useRef(null);
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
+
+  async function handleComprovante(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setProcessando(true);
+    const resultado = await aplicarFiltroEscaneado(file);
+    if (resultado) set("comprovante", resultado);
+    setProcessando(false);
+    e.target.value = "";
+  }
 
   function handleCategoria(cat) {
     // ANEXO1: a descrição sempre acompanha a categoria escolhida (não só quando vazia)
@@ -104,12 +152,11 @@ function DespesaModal({ despesa, funcionarios, obras, manutencoes, onClose, addT
 
   async function save() {
     if (!form.descricao || !form.valor || !form.data) { alert("Informe data, descrição e valor."); return; }
-    // ANEXO3 — obrigatório escolher o vínculo
     if (!form.vinculoTipo) { alert("Escolha o vínculo: Obra, Manutenção ou Nenhum vínculo."); return; }
     if (form.vinculoTipo==="obra" && !form.obraId) { alert("Selecione a obra."); return; }
     if (form.vinculoTipo==="manutencao" && !form.manutencaoId) { alert("Selecione a manutenção."); return; }
-    // ANEXO4 — obrigatório decidir sobre reembolso
     if (!form.reembolsoEscolha) { alert("Escolha se necessita reembolso ao funcionário ou não."); return; }
+    if (!form.comprovante && !despesa?.id) { alert("Anexe o comprovante (foto da nota ou arquivo)."); return; }
 
     setSaving(true);
     const reembolso = form.reembolsoEscolha === "sim";
@@ -276,6 +323,53 @@ function DespesaModal({ despesa, funcionarios, obras, manutencoes, onClose, addT
           </div>
         )}
 
+        {/* Comprovante — foto da nota ou arquivo */}
+        <div className="form-group span-2">
+          <label className="required">Comprovante (nota / recibo)</label>
+          <input ref={fotoRef}    type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={handleComprovante}/>
+          <input ref={arquivoRef} type="file" accept="image/*,application/pdf"       style={{display:"none"}} onChange={handleComprovante}/>
+
+          {processando && (
+            <div style={{border:"1px solid var(--border)",borderRadius:8,padding:20,textAlign:"center",color:"#7A7A7A",fontSize:12}}>
+              ⏳ Processando imagem...
+            </div>
+          )}
+
+          {!processando && !form.comprovante && (
+            <div style={{border:"2px dashed var(--border)",borderRadius:8,padding:20,textAlign:"center",background:"var(--cinza-lt)"}}>
+              <div style={{fontSize:12,color:"#7A7A7A",marginBottom:12}}>
+                📎 Anexe a foto da nota fiscal ou comprovante de pagamento
+              </div>
+              <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
+                <button type="button" className="btn" onClick={()=>fotoRef.current.click()}>📸 Tirar foto</button>
+                <button type="button" className="btn" onClick={()=>arquivoRef.current.click()}>📁 Subir arquivo</button>
+              </div>
+              {!despesa?.id && (
+                <div style={{fontSize:11,color:"var(--vermelho)",marginTop:8}}>Obrigatório para registrar a despesa.</div>
+              )}
+              {despesa?.id && (
+                <div style={{fontSize:11,color:"var(--afine-yellow-dk)",marginTop:8}}>⚠️ Esta despesa ainda não tem comprovante.</div>
+              )}
+            </div>
+          )}
+
+          {!processando && form.comprovante && (
+            <div style={{border:"1px solid var(--verde)",borderRadius:8,padding:10,background:"var(--verde-lt)"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                <span style={{fontSize:12,color:"var(--verde)",fontWeight:600}}>✓ Comprovante anexado — efeito escaneado aplicado</span>
+                <button type="button" className="btn btn-sm" onClick={()=>set("comprovante",null)}>Trocar</button>
+              </div>
+              {form.comprovante.tipo==="imagem" ? (
+                <img src={form.comprovante.data} alt="Comprovante" style={{maxWidth:"100%",maxHeight:220,borderRadius:4,border:"1px solid #ddd",display:"block"}}/>
+              ) : (
+                <div style={{display:"flex",alignItems:"center",gap:8,fontSize:13}}>
+                  📄 <span style={{fontWeight:600}}>{form.comprovante.nome}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="form-group span-2"><label>Observações</label><textarea rows={2} value={form.obs} onChange={e=>set("obs",e.target.value)}/></div>
       </div>
     </Modal>
@@ -298,6 +392,7 @@ export default function Despesas() {
   const [filtros,       setFiltros]      = useState({ periodo:{de:"",ate:""}, funcionarioNome:"", metodoPagamento:"", obraId:"", categoria:"", statusReembolso:"", revisado:"" });
   const [qtdMostrar,    setQtdMostrar]   = useState(100);
   const [modal,         setModal]        = useState(null);
+  const [preview,       setPreview]      = useState(null);
 
   useEffect(()=>{
     const q1 = query(collection(db,"despesas"), orderBy("data","desc"), limit(3000));
@@ -442,7 +537,7 @@ export default function Despesas() {
               <tr>
                 <th>Data</th><th>Categoria</th><th>Descrição</th><th>Funcionário</th><th>Vínculo</th><th>Método</th>
                 <th>Reembolso</th>{podeEditarDespesas && <th>Revisado</th>}<th style={{textAlign:"right"}}>Valor</th>
-                <th></th>
+                <th>Nota</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -474,6 +569,13 @@ export default function Despesas() {
                     </td>
                   )}
                   <td style={{textAlign:"right",fontWeight:600}}>{fmt(d.valor)}</td>
+                  <td>
+                    {d.comprovante ? (
+                      <button className="btn btn-sm btn-icon" title="Ver comprovante" onClick={()=>setPreview(d.comprovante)}>🧾</button>
+                    ) : (
+                      <span style={{fontSize:11,color:"#B8B6AE"}} title="Sem comprovante">—</span>
+                    )}
+                  </td>
                   <td style={{whiteSpace:"nowrap"}}>
                     {podeEditarDespesas && (
                       <>
@@ -496,6 +598,27 @@ export default function Despesas() {
 
       {modal && (
         <DespesaModal despesa={modal.despesa} funcionarios={funcionarios} obras={obras} manutencoes={manutencoes} onClose={()=>setModal(null)} addToast={addToast}/>
+      )}
+
+      {/* Modal de visualização do comprovante */}
+      {preview && (
+        <div onClick={()=>setPreview(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:12,padding:16,maxWidth:640,width:"100%",maxHeight:"90vh",overflow:"auto"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <span style={{fontWeight:700,fontSize:14}}>🧾 Comprovante</span>
+              <button className="btn btn-sm" onClick={()=>setPreview(null)}>✕ Fechar</button>
+            </div>
+            {preview.tipo==="imagem" ? (
+              <img src={preview.data} alt="Comprovante" style={{width:"100%",borderRadius:6,border:"1px solid #ddd"}}/>
+            ) : (
+              <div style={{textAlign:"center",padding:32}}>
+                <div style={{fontSize:48,marginBottom:12}}>📄</div>
+                <div style={{fontWeight:600,marginBottom:16}}>{preview.nome}</div>
+                <a href={preview.data} download={preview.nome} className="btn btn-primary">⬇️ Baixar PDF</a>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
