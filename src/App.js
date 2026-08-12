@@ -79,8 +79,8 @@ const MENU = [
     { to:"/sla",       icon:"⏰", label:"Dashboard SLA",  roles:["gestor","encarregado"] },
     { to:"/sla/config",icon:"⚙️", label:"Configurar SLA", roles:["gestor","encarregado"] },
   ]},
-  { id:"gestao", label:"Gestão", roles:["gestor","encarregado"], items:[
-    { to:"/bi",                   icon:"📊", label:"BI & Tendências",      roles:["gestor","encarregado"] },
+  { id:"gestao", label:"Gestão", roles:["gestor","encarregado","campo"], items:[
+    { to:"/bi",                   icon:"📊", label:"BI & Tendências",      roles:["gestor","encarregado","campo"] },
     { to:"/checklist-templates",  icon:"📋", label:"Templates Checklist",  roles:["gestor","encarregado"] },
     { to:"/garantias",            icon:"🛡️", label:"Garantias",            roles:["gestor","encarregado"] },
     { to:"/audit-log",            icon:"🔍", label:"Audit Log",            roles:["gestor","encarregado"] },
