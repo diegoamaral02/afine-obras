@@ -1065,7 +1065,7 @@ export default function Manutencao({ obraAtual }) {
           {!loading&&filtered.length===0&&<div className="empty-state"><div className="empty-icon">🔧</div><p>Nenhuma manutenção encontrada</p></div>}
           {!loading&&filtered.length>0&&(
             <>
-            <div className="table-wrap">
+            <div className="table-wrap desktop-only">
               <table>
                 <thead><tr><th>Título</th><th>Cliente / Agência</th><th>Responsável / Equipe</th><th>OT · Prior.</th><th>Status</th><th></th></tr></thead>
                 <tbody>

@@ -1250,7 +1250,7 @@ export default function Obras({ onObraSelect }) {
         </div>
       )}
       {!loading && filtered.length>0 && (
-        <div className="table-wrap">
+        <div className="table-wrap desktop-only">
           <table>
             <thead><tr><th>Obra</th><th>Cliente</th><th>Responsável</th><th>Término</th><th>Status</th><th></th></tr></thead>
             <tbody>
