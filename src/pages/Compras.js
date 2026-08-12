@@ -1,5 +1,5 @@
 // src/pages/Compras.js — v5: permissões revisadas + recusa/revisão + rastreio por etapa + PDF + catálogo de itens
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { collection, onSnapshot, addDoc, updateDoc, doc, getDocs, writeBatch } from "firebase/firestore";
 import { db } from "../firebase";
 import { fmtDate } from "../utils/helpers";
@@ -10,6 +10,7 @@ import { getAcesso, isCampo } from "../constants/departamentos";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
 import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
 import ModalCatalogoItens from "../components/ModalCatalogoItens";
+import { parseNFe } from "../utils/nfe";
 
 // ── Regras de aprovação ───────────────────────────────────────────────────────
 // Para MANUTENÇÃO: todos menos campo podem aprovar
@@ -298,6 +299,60 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
   const demandas = demandaTipo === "obra" ? obras : manutencoes;
   const fornSel  = fornecedores.find(f=>f.id===fornecedorId);
   const canAprovar = podeAprovar(userProfile, demandaTipo);
+  // NF-e import
+  const fileInputRef             = useRef(null);
+  const [nfeImportada,  setNfeImportada]  = useState(null);   // { numero, emitente }
+  const [fornecedorNomeNFe, setFornecedorNomeNFe] = useState(compra?.fornecedorNomeNFe || "");
+
+  function handleNFeFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const { emitente, nota, itens: nfeItens, totais } = parseNFe(ev.target.result);
+        // Mapeia itens NF-e → formato do sistema {nome, qtd, un}
+        const novosItens = nfeItens.map(it => ({
+          nome: it.descricao,
+          qtd:  it.quantidade,
+          un:   it.unidade || "un",
+        }));
+        if (novosItens.length) setItens(novosItens);
+        // Fornecedor: tenta casar pelo nome, caso contrário armazena como texto livre
+        const nomeEmit = emitente.razaoSocial || emitente.nomeFantasia;
+        if (nomeEmit) {
+          const match = fornecedores.find(f =>
+            f.razaoSocial?.toLowerCase().trim() === nomeEmit.toLowerCase().trim()
+          );
+          if (match) {
+            setFornecedorId(match.id);
+          } else {
+            setFornecedorNomeNFe(nomeEmit);
+          }
+        }
+        // Título (só preenche se estiver vazio)
+        if (!titulo && (nota.natureza || nota.numero)) {
+          setTitulo(nota.natureza || `Compra NF-e ${nota.numero}`);
+        }
+        // Valor total → valorCotado (nova solicitação) / valorNF (aguardando NF)
+        if (etapaAtual === "AGUARD. NF") {
+          if (nota.numero) setNumeroNF(nota.numero);
+          if (nota.dataEmissao) setDataNF(nota.dataEmissao);
+          if (totais.total) setValorNF(String(totais.total));
+        } else {
+          if (totais.total) setValorCotado(String(totais.total));
+        }
+        setNfeImportada({ numero: nota.numero, emitente });
+        addToast("NF-e importada — revise os dados antes de salvar");
+      } catch (err) {
+        addToast("Erro ao ler NF-e: " + err.message, "error");
+      }
+      // Limpa o input para permitir re-importação do mesmo arquivo
+      e.target.value = "";
+    };
+    reader.readAsText(file, "utf-8");
+  }
+
   const [editandoVinculo, setEditandoVinculo] = useState(false);
   const podeCorrigirVinculo = !isNova && (userProfile?.adm===true || userProfile?.departamento==="gestao") && !["SOLICITAÇÃO","EM REVISÃO"].includes(etapaAtual);
 
@@ -327,7 +382,8 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
       titulo, demandaTipo, demandaId,
       demandaNome: demandas.find(d=>d.id===demandaId)?.nome||demandas.find(d=>d.id===demandaId)?.titulo||compra?.demandaNome||"",
       urgencia, obs, itens,
-      fornecedorId, fornecedorNome:fornSel?.razaoSocial||compra?.fornecedorNome||"",
+      fornecedorId, fornecedorNome:fornSel?.razaoSocial||compra?.fornecedorNome||fornecedorNomeNFe||"",
+      fornecedorNomeNFe,
       valorCotado:Number(valorCotado)||compra?.valorCotado||0, prazoEntrega, obsCotacao,
       valorAprovado:Number(valorAprovado)||compra?.valorAprovado||0, formaPagamento, obsAprovacao,
       numeroPedido, prazoOC, obsOC,
@@ -542,6 +598,37 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
       )}
 
       <div style={{display:"flex",flexDirection:"column",gap:16}}>
+        {/* Input de arquivo oculto para NF-e */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xml"
+          style={{display:"none"}}
+          onChange={handleNFeFile}
+        />
+
+        {/* Badge NF-e importada */}
+        {nfeImportada && (
+          <div style={{
+            display:"flex",alignItems:"center",gap:10,padding:"9px 14px",
+            background:"#FFFBEA",border:"2px solid var(--afine-yellow-dk)",
+            borderRadius:8,fontSize:13,
+          }}>
+            <span style={{fontSize:16}}>📄</span>
+            <span style={{flex:1,fontWeight:600,color:"var(--afine-yellow-dk)"}}>
+              NF-e n.º <strong>{nfeImportada.numero}</strong> importada
+              {nfeImportada.emitente?.razaoSocial && (
+                <span style={{fontWeight:400,color:"#7A7A7A"}}> · {nfeImportada.emitente.razaoSocial}</span>
+              )}
+            </span>
+            <button
+              onClick={()=>setNfeImportada(null)}
+              style={{background:"none",border:"none",cursor:"pointer",color:"#7A7A7A",fontSize:14,lineHeight:1,padding:2}}
+              title="Fechar aviso"
+            >✕</button>
+          </div>
+        )}
+
         {/* Badge de etapa */}
         {!isNova && (
           <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",
@@ -645,6 +732,21 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
               </div>
             </div>
             <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>Itens solicitados</div>
+
+            {/* Botão importar NF-e */}
+            <button
+              type="button"
+              onClick={()=>fileInputRef.current?.click()}
+              style={{
+                display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+                padding:"9px 16px",marginBottom:4,
+                border:"2px dashed var(--afine-yellow-dk)",borderRadius:8,
+                background:"#FFFBEA",color:"#7A5400",cursor:"pointer",
+                fontSize:13,fontWeight:600,width:"100%",
+              }}
+            >
+              📄 Importar NF-e (XML) — preenche itens automaticamente
+            </button>
 
             {/* Botão catálogo de itens */}
             <button
@@ -814,6 +916,20 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
               {compra.numeroPedido&&<span>📋 OC: <strong>{compra.numeroPedido}</strong></span>}
               {compra.dataRecebimento&&<span>📦 Recebido: <strong>{fmtDate(compra.dataRecebimento)}</strong></span>}
             </div>
+            {/* Importar NF-e na etapa de vinculação */}
+            <button
+              type="button"
+              onClick={()=>fileInputRef.current?.click()}
+              style={{
+                display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+                padding:"9px 16px",
+                border:"2px dashed var(--afine-yellow-dk)",borderRadius:8,
+                background:"#FFFBEA",color:"#7A5400",cursor:"pointer",
+                fontSize:13,fontWeight:600,width:"100%",
+              }}
+            >
+              📄 Importar NF-e (XML) — preenche número, data e valor
+            </button>
             <div style={{fontSize:11,fontWeight:700,color:"#1A5A10",textTransform:"uppercase",letterSpacing:".06em"}}>Nota Fiscal</div>
             <div className="form-grid">
               <div className="form-group"><label className="required">Número da NF</label><input value={numeroNF} onChange={e=>setNumeroNF(e.target.value)} placeholder="NF-4521"/></div>

@@ -29,6 +29,10 @@ import Comercial       from "./pages/Comercial";
 import MateriaisGlobal from "./pages/Materiais";
 import Gerenciamento   from "./pages/Gerenciamento";
 import SeedPage        from "./pages/SeedPage";
+import Contratos       from "./pages/Contratos";
+import SLADashboard    from "./pages/SLADashboard";
+import SLAConfig       from "./pages/SLAConfig";
+import PontoEletronico from "./pages/PontoEletronico";
 import { Equipe, Ocorrencias } from "./pages/Equipe";
 
 import "./index.css";
@@ -56,14 +60,20 @@ const MENU = [
   { id:"comercial", label:"Comercial", roles:["gestor","encarregado"], items:[
     { to:"/comercial/clientes", icon:"🏢", label:"Clientes",     roles:["gestor","encarregado"] },
     { to:"/fornecedores",       icon:"🤝", label:"Fornecedores", roles:["gestor","encarregado"] },
+    { to:"/contratos",          icon:"📄", label:"Contratos",    roles:["gestor","encarregado"] },
   ]},
-  { id:"pessoas", label:"Pessoas", roles:["gestor","encarregado"], items:[
-    { to:"/equipe",       icon:"👷", label:"Equipe",       roles:["gestor","encarregado"] },
-    { to:"/funcionarios", icon:"👤", label:"Funcionários", roles:["gestor"] },
+  { id:"pessoas", label:"Pessoas", roles:["gestor","encarregado","campo"], items:[
+    { to:"/equipe",       icon:"👷", label:"Equipe",            roles:["gestor","encarregado"] },
+    { to:"/funcionarios", icon:"👤", label:"Funcionários",      roles:["gestor"] },
+    { to:"/ponto",        icon:"⏱️", label:"Ponto Eletrônico",  roles:["gestor","encarregado","campo"] },
   ]},
   { id:"financeiro", label:"Financeiro", roles:["gestor","encarregado","campo"], items:[
     { to:"/dre",      icon:"📈", label:"Resultados", roles:["gestor","encarregado"] },
     { to:"/despesas", icon:"🧾", label:"Despesas",   roles:["gestor","encarregado","campo"] },
+  ]},
+  { id:"sla", label:"SLA & Qualidade", roles:["gestor","encarregado"], items:[
+    { to:"/sla",        icon:"⏰", label:"Dashboard SLA",  roles:["gestor","encarregado"] },
+    { to:"/sla/config", icon:"⚙️", label:"Configurar SLA", roles:["gestor","encarregado"] },
   ]},
 ];
 
@@ -335,6 +345,10 @@ function AppShell() {
             <Route path="/despesas"           element={<Despesas/>}/>
             <Route path="/dre"                element={<DRE/>}/>
             <Route path="/materiais"          element={<MateriaisGlobal/>}/>
+            <Route path="/contratos"          element={<Contratos/>}/>
+            <Route path="/sla"               element={<SLADashboard/>}/>
+            <Route path="/sla/config"        element={<SLAConfig/>}/>
+            <Route path="/ponto"             element={<PontoEletronico/>}/>
             <Route path="/seed"               element={<SeedPage/>}/>
             <Route path="*"                   element={<Navigate to="/" replace/>}/>
           </Routes>

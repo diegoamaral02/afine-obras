@@ -228,6 +228,32 @@ service cloud.firestore {
       }
     }
 
+    // ── Contratos ─────────────────────────────────────────────────
+    match /contratos/{id} {
+      allow read:   if isEncarregado();
+      allow create: if isEncarregado();
+      allow update: if isEncarregado();
+      allow delete: if isGestor();
+      match /historico/{hid} {
+        allow read:  if isEncarregado();
+        allow write: if isAuth();
+      }
+    }
+
+    // ── SLA Config ────────────────────────────────────────────────
+    match /sla_config/{id} {
+      allow read:  if isAuth();
+      allow write: if isEncarregado();
+    }
+
+    // ── Ponto Eletrônico ──────────────────────────────────────────
+    match /pontos/{id} {
+      allow read:   if isAuth();
+      allow create: if isAuth();
+      allow update: if isEncarregado();
+      allow delete: if isGestor();
+    }
+
     // ── Catálogo de itens de compras ──────────────────────────────
     match /catalogo_itens/{id} {
       allow read:   if isAuth();

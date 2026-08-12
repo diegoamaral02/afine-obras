@@ -33,6 +33,8 @@ import { useToast } from "../hooks/useToast";
 import { Ocorrencias } from "./Equipe";
 import Medicao from "./Medicao";
 import Diario from "./Diario";
+import GanttChart from "../components/GanttChart";
+import EtapasEditor from "../components/EtapasEditor";
 
 const TIPOS_OBRA = ["Reforma geral","Layout","Adequação","Retrofit","Manutenção preventiva","Manutenção corretiva","Instalação","Ampliação","Descaracterização/Devolução de imóvel","Outro"];
 const TIPO_DESCARACTERIZACAO = "Descaracterização/Devolução de imóvel";
@@ -109,6 +111,8 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
     // Extra
     subcontratados: obra?.subcontratados||"",
     obs: obra?.obs||"",
+    // Cronograma
+    etapas: obra?.etapas||[],
     // Execução (mesmas restrições de Manutenção)
     materiais: obra?.materiais||[],
     semMaterial: obra?.semMaterial||false,
@@ -346,8 +350,8 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   const isExternoUser = isExterno(userProfile);
   const ABAS = isCampoUser
     ? [...(!isExternoUser?["custos"]:[]),"materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"termo_chaves","os_digital"]
-    : ["dados","endereço","financeiro",...(!isExternoUser?["custos"]:[]),"materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"termo_chaves","os_digital"];
-  const LABELS = { dados:"Dados", "endereço":"Endereço", financeiro:"Financeiro", custos:"💰 Custos", materiais:"Materiais", fotos_checklist:"Fotos & Checklist", os_digital:"OS Digital", descaracterizacao:"📋 Descaracterização", termo_chaves:"🔑 Termo de Chaves" };
+    : ["dados","endereço","financeiro","cronograma",...(!isExternoUser?["custos"]:[]),"materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"termo_chaves","os_digital"];
+  const LABELS = { dados:"Dados", "endereço":"Endereço", financeiro:"Financeiro", cronograma:"📅 Cronograma", custos:"💰 Custos", materiais:"Materiais", fotos_checklist:"Fotos & Checklist", os_digital:"OS Digital", descaracterizacao:"📋 Descaracterização", termo_chaves:"🔑 Termo de Chaves" };
 
   return (
     <Modal title={obra?.id?"Editar obra":"Nova obra"} onClose={onClose}
@@ -847,6 +851,40 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
               })}
             </div>
           </div>
+        </div>
+      )}
+
+      {aba==="cronograma" && (
+        <div style={{display:"flex",flexDirection:"column",gap:20}}>
+          <div className="alert alert-info" style={{fontSize:12}}>
+            📅 Defina as etapas da obra. As datas de início e término da obra (aba Dados) são usadas como período de referência do Gantt.
+          </div>
+
+          <EtapasEditor
+            etapas={form.etapas}
+            onChange={etapas=>set("etapas",etapas)}
+            dataInicioObra={form.inicio}
+            dataFimObra={form.termino}
+          />
+
+          {form.etapas.length>0&&(
+            <>
+              <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em",marginTop:4}}>
+                Visualização do Gantt
+              </div>
+              <GanttChart
+                etapas={form.etapas}
+                dataInicioObra={form.inicio}
+                dataFimObra={form.termino}
+              />
+            </>
+          )}
+
+          {(!form.inicio||!form.termino)&&(
+            <div className="alert alert-warning" style={{fontSize:12}}>
+              ⚠️ Preencha as datas de início e término na aba <strong>Dados</strong> para habilitar o Gantt.
+            </div>
+          )}
         </div>
       )}
 
