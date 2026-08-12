@@ -587,7 +587,7 @@ function RelatorioGestor({ obras, manutencoes }) {
 
 export default function PontoEletronico() {
   const { userProfile, currentUser } = useAuth();
-  const { addToast, ToastContainer } = useToast();
+  const { toasts, addToast } = useToast();
   const [abaAtiva, setAbaAtiva] = useState("registrar");
   const [obras, setObras] = useState([]);
   const [manutencoes, setManutencoes] = useState([]);
@@ -598,7 +598,7 @@ export default function PontoEletronico() {
 
   // Carrega obras ativas
   useEffect(() => {
-    const q = query(collection(db, "obras"), where("status", "in", ["EM_ANDAMENTO", "em_andamento", "ATIVO", "ativo", "Em andamento"]));
+    const q = query(collection(db, "obras"), where("status", "in", ["EM ANDAMENTO", "PENDENTE", "INICIADA"]));
     const unsub = onSnapshot(q, snap => {
       setObras(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
@@ -607,7 +607,7 @@ export default function PontoEletronico() {
 
   // Carrega manutenções ativas
   useEffect(() => {
-    const q = query(collection(db, "manutencoes"), where("status", "in", ["ABERTA", "aberta", "EM_ANDAMENTO", "em_andamento", "ATIVO", "ativo"]));
+    const q = query(collection(db, "manutencoes"), where("status", "in", ["ABERTA", "EM ANDAMENTO"]));
     const unsub = onSnapshot(q, snap => {
       setManutencoes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
@@ -632,12 +632,14 @@ export default function PontoEletronico() {
   }, [currentUser]);
 
   return (
-    <div className="page">
-      <ToastContainer />
+    <div>
+      <div className="toast-container">
+        {toasts.map(t => <div key={t.id} className={`toast toast-${t.type}`}>{t.msg}</div>)}
+      </div>
 
-      <div className="topbar" style={{ marginBottom: 0 }}>
+      <div className="panel-header">
         <div>
-          <div className="topbar-title">⏱️ Ponto Eletrônico</div>
+          <div className="panel-title">⏱️ Ponto Eletrônico</div>
           <div style={{ fontSize: 12, color: "var(--afine-gray)" }}>Registro de presença em campo</div>
         </div>
       </div>
