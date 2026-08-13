@@ -264,6 +264,10 @@ service cloud.firestore {
       allow create: if isEncarregado();
       allow update: if isEncarregado();
       allow delete: if isGestor();
+      match /historico/{hid} {
+        allow read:  if isEncarregado();
+        allow write: if isAuth();
+      }
     }
 
     // ── Templates de Checklist ────────────────────────────────────

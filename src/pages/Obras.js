@@ -1,4 +1,3 @@
-import { buscarCEP } from "../utils/cep";
 // src/pages/Obras.js — completo com endereço, busca CEP, fotos, medições, subcontratados
 import React, { useEffect, useState, useMemo } from "react";
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, where, getDocs } from "firebase/firestore";
@@ -8,8 +7,23 @@ import { useAuth } from "../contexts/AuthContext";
 import { isCampo, isGestorOuAdm, isExterno } from "../constants/departamentos";
 import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
 import { salvarComFallbackOffline } from "../utils/offlineQueue";
-import { exportarObraParaPDF } from "../utils/exportPDF";
+import { exportarObraParaPDF, exportarTermoChavesParaPDF, exportarOSParaPDF } from "../utils/exportPDF";
 import { registrarExecutorOffline } from "../hooks/useFilaOffline";
+import { buscarCEP } from "../utils/cep";
+import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
+import { exportarExcel, BtnExcel } from "../utils/exportExcel";
+import { useIsMobile } from "../hooks/useIsMobile";
+import Modal from "../components/Modal";
+import PhotoUploader from "../components/PhotoUploader";
+import OSDigital from "../components/OSDigital";
+import AssinaturaDigital from "../components/AssinaturaDigital";
+import CustosDemanda from "../components/CustosDemanda";
+import { useToast } from "../hooks/useToast";
+import { Ocorrencias } from "./Equipe";
+import Medicao from "./Medicao";
+import Diario from "./Diario";
+import GanttChart from "../components/GanttChart";
+import EtapasEditor from "../components/EtapasEditor";
 
 // Registra como reenviar uma obra que ficou pendente na fila offline —
 // fica fora do componente pra continuar disponível mesmo se a tela de Obras
@@ -20,21 +34,6 @@ registrarExecutorOffline("obra:update", async ({ id, payload, uid, nome }) => {
 registrarExecutorOffline("obra:create", async ({ payload, uid, nome }) => {
   await addComAuditoria("obras", payload, uid, nome);
 });
-import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
-import { exportarExcel, BtnExcel } from "../utils/exportExcel";
-import { useIsMobile } from "../hooks/useIsMobile";
-import Modal from "../components/Modal";
-import PhotoUploader from "../components/PhotoUploader";
-import OSDigital from "../components/OSDigital";
-import AssinaturaDigital from "../components/AssinaturaDigital";
-import CustosDemanda from "../components/CustosDemanda";
-import { exportarTermoChavesParaPDF, exportarOSParaPDF } from "../utils/exportPDF";
-import { useToast } from "../hooks/useToast";
-import { Ocorrencias } from "./Equipe";
-import Medicao from "./Medicao";
-import Diario from "./Diario";
-import GanttChart from "../components/GanttChart";
-import EtapasEditor from "../components/EtapasEditor";
 
 const TIPOS_OBRA = ["Reforma geral","Layout","Adequação","Retrofit","Manutenção preventiva","Manutenção corretiva","Instalação","Ampliação","Descaracterização/Devolução de imóvel","Outro"];
 const TIPO_DESCARACTERIZACAO = "Descaracterização/Devolução de imóvel";
