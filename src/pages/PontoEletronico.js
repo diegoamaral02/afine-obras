@@ -1,12 +1,13 @@
 // src/pages/PontoEletronico.js — Ponto Eletrônico de Campo
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
-  collection, onSnapshot, addDoc, query,
+  collection, onSnapshot, query,
   where, orderBy, getDocs
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../hooks/useToast";
+import { addComAuditoria } from "../services/auditoria";
 import { resolverPerfilMenu, isCampo } from "../constants/departamentos";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
 
@@ -163,7 +164,7 @@ function RegistroPonto({ userProfile, currentUser, obras, manutencoes, pontosHoj
         geo: geo || null,
         obs: obs.trim(),
       };
-      await addDoc(collection(db, "pontos"), payload);
+      await addComAuditoria("pontos", payload, currentUser.uid, userProfile?.nome);
       addToast(`${proximoTipo === "ENTRADA" ? "Entrada" : "Saída"} registrada!`);
       setObs("");
     } catch (err) {

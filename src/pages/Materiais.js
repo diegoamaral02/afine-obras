@@ -1,17 +1,17 @@
 // src/pages/Materiais.js — controle global de estoque + por demanda
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, doc, query, where, getDocs, limit } from "firebase/firestore";
+import { collection, onSnapshot, query, where, getDocs, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 import { isCampo } from "../constants/departamentos";
-import { addComAuditoria } from "../services/auditoria";
+import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
 
 // Modal de movimentação (entrada ou saída)
 function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }) {
-  const { userProfile } = useAuth();
+  const { currentUser, userProfile } = useAuth();
   const [form, setForm] = useState({
     quantidade: "",
     demandaTipo: "obra",
@@ -63,13 +63,13 @@ function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }
       createdAt: new Date().toISOString(),
     };
     try {
-      await addDoc(collection(db, "movimentacoes"), mov);
+      await addComAuditoria("movimentacoes", mov, currentUser?.uid, userProfile?.nome);
       const novoSaldo = tipo === "entrada"
         ? item.saldo + Number(form.quantidade)
         : item.saldo - Number(form.quantidade);
       const totalEntradas = tipo === "entrada" ? item.totalEntradas + Number(form.quantidade) : item.totalEntradas;
       const totalSaidas   = tipo === "saida"   ? item.totalSaidas   + Number(form.quantidade) : item.totalSaidas;
-      await updateDoc(doc(db, "materiais_estoque", item.id), { saldo: novoSaldo, totalEntradas, totalSaidas, updatedAt: new Date().toISOString() });
+      await updateComAuditoria("materiais_estoque", item.id, { saldo: novoSaldo, totalEntradas, totalSaidas }, currentUser?.uid, userProfile?.nome);
       addToast(tipo === "entrada" ? "Entrada registrada!" : "Saída registrada!");
       onClose();
     } catch(err) { addToast("Erro: " + err.message, "error"); }
@@ -344,10 +344,10 @@ function TransferenciaModal({ origem, material, obras, manutencoes, onClose, add
         if (!snap.empty) {
           const matDoc = snap.docs[0];
           const d = matDoc.data();
-          await updateDoc(doc(db,"materiais_estoque",matDoc.id), {
+          await updateComAuditoria("materiais_estoque", matDoc.id, {
             saldo:         (d.saldo||0) + Number(qtd),
             totalEntradas: (d.totalEntradas||0) + Number(qtd),
-          });
+          }, currentUser?.uid, userProfile?.nome);
         }
       }
 
@@ -462,6 +462,7 @@ function TransferenciaModal({ origem, material, obras, manutencoes, onClose, add
 
 // Modal de cadastro de novo material
 function NovoMaterialModal({ onClose, addToast }) {
+  const { currentUser, userProfile } = useAuth();
   const [form, setForm] = useState({ nome:"", categoria:"", un:"un", estoqueMin:0, saldo:0 });
   const [saving, setSaving] = useState(false);
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
@@ -470,11 +471,10 @@ function NovoMaterialModal({ onClose, addToast }) {
     if (!form.nome) { addToast("Informe o nome do material.","error"); return; }
     setSaving(true);
     try {
-      await addDoc(collection(db,"materiais_estoque"), {
+      await addComAuditoria("materiais_estoque", {
         ...form, estoqueMin:Number(form.estoqueMin)||0, saldo:Number(form.saldo)||0,
         totalEntradas:Number(form.saldo)||0, totalSaidas:0,
-        createdAt: new Date().toISOString(),
-      });
+      }, currentUser?.uid, userProfile?.nome);
       addToast("Material cadastrado!");
       onClose();
     } catch(err) { addToast("Erro: "+err.message,"error"); }

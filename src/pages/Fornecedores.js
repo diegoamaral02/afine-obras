@@ -1,14 +1,16 @@
 // src/pages/Fornecedores.js — cadastro completo de fornecedores
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
+import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 import { buscarCEP, formatarCNPJ, formatarTelefone } from "../utils/cep";
 import { isCampo } from "../constants/departamentos";
 
 function FornecedorModal({ forn, onClose, addToast }) {
+  const { currentUser, userProfile } = useAuth();
   const [form, setForm] = useState({
     razaoSocial: forn?.razaoSocial||"", nomeFantasia: forn?.nomeFantasia||"",
     cnpj: forn?.cnpj||"", categoria: forn?.categoria||"",
@@ -39,8 +41,8 @@ function FornecedorModal({ forn, onClose, addToast }) {
     const agora = new Date().toISOString();
     const payload = { ...form, updatedAt: agora };
     try {
-      if (forn?.id) { await updateDoc(doc(db,"fornecedores",forn.id),payload); addToast("Fornecedor atualizado!"); }
-      else { payload.createdAt=agora; await addDoc(collection(db,"fornecedores"),payload); addToast("Fornecedor cadastrado!"); }
+      if (forn?.id) { await updateComAuditoria("fornecedores",forn.id,payload,currentUser?.uid,userProfile?.nome); addToast("Fornecedor atualizado!"); }
+      else { await addComAuditoria("fornecedores",payload,currentUser?.uid,userProfile?.nome); addToast("Fornecedor cadastrado!"); }
       onClose();
     } catch(err) { addToast("Erro: "+err.message,"error"); }
     setSaving(false);

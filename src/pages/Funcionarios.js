@@ -1,6 +1,6 @@
 // src/pages/Funcionarios.js — com departamentos, permissões e gestão completa
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, doc, setDoc, updateDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, setDoc, updateDoc, addDoc } from "firebase/firestore";
 import { db, auth } from "../firebase";
 import { statusBadge, fmtDate, initials } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -9,7 +9,7 @@ import { useToast } from "../hooks/useToast";
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { DEPARTAMENTOS, isGestorOuAdm } from "../constants/departamentos";
-import { deleteComAuditoria } from "../services/auditoria";
+import { deleteComAuditoria, updateComAuditoria } from "../services/auditoria";
 
 function getSecAuth() {
   const config = getApps()[0].options;
@@ -104,6 +104,7 @@ function ExcluirModal({ func, onClose, addToast }) {
 
 // ── Modal Cadastro / Edição ────────────────────────────────────────────────────
 function FuncionarioModal({ func, obras, onClose, addToast }) {
+  const { currentUser: authUser, userProfile: authProfile } = useAuth();
   const [form, setForm] = useState({
     nome:         func?.nome         || "",
     funcao:       func?.funcao       || "",
@@ -195,8 +196,9 @@ function FuncionarioModal({ func, obras, onClose, addToast }) {
       const payload = { ...form, uid, pendente:uid?.startsWith("pending_")||false, updatedAt:new Date().toISOString(), createdAt:func?.createdAt||new Date().toISOString() };
       if (isNovo) {
         await setDoc(doc(db,"usuarios",uid), payload);
+        await addDoc(collection(db,"audit_log"), { colecao:"usuarios", docId:uid, acao:"create", payload, userUid:authUser?.uid, userName:authProfile?.nome, timestamp:new Date().toISOString() });
       } else {
-        await updateDoc(doc(db,"usuarios",uid), payload);
+        await updateComAuditoria("usuarios", uid, payload, authUser?.uid, authProfile?.nome);
       }
       addToast(isNovo?"Funcionário cadastrado!":"Funcionário atualizado!");
       onClose();

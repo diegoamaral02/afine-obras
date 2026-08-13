@@ -1,6 +1,6 @@
 // src/pages/Comercial.js — CRM + Funil de vendas + Kanban
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
@@ -22,7 +22,7 @@ const COLUNAS_FUNIL = [
 ];
 
 function OportunidadeModal({ op, onClose, addToast }) {
-  const { userProfile } = useAuth();
+  const { currentUser, userProfile } = useAuth();
   const [form, setForm] = useState({
     titulo: op?.titulo||"",
     cliente: op?.cliente||"",
@@ -50,8 +50,8 @@ function OportunidadeModal({ op, onClose, addToast }) {
     const agora = new Date().toISOString();
     const payload = { ...form, valor: Number(form.valor)||0, updatedAt: agora };
     try {
-      if(op?.id) { await updateDoc(doc(db,"oportunidades",op.id),payload); addToast("Atualizado!"); }
-      else { payload.createdAt=agora; await addDoc(collection(db,"oportunidades"),payload); addToast("Oportunidade criada!"); }
+      if(op?.id) { await updateComAuditoria("oportunidades",op.id,payload,currentUser?.uid,userProfile?.nome); addToast("Atualizado!"); }
+      else { await addComAuditoria("oportunidades",payload,currentUser?.uid,userProfile?.nome); addToast("Oportunidade criada!"); }
       onClose();
     } catch(err) { addToast("Erro: "+err.message,"error"); }
     setSaving(false);
@@ -110,6 +110,7 @@ function OportunidadeModal({ op, onClose, addToast }) {
 }
 
 export default function Comercial({ subpagina = "funil" }) {
+  const { currentUser, userProfile } = useAuth();
   const { toasts, addToast } = useToast();
   const [ops,     setOps]     = useState([]);
   const [loading, setLoading] = useState(true);
@@ -123,7 +124,7 @@ export default function Comercial({ subpagina = "funil" }) {
   },[]);
 
   async function handleMover(cardId, novaColuna) {
-    await updateDoc(doc(db,"oportunidades",cardId),{ coluna: novaColuna, updatedAt: new Date().toISOString() });
+    await updateComAuditoria("oportunidades",cardId,{ coluna: novaColuna },currentUser?.uid,userProfile?.nome);
   }
 
   // KPIs do funil

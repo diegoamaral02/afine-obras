@@ -2,11 +2,11 @@
 import React, { useEffect, useState } from "react";
 import {
   collection, onSnapshot, query, where,
-  addDoc, updateDoc, doc
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { statusBadge, pctColor, fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
+import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
 import Modal from "../components/Modal";
 import PhotoUploader from "../components/PhotoUploader";
 import OSScanner from "../components/OSScanner";
@@ -17,7 +17,7 @@ const MIN_PHOTOS = 15;
 const STATUS_LIST = ["NÃO INICIADO", "EM ANDAMENTO", "CONCLUÍDO", "PARALISADO"];
 
 function EscopoModal({ escopo, obraId, onClose, addToast }) {
-  const { userProfile } = useAuth();
+  const { currentUser, userProfile } = useAuth();
   const _dep = userProfile?.adm ? "gestao" : (userProfile?.departamento || userProfile?.perfil || "campo");
   const isGestor = userProfile?.adm || ["gestao","gestor"].includes(_dep);
   const isCampo  = ["campo","empreiteiro","terceiro"].includes(_dep) && !userProfile?.adm;
@@ -71,11 +71,10 @@ function EscopoModal({ escopo, obraId, onClose, addToast }) {
     };
     try {
       if (escopo?.id) {
-        await updateDoc(doc(db, "escopos", escopo.id), payload);
+        await updateComAuditoria("escopos", escopo.id, payload, currentUser?.uid, userProfile?.nome);
         addToast("Escopo atualizado com sucesso!");
       } else {
-        payload.createdAt = new Date().toISOString();
-        await addDoc(collection(db, "escopos"), payload);
+        await addComAuditoria("escopos", payload, currentUser?.uid, userProfile?.nome);
         addToast("Escopo criado com sucesso!");
       }
       onClose();

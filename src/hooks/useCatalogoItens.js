@@ -4,12 +4,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  collection, getDocs, addDoc, updateDoc, doc, writeBatch,
+  collection, getDocs, doc, writeBatch,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { CATEGORIAS_COMPRAS } from "../constants/itensCompras";
 import { useAuth } from "../contexts/AuthContext";
-import { deleteComAuditoria } from "../services/auditoria";
+import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 
 export function useCatalogoItens() {
   const { currentUser, userProfile } = useAuth();
@@ -93,16 +93,14 @@ export function useCatalogoItens() {
       ordem:          maxOrdem + 1,
       createdAt:      new Date().toISOString(),
     };
-    const ref = await addDoc(collection(db, "catalogo_itens"), novoDoc);
-    // Atualiza estado local sem reler o Firestore
+    const ref = await addComAuditoria("catalogo_itens", novoDoc, currentUser?.uid, userProfile?.nome);
     setDocs(prev => [...prev, { id: ref.id, ...novoDoc }]);
-  }, [docs]);
+  }, [docs, currentUser, userProfile]);
 
   const editarItem = useCallback(async (id, campos) => {
-    const atualizado = { ...campos, updatedAt: new Date().toISOString() };
-    await updateDoc(doc(db, "catalogo_itens", id), atualizado);
-    setDocs(prev => prev.map(d => d.id === id ? { ...d, ...atualizado } : d));
-  }, []);
+    await updateComAuditoria("catalogo_itens", id, campos, currentUser?.uid, userProfile?.nome);
+    setDocs(prev => prev.map(d => d.id === id ? { ...d, ...campos } : d));
+  }, [currentUser, userProfile]);
 
   const removerItem = useCallback(async (id) => {
     await deleteComAuditoria("catalogo_itens", id, currentUser?.uid, userProfile?.nome);
@@ -122,9 +120,9 @@ export function useCatalogoItens() {
       ordem:          9999,
       createdAt:      new Date().toISOString(),
     };
-    const ref = await addDoc(collection(db, "catalogo_itens"), novoDoc);
+    const ref = await addComAuditoria("catalogo_itens", novoDoc, currentUser?.uid, userProfile?.nome);
     setDocs(prev => [...prev, { id: ref.id, ...novoDoc }]);
-  }, []);
+  }, [currentUser, userProfile]);
 
   return { categorias, loading, adicionarItem, editarItem, removerItem, adicionarCategoria };
 }

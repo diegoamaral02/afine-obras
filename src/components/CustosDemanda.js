@@ -1,10 +1,10 @@
 // src/components/CustosDemanda.js
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, doc, query, where } from "firebase/firestore";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
 import { isGestorOuAdm, isExterno } from "../constants/departamentos";
-import { deleteComAuditoria } from "../services/auditoria";
+import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
 
 const TIPOS_CUSTO = [
@@ -82,13 +82,12 @@ export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orc
     };
     try {
       if (editandoId) {
-        await updateDoc(doc(db,"custos_demanda",editandoId), { ...payload, updatedAt: new Date().toISOString(), updatedBy: nomeUser });
+        await updateComAuditoria("custos_demanda", editandoId, payload, currentUser?.uid, userProfile?.nome);
       } else {
-        await addDoc(collection(db,"custos_demanda"), {
+        await addComAuditoria("custos_demanda", {
           ...payload, status:"pendente",
           lancadoPorId: currentUser?.uid||"", lancadoPorNome: nomeUser,
-          createdAt: new Date().toISOString(),
-        });
+        }, currentUser?.uid, userProfile?.nome);
       }
       setFormAberto(false);
       setEditandoId(null);
@@ -96,9 +95,9 @@ export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orc
   }
 
   async function alterarStatus(id, novoStatus) {
-    await updateDoc(doc(db,"custos_demanda",id), {
+    await updateComAuditoria("custos_demanda", id, {
       status: novoStatus, aprovadoPor: nomeUser, aprovadoEm: new Date().toISOString(),
-    });
+    }, currentUser?.uid, userProfile?.nome);
   }
 
   async function excluir(id) {

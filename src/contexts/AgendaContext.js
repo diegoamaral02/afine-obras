@@ -1,8 +1,8 @@
 // src/contexts/AgendaContext.js — v2: filtrado por perfil + memoizado
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, doc, query, where, limit, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, doc, query, where, limit, orderBy } from "firebase/firestore";
 import { db } from "../firebase";
-import { deleteComAuditoria } from "../services/auditoria";
+import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 import { useAuth } from "./AuthContext";
 
 const AgendaContext = createContext();
@@ -100,14 +100,12 @@ export function AgendaProvider({ children }) {
   }, [agendamentos, funcionarios]);
 
   async function criarAgendamento(payload) {
-    const agora = new Date().toISOString();
-    const docRef = await addDoc(collection(db,"agendamentos"), { ...payload, createdAt:agora, updatedAt:agora });
+    const docRef = await addComAuditoria("agendamentos", payload, currentUser?.uid, userProfile?.nome);
     return docRef.id;
   }
 
   async function atualizarAgendamento(id, payload) {
-    const agora = new Date().toISOString();
-    await updateDoc(doc(db,"agendamentos",id), { ...payload, updatedAt:agora });
+    await updateComAuditoria("agendamentos", id, payload, currentUser?.uid, userProfile?.nome);
   }
 
   async function deletarAgendamento(id) {

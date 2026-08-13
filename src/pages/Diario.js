@@ -1,13 +1,13 @@
 // src/pages/Diario.js — com atividades pré-prontas, equipe da obra, controle por usuário/obra
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, query, where, addDoc, doc, getDoc } from "firebase/firestore";
+import { collection, onSnapshot, query, where, doc } from "firebase/firestore";
 import { db } from "../firebase";
 import { fmtDate, initials } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
 import { useAgenda } from "../contexts/AgendaContext";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
-import { updateComAuditoria } from "../services/auditoria";
+import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
 
 // Atividades pré-prontas por tipo
 const ATIVIDADES_OBRA = [
@@ -60,7 +60,7 @@ function RDOModal({ obraId, tipoObra, equipeObra, permissoes, onClose, addToast 
     if (atividadesSel.length === 0 && !atividadeExtra.trim()) { alert("Informe ao menos uma atividade."); return; }
     setSaving(true);
     try {
-      await addDoc(collection(db, "rdos"), {
+      await addComAuditoria("rdos", {
         data: form.data, clima: form.clima, obs: form.obs,
         atividades: atividadesSel,
         atividadeExtra,
@@ -71,8 +71,7 @@ function RDOModal({ obraId, tipoObra, equipeObra, permissoes, onClose, addToast 
         obraId,
         autor: currentUser.email,
         autorNome: userProfile?.nome || currentUser.email,
-        createdAt: new Date().toISOString(),
-      });
+      }, currentUser?.uid, userProfile?.nome);
       addToast("RDO registrado!");
       onClose();
     } catch (err) { addToast("Erro: " + err.message, "error"); }

@@ -42,6 +42,10 @@ service cloud.firestore {
       allow create: if isGestor();
       allow update: if isAuth() && (uid() == id || isGestor());
       allow delete: if isGestor();
+      match /historico/{hid} {
+        allow read:  if isGestor();
+        allow write: if isGestor();
+      }
     }
 
     // ── Obras ────────────────────────────────────────────────────
@@ -75,6 +79,10 @@ service cloud.firestore {
       allow create: if isEncarregado();
       allow update: if isAuth();
       allow delete: if isEncarregado();
+      match /historico/{hid} {
+        allow read:  if isAuth();
+        allow write: if isAuth();
+      }
     }
 
     // ── RDOs (Diário de Obra) ─────────────────────────────────────
@@ -110,13 +118,17 @@ service cloud.firestore {
     // escrita — bloqueando exatamente quem mais usa essa funcionalidade.
     match /materiais_estoque/{id} {
       allow read:   if isAuth();
-      allow create: if isEncarregado();      // só gestão pode criar item novo do zero
-      allow update: if isAuth();             // campo pode debitar/creditar saldo ao usar/devolver material
+      allow create: if isEncarregado();
+      allow update: if isAuth();
       allow delete: if isGestor();
+      match /historico/{hid} {
+        allow read:  if isAuth();
+        allow write: if isAuth();
+      }
     }
     match /movimentacoes/{id} {
       allow read:   if isAuth();
-      allow create: if isAuth();             // qualquer um registra a própria movimentação (uso em campo)
+      allow create: if isAuth();
       allow update: if isEncarregado();
       allow delete: if isGestor();
     }
@@ -159,9 +171,13 @@ service cloud.firestore {
     // Empreiteiro, terceiro e campo podem lançar; gestão aprova e exclui.
     match /custos_demanda/{id} {
       allow read:   if isAuth();
-      allow create: if isCampo();        // qualquer usuário autenticado lança
-      allow update: if isEncarregado();  // aprovação, status, edição
+      allow create: if isCampo();
+      allow update: if isEncarregado();
       allow delete: if isGestor();
+      match /historico/{hid} {
+        allow read:  if isAuth();
+        allow write: if isAuth();
+      }
     }
 
     // ── Transferências de material entre obras ──────────────────────
@@ -180,6 +196,10 @@ service cloud.firestore {
     match /fornecedores/{id} {
       allow read:  if isAuth();
       allow write: if isEncarregado();
+      match /historico/{hid} {
+        allow read:  if isAuth();
+        allow write: if isAuth();
+      }
     }
 
     // ── Clientes (COMERCIAL — apenas gestor/encarregado) ─────────
@@ -196,12 +216,20 @@ service cloud.firestore {
     match /oportunidades/{id} {
       allow read:  if isEncarregado();
       allow write: if isEncarregado();
+      match /historico/{hid} {
+        allow read:  if isEncarregado();
+        allow write: if isAuth();
+      }
     }
 
     // ── Agendamentos ──────────────────────────────────────────────
     match /agendamentos/{id} {
       allow read:  if isAuth();
       allow write: if isEncarregado();
+      match /historico/{hid} {
+        allow read:  if isAuth();
+        allow write: if isAuth();
+      }
     }
 
     // ── Boletins de Medição ───────────────────────────────────────
@@ -294,6 +322,10 @@ service cloud.firestore {
       allow create: if isEncarregado();
       allow update: if isEncarregado();
       allow delete: if isGestor();
+      match /historico/{hid} {
+        allow read:  if isEncarregado();
+        allow write: if isAuth();
+      }
     }
 
     // ── Notificações (por usuário) ────────────────────────────────

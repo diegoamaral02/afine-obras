@@ -1,6 +1,6 @@
 // src/pages/Obras.js — completo com endereço, busca CEP, fotos, medições, subcontratados
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, doc, query, where, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, doc, query, where, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { statusBadge, fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -151,16 +151,16 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
       if (!found) return; // nada cadastrado pra debitar
       const ehDevolucao = qtd < 0;
       const qtdAbs = Math.abs(qtd);
-      await addDoc(collection(db,"movimentacoes"), {
+      await addComAuditoria("movimentacoes", {
         itemId: found.id, itemNome: nome, tipo: ehDevolucao ? "entrada" : "saida", quantidade: qtdAbs,
         data: new Date().toISOString().split("T")[0],
         demandaTipo: "obra", demandaId: obra.id, demandaNome: obra.nome,
-        origem: ehDevolucao ? "devolucao_lancamento" : origem, usuario: nomeUser, createdAt: new Date().toISOString(),
-      });
-      await updateDoc(doc(db,"materiais_estoque",found.id), {
-        saldo: (found.saldo||0) - qtd, // qtd negativo soma de volta
+        origem: ehDevolucao ? "devolucao_lancamento" : origem, usuario: nomeUser,
+      }, currentUser?.uid, userProfile?.nome);
+      await updateComAuditoria("materiais_estoque", found.id, {
+        saldo: (found.saldo||0) - qtd,
         [ehDevolucao ? "totalEntradas" : "totalSaidas"]: (found[ehDevolucao?"totalEntradas":"totalSaidas"]||0) + qtdAbs,
-      });
+      }, currentUser?.uid, userProfile?.nome);
     } catch(err) { console.error("Erro ao lançar saída de estoque:", err); }
   }
 
