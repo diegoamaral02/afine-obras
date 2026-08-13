@@ -6,7 +6,7 @@ import {
 import { db } from "../firebase";
 import { statusBadge, pctColor, fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
-import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
+import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 import Modal from "../components/Modal";
 import PhotoUploader from "../components/PhotoUploader";
 import OSScanner from "../components/OSScanner";
@@ -192,7 +192,7 @@ function EscopoModal({ escopo, obraId, onClose, addToast }) {
 }
 
 export default function Escopos({ obraAtual }) {
-  const { userProfile } = useAuth();
+  const { currentUser, userProfile } = useAuth();
   const { toasts, addToast } = useToast();
   const [escopos, setEscopos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -203,6 +203,16 @@ export default function Escopos({ obraAtual }) {
   const depEf = userProfile?.adm ? "gestao" : (userProfile?.departamento || userProfile?.perfil || "campo");
   const isGestor = userProfile?.adm || ["gestao","gestor"].includes(depEf);
   const canAdd   = isGestor || ["encarregado","financeiro","comercial","fiscal","compras"].includes(depEf);
+
+  async function handleDelete(escopo) {
+    if (!window.confirm(`Excluir escopo "${escopo.cod} – ${escopo.descricao}"? Esta ação não pode ser desfeita.`)) return;
+    try {
+      await deleteComAuditoria("escopos", escopo.id, currentUser?.uid, userProfile?.nome, escopo);
+      addToast("Escopo excluído.");
+    } catch (err) {
+      addToast("Erro ao excluir: " + err.message, "error");
+    }
+  }
 
   useEffect(() => {
     if (!obraAtual) return;
@@ -317,10 +327,15 @@ export default function Escopos({ obraAtual }) {
                         {e.fotos?.length || 0} / {MIN_PHOTOS}
                       </span>
                     </td>
-                    <td>
+                    <td style={{ display: "flex", gap: 4 }}>
                       <button className="btn btn-sm btn-icon" onClick={() => setModal({ escopo: e })} title="Editar">
                         ✏️
                       </button>
+                      {isGestor && (
+                        <button className="btn btn-sm btn-icon" onClick={() => handleDelete(e)} title="Excluir" style={{ color: "var(--vermelho)" }}>
+                          🗑️
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
