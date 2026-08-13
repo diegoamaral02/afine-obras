@@ -4,12 +4,15 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  collection, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch,
+  collection, getDocs, addDoc, updateDoc, doc, writeBatch,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { CATEGORIAS_COMPRAS } from "../constants/itensCompras";
+import { useAuth } from "../contexts/AuthContext";
+import { deleteComAuditoria } from "../services/auditoria";
 
 export function useCatalogoItens() {
+  const { currentUser, userProfile } = useAuth();
   const [docs,    setDocs]    = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -102,9 +105,9 @@ export function useCatalogoItens() {
   }, []);
 
   const removerItem = useCallback(async (id) => {
-    await deleteDoc(doc(db, "catalogo_itens", id));
+    await deleteComAuditoria("catalogo_itens", id, currentUser?.uid, userProfile?.nome);
     setDocs(prev => prev.filter(d => d.id !== id));
-  }, []);
+  }, [currentUser, userProfile]);
 
   const adicionarCategoria = useCallback(async ({ id, label, cor }) => {
     if (!label?.trim()) return;

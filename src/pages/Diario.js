@@ -1,12 +1,13 @@
 // src/pages/Diario.js — com atividades pré-prontas, equipe da obra, controle por usuário/obra
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, query, where, addDoc, doc, getDoc, updateDoc } from "firebase/firestore";
+import { collection, onSnapshot, query, where, addDoc, doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { fmtDate, initials } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
 import { useAgenda } from "../contexts/AgendaContext";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
+import { updateComAuditoria } from "../services/auditoria";
 
 // Atividades pré-prontas por tipo
 const ATIVIDADES_OBRA = [
@@ -164,6 +165,7 @@ function RDOModal({ obraId, tipoObra, equipeObra, permissoes, onClose, addToast 
 
 // Modal de configuração de permissões por obra
 function PermissoesModal({ obraId, permissoes, funcionarios, onClose, addToast }) {
+  const { currentUser, userProfile } = useAuth();
   const [perm, setPerm] = useState(permissoes || { diarioCampo: true, ocorrenciasCampo: true, usuariosPermitidos: [] });
   const [saving, setSaving] = useState(false);
 
@@ -179,7 +181,7 @@ function PermissoesModal({ obraId, permissoes, funcionarios, onClose, addToast }
   async function save() {
     setSaving(true);
     try {
-      await updateDoc(doc(db, "obras", obraId), { permissoes: perm });
+      await updateComAuditoria("obras", obraId, { permissoes: perm }, currentUser?.uid, userProfile?.nome);
       addToast("Permissões salvas!");
       onClose();
     } catch(err) { addToast("Erro: " + err.message, "error"); }

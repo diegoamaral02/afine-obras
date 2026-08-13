@@ -1,6 +1,7 @@
 // src/pages/ChecklistTemplates.js — Templates de checklist por tipo de serviço
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, setDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, setDoc, doc } from "firebase/firestore";
+import { deleteComAuditoria } from "../services/auditoria";
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
@@ -166,7 +167,7 @@ function TemplateModal({ template, onClose, addToast }) {
 
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function ChecklistTemplates() {
-  const { userProfile } = useAuth();
+  const { userProfile, currentUser } = useAuth();
   const { toasts, addToast } = useToast();
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -186,7 +187,7 @@ export default function ChecklistTemplates() {
 
   async function excluir(tmpl) {
     try {
-      await deleteDoc(doc(db, "checklist_templates", tmpl.id));
+      await deleteComAuditoria("checklist_templates", tmpl.id, currentUser?.uid, userProfile?.nome, { tipoServico: tmpl.tipoServico });
       addToast(`Template "${tmpl.tipoServico}" excluído.`);
     } catch (err) {
       addToast("Erro ao excluir: " + err.message, "error");

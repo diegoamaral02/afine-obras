@@ -1,13 +1,13 @@
 // src/pages/Gerenciamento.js — v3: dashboard, filtros avançados, export lista, dias atraso, docs
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, limit } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, doc, query, orderBy, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import { fmtDate, statusBadge } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 import { isGestorOuAdm, isCampo as isCampoHelper } from "../constants/departamentos";
-import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
+import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 
 // ── CONSTANTES ────────────────────────────────────────────────────────────────
 const STATUS_LIST = [
@@ -1189,7 +1189,7 @@ export default function Gerenciamento() {
 
   async function excluir(id, nome) {
     try {
-      await deleteDoc(doc(db,"gerenciamento",id));
+      await deleteComAuditoria("gerenciamento", id, currentUser?.uid, userProfile?.nome, { nome });
       addToast(`"${nome}" excluída.`);
       if(drawerAberto?.id===id) setDrawerAberto(null);
     } catch(e){ addToast("Erro ao excluir: "+e.message,"error"); }

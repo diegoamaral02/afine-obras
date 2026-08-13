@@ -1,6 +1,6 @@
 // src/pages/Financeiro.js — v3: rico em informações para equipe financeira
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, limit, where } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, doc, query, orderBy, limit, where } from "firebase/firestore";
 import { db } from "../firebase";
 import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -226,6 +226,7 @@ function KPICard({ label, valor, sub, cor, icon, trend, trendLabel, alerta }) {
 
 // ── Sub-aba: Lançamentos ──────────────────────────────────────────────────────
 function AbaLancamentos({ lancs, obras, addToast }) {
+  const { currentUser, userProfile } = useAuth();
   const hj = hoje();
   const [filtro,      setFiltro]      = useState("todos");
   const [obraFiltro,  setObraFiltro]  = useState("");
@@ -279,9 +280,7 @@ function AbaLancamentos({ lancs, obras, addToast }) {
   ];
 
   async function marcarRapido(l, status) {
-    await updateDoc(doc(db,"financeiro",l.id),{
-      status, pagamento:hoje(), valorPago:l.valor, updatedAt:new Date().toISOString()
-    });
+    await updateComAuditoria("financeiro", l.id, { status, pagamento:hoje(), valorPago:l.valor }, currentUser?.uid, userProfile?.nome);
     addToast(`✓ ${status}`);
   }
 
@@ -812,6 +811,7 @@ function AbaCustoObra({ lancs, obras, compras, despesas, addToast }) {
 
 // ── Sub-aba: Aging ────────────────────────────────────────────────────────────
 function AbaAging({ lancs, obras, addToast }) {
+  const { currentUser, userProfile } = useAuth();
   const hj=hoje();
   const [modal, setModal] = useState(null);
   const aReceber = lancs.filter(l=>l.tipo==="RECEBER"&&["ABERTO","VENCIDO"].includes(l.status));
@@ -823,7 +823,7 @@ function AbaAging({ lancs, obras, addToast }) {
     {label:"+90 dias",      filter:l=>daysDiff(l.vencimento)>90,                   cor:"var(--vermelho)"},
   ];
   const total=aReceber.reduce((s,l)=>s+(l.valor||0),0);
-  async function marcar(l){await updateDoc(doc(db,"financeiro",l.id),{status:"RECEBIDO",pagamento:hj,valorPago:l.valor,updatedAt:new Date().toISOString()});addToast("✓ Recebido");}
+  async function marcar(l){await updateComAuditoria("financeiro",l.id,{status:"RECEBIDO",pagamento:hj,valorPago:l.valor},currentUser?.uid,userProfile?.nome);addToast("✓ Recebido");}
 
   return (
     <div>

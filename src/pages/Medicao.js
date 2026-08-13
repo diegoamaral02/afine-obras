@@ -1,6 +1,6 @@
 // src/pages/Medicao.js — Boletim de Medição + FVS integrados
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, query, where, addDoc, updateDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, query, where, addDoc, doc } from "firebase/firestore";
 import { db } from "../firebase";
 import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -218,9 +218,9 @@ function BoletiModal({ bm, obraId, escopos, onClose, addToast }) {
 // Integração BM → Financeiro: aprovação gera lançamento a receber
 async function aprovarBM(bm, obraInfo, uid, userName) {
   if (bm.status === "APROVADO") return; // já aprovado
-  await updateDoc(doc(db,"boletins",bm.id),{
+  await updateComAuditoria("boletins", bm.id, {
     status:"APROVADO", aprovadoEm: new Date().toISOString(), aprovadoPor: userName
-  });
+  }, uid, userName);
   // Gera lançamento financeiro automático
   await addComAuditoria("financeiro", {
     tipo:"RECEBER", descricao:`BM ${bm.numero} — ${obraInfo?.nome||""}`,

@@ -1,6 +1,6 @@
 // src/pages/Equipe.js — v2: alocação cruzada (obras + manutenções) com reatribuição direta
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, onSnapshot, query, where, addDoc, updateDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, query, where, addDoc, doc } from "firebase/firestore";
 import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
 import { db } from "../firebase";
 import { statusBadge, fmtDate, initials } from "../utils/helpers";
@@ -44,6 +44,7 @@ function ColaboradorInfoModal({ colaborador, onClose }) {
 
 // ── Modal: reatribuir colaborador de uma demanda para outra ──────────────────
 function ReatribuirModal({ colaborador, demandasAbertas, onClose, addToast }) {
+  const { currentUser, userProfile } = useAuth();
   const [demandaSelecionada, setDemandaSelecionada] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -69,12 +70,8 @@ function ReatribuirModal({ colaborador, demandasAbertas, onClose, addToast }) {
     try {
       const origem = demandasAbertas.find(d=>d.id===manutOrigemId);
       const destino = demandasAbertas.find(d=>d.id===demandaSelecionada);
-      await updateDoc(doc(db,"manutencoes",manutOrigemId),{
-        ...semColaborador(origem), updatedAt:new Date().toISOString()
-      });
-      await updateDoc(doc(db,"manutencoes",demandaSelecionada),{
-        ...comColaborador(destino), updatedAt:new Date().toISOString()
-      });
+      await updateComAuditoria("manutencoes", manutOrigemId, semColaborador(origem), currentUser?.uid, userProfile?.nome);
+      await updateComAuditoria("manutencoes", demandaSelecionada, comColaborador(destino), currentUser?.uid, userProfile?.nome);
       addToast(`✓ ${colaborador.nome} reatribuído para "${destino?.titulo}"`);
       onClose();
     } catch(err){addToast("Erro: "+err.message,"error");}
@@ -86,9 +83,7 @@ function ReatribuirModal({ colaborador, demandasAbertas, onClose, addToast }) {
     setSaving(true);
     try {
       const destino = demandasAbertas.find(d=>d.id===demandaSelecionada);
-      await updateDoc(doc(db,"manutencoes",demandaSelecionada),{
-        ...comColaborador(destino), updatedAt:new Date().toISOString()
-      });
+      await updateComAuditoria("manutencoes", demandaSelecionada, comColaborador(destino), currentUser?.uid, userProfile?.nome);
       addToast(`✓ ${colaborador.nome} alocado em "${destino?.titulo}"`);
       onClose();
     } catch(err){addToast("Erro: "+err.message,"error");}
@@ -99,7 +94,7 @@ function ReatribuirModal({ colaborador, demandasAbertas, onClose, addToast }) {
     setSaving(true);
     try {
       const manut = demandasAbertas.find(d=>d.id===manutId);
-      await updateDoc(doc(db,"manutencoes",manutId),{...semColaborador(manut),updatedAt:new Date().toISOString()});
+      await updateComAuditoria("manutencoes", manutId, semColaborador(manut), currentUser?.uid, userProfile?.nome);
       addToast("✓ Desalocado");
       onClose();
     } catch(err){addToast("Erro: "+err.message,"error");}

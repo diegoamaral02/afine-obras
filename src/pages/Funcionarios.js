@@ -1,6 +1,6 @@
 // src/pages/Funcionarios.js — com departamentos, permissões e gestão completa
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, setDoc, updateDoc } from "firebase/firestore";
 import { db, auth } from "../firebase";
 import { statusBadge, fmtDate, initials } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -9,6 +9,7 @@ import { useToast } from "../hooks/useToast";
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { DEPARTAMENTOS, isGestorOuAdm } from "../constants/departamentos";
+import { deleteComAuditoria } from "../services/auditoria";
 
 function getSecAuth() {
   const config = getApps()[0].options;
@@ -61,6 +62,7 @@ function AlterarSenhaModal({ func, onClose, addToast }) {
 
 // ── Modal Excluir ──────────────────────────────────────────────────────────────
 function ExcluirModal({ func, onClose, addToast }) {
+  const { currentUser, userProfile } = useAuth();
   const [confirma, setConfirma] = useState("");
   const [saving,   setSaving]   = useState(false);
   const ok = confirma.trim().toLowerCase() === func.nome.trim().toLowerCase();
@@ -69,7 +71,7 @@ function ExcluirModal({ func, onClose, addToast }) {
     if (!ok) return;
     setSaving(true);
     try {
-      await deleteDoc(doc(db,"usuarios",func.id));
+      await deleteComAuditoria("usuarios", func.id, currentUser?.uid, userProfile?.nome, { nome: func.nome, email: func.email });
       addToast(`Acesso de ${func.nome} removido.`);
       onClose();
     } catch(err) { addToast("Erro: "+err.message,"error"); }

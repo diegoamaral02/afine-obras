@@ -22,7 +22,7 @@ function formatarDataHora(iso) {
 
 function dataParaISO(dataStr, fim) {
   if (!dataStr) return null;
-  const d = new Date(dataStr + (fim ? "T23:59:59" : "T00:00:00"));
+  const d = new Date(dataStr + (fim ? "T23:59:59Z" : "T00:00:00Z"));
   return d.toISOString();
 }
 

@@ -1,12 +1,13 @@
 // src/pages/Comercial.js — CRM + Funil de vendas + Kanban
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, doc, deleteDoc } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, doc } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
 import KanbanBoard from "../components/KanbanBoard";
 import { useToast } from "../hooks/useToast";
 import { fmtDate } from "../utils/helpers";
+import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 import { buscarCEP } from "../utils/cep";
 
 // Gera ID simples para agências (não depende do Firestore autoId pois ficam embutidas em array)
@@ -167,6 +168,7 @@ export default function Comercial({ subpagina = "funil" }) {
 
 // ── Modal de cliente ───────────────────────────────────────────────────────────
 function ClienteModal({ cliente, onClose, addToast }) {
+  const { currentUser, userProfile } = useAuth();
   const [form, setForm] = useState({
     razaoSocial:  cliente?.razaoSocial  || "",
     nomeFantasia: cliente?.nomeFantasia || "",
@@ -228,8 +230,8 @@ function ClienteModal({ cliente, onClose, addToast }) {
     const agora = new Date().toISOString();
     const payload = { ...form, updatedAt: agora };
     try {
-      if(cliente?.id){ await updateDoc(doc(db,"clientes",cliente.id),payload); addToast("✓ Cliente atualizado!"); }
-      else { payload.createdAt=agora; await addDoc(collection(db,"clientes"),payload); addToast("✓ Cliente cadastrado!"); }
+      if(cliente?.id){ await updateComAuditoria("clientes",cliente.id,payload,currentUser?.uid,userProfile?.nome); addToast("✓ Cliente atualizado!"); }
+      else { await addComAuditoria("clientes",payload,currentUser?.uid,userProfile?.nome); addToast("✓ Cliente cadastrado!"); }
       onClose();
     } catch(err){ addToast("Erro: "+err.message,"error"); }
     setSaving(false);
@@ -347,6 +349,7 @@ function ClienteModal({ cliente, onClose, addToast }) {
 
 // Sub-página clientes — CRUD completo
 function ClientesPage({ addToast, toasts }) {
+  const { currentUser, userProfile } = useAuth();
   const [clientes,    setClientes]    = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [search,      setSearch]      = useState("");
@@ -355,7 +358,7 @@ function ClientesPage({ addToast, toasts }) {
 
   async function excluirCliente(id, nome) {
     try {
-      await deleteDoc(doc(db,"clientes",id));
+      await deleteComAuditoria("clientes", id, currentUser?.uid, userProfile?.nome, { nome });
       addToast(`Cliente "${nome}" excluído.`);
     } catch(err) { addToast("Erro ao excluir: "+err.message,"error"); }
     setExcluindo(null);

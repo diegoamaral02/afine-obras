@@ -186,6 +186,10 @@ service cloud.firestore {
     match /clientes/{id} {
       allow read:  if isEncarregado();
       allow write: if isEncarregado();
+      match /historico/{hid} {
+        allow read:  if isEncarregado();
+        allow write: if isAuth();
+      }
     }
 
     // ── Oportunidades (funil de vendas) ──────────────────────────

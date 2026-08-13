@@ -1,11 +1,11 @@
 // src/pages/Obras.js — completo com endereço, busca CEP, fotos, medições, subcontratados
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, where, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, doc, query, where, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { statusBadge, fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
 import { isCampo, isGestorOuAdm, isExterno } from "../constants/departamentos";
-import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
+import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 import { salvarComFallbackOffline } from "../utils/offlineQueue";
 import { exportarObraParaPDF, exportarTermoChavesParaPDF, exportarOSParaPDF } from "../utils/exportPDF";
 import { registrarExecutorOffline } from "../hooks/useFilaOffline";
@@ -1560,7 +1560,7 @@ export default function Obras({ onObraSelect }) {
           onCancelar={()=>setConfirmarExclusao(null)}
           onConfirmar={async()=>{
             try {
-              await deleteDoc(doc(db,"obras",confirmarExclusao.id));
+              await deleteComAuditoria("obras", confirmarExclusao.id, currentUser?.uid, userProfile?.nome, { nome: confirmarExclusao.nome });
               addToast(`Obra "${confirmarExclusao.nome}" excluída.`);
             } catch(e) { addToast("Erro ao excluir: "+e.message,"error"); }
             setConfirmarExclusao(null);

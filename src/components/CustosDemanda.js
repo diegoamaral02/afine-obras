@@ -1,9 +1,10 @@
 // src/components/CustosDemanda.js
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, where } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, doc, query, where } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
 import { isGestorOuAdm, isExterno } from "../constants/departamentos";
+import { deleteComAuditoria } from "../services/auditoria";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
 
 const TIPOS_CUSTO = [
@@ -102,7 +103,7 @@ export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orc
 
   async function excluir(id) {
     if (!window.confirm("Excluir este lançamento?")) return;
-    await deleteDoc(doc(db,"custos_demanda",id));
+    await deleteComAuditoria("custos_demanda", id, currentUser?.uid, userProfile?.nome);
   }
 
   const custosFiltrados = useMemo(()=>{
