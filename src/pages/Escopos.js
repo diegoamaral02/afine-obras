@@ -7,6 +7,7 @@ import { db } from "../firebase";
 import { statusBadge, pctColor, fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
 import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
+import HistoricoAlteracoes from "../components/HistoricoAlteracoes";
 import Modal from "../components/Modal";
 import PhotoUploader from "../components/PhotoUploader";
 import OSScanner from "../components/OSScanner";
@@ -185,6 +186,13 @@ function EscopoModal({ escopo, obraId, onClose, addToast }) {
             {!fotasOk && `• Envie no mínimo ${MIN_PHOTOS} fotos (você tem ${fotos.length})\n`}
             {isManu && !osOk && "• Anexe a OS assinada e carimbada pelo gerente"}
           </div>
+        )}
+
+        {escopo?.id && (
+          <>
+            <div className="divider" />
+            <HistoricoAlteracoes colecao="escopos" docId={escopo.id} />
+          </>
         )}
       </div>
     </Modal>

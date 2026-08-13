@@ -11,6 +11,7 @@ import OSDigital from "../components/OSDigital";
 import AssinaturaDigital from "../components/AssinaturaDigital";
 import CustosDemanda from "../components/CustosDemanda";
 import { exportarOSParaPDF, exportarTermoChavesParaPDF } from "../utils/exportPDF";
+import HistoricoAlteracoes from "../components/HistoricoAlteracoes";
 import { useToast } from "../hooks/useToast";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
@@ -835,6 +836,13 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
               })()}
             </>
           )}
+        </div>
+      )}
+
+      {manut?.id && (
+        <div style={{padding:"12px 0 4px"}}>
+          <div className="divider" style={{marginBottom:12}} />
+          <HistoricoAlteracoes colecao="manutencoes" docId={manut.id} />
         </div>
       )}
     </Modal>

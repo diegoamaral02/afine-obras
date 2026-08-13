@@ -23,6 +23,7 @@ import { Ocorrencias } from "./Equipe";
 import Medicao from "./Medicao";
 import Diario from "./Diario";
 import GanttChart from "../components/GanttChart";
+import HistoricoAlteracoes from "../components/HistoricoAlteracoes";
 import EtapasEditor from "../components/EtapasEditor";
 
 // Registra como reenviar uma obra que ficou pendente na fila offline —
@@ -348,9 +349,9 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
 
   const isExternoUser = isExterno(userProfile);
   const ABAS = isCampoUser
-    ? [...(!isExternoUser?["custos"]:[]),"materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"termo_chaves","os_digital"]
-    : ["dados","endereço","financeiro","cronograma",...(!isExternoUser?["custos"]:[]),"materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"termo_chaves","os_digital"];
-  const LABELS = { dados:"Dados", "endereço":"Endereço", financeiro:"Financeiro", cronograma:"📅 Cronograma", custos:"💰 Custos", materiais:"Materiais", fotos_checklist:"Fotos & Checklist", os_digital:"OS Digital", descaracterizacao:"📋 Descaracterização", termo_chaves:"🔑 Termo de Chaves" };
+    ? [...(!isExternoUser?["custos"]:[]),"materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"termo_chaves","os_digital",...(obra?.id?["historico"]:[])]
+    : ["dados","endereço","financeiro","cronograma",...(!isExternoUser?["custos"]:[]),"materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"termo_chaves","os_digital",...(obra?.id?["historico"]:[])];
+  const LABELS = { dados:"Dados", "endereço":"Endereço", financeiro:"Financeiro", cronograma:"📅 Cronograma", custos:"💰 Custos", materiais:"Materiais", fotos_checklist:"Fotos & Checklist", os_digital:"OS Digital", descaracterizacao:"📋 Descaracterização", termo_chaves:"🔑 Termo de Chaves", historico:"🕑 Histórico" };
 
   return (
     <Modal title={obra?.id?"Editar obra":"Nova obra"} onClose={onClose}
@@ -1022,6 +1023,12 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
               })()}
             </>
           )}
+        </div>
+      )}
+
+      {aba==="historico" && obra?.id && (
+        <div style={{padding:"8px 0"}}>
+          <HistoricoAlteracoes colecao="obras" docId={obra.id} />
         </div>
       )}
     </Modal>
