@@ -1,13 +1,13 @@
 // src/services/auditoria.js — versionamento e log de auditoria
-import { collection, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, deleteDoc, doc, writeBatch } from "firebase/firestore";
 import { db } from "../firebase";
 
-// Atualiza documento COM trilha de auditoria
+// Atualiza documento COM trilha de auditoria (batch atômico: historico + audit_log + updateDoc)
 export async function updateComAuditoria(colecao, id, payload, userUid, userName) {
   const agora = new Date().toISOString();
+  const batch = writeBatch(db);
 
-  // 1. Grava na subcoleção historico
-  await addDoc(collection(db, colecao, id, "historico"), {
+  batch.set(doc(collection(db, colecao, id, "historico")), {
     campos: payload,
     alteradoPor: userUid,
     alteradoPorNome: userName || "–",
@@ -15,8 +15,7 @@ export async function updateComAuditoria(colecao, id, payload, userUid, userName
     tipo: "update",
   });
 
-  // 2. Grava no log global (append-only, imutável)
-  await addDoc(collection(db, "audit_log"), {
+  batch.set(doc(collection(db, "audit_log")), {
     colecao, docId: id,
     campos: Object.keys(payload),
     alteradoPor: userUid,
@@ -24,25 +23,29 @@ export async function updateComAuditoria(colecao, id, payload, userUid, userName
     alteradoEm: agora,
   });
 
-  // 3. Atualiza o documento
-  return updateDoc(doc(db, colecao, id), { ...payload, updatedAt: agora, updatedBy: userUid });
+  batch.update(doc(db, colecao, id), { ...payload, updatedAt: agora, updatedBy: userUid });
+
+  return batch.commit();
 }
 
-// Cria documento COM trilha de auditoria
+// Cria documento COM trilha de auditoria (batch atômico: set + audit_log)
 export async function addComAuditoria(colecao, payload, userUid, userName) {
   const agora = new Date().toISOString();
+  const newRef = doc(collection(db, colecao));
   const fullPayload = { ...payload, createdAt: agora, createdBy: userUid, updatedAt: agora };
-  const docRef = await addDoc(collection(db, colecao), fullPayload);
 
-  await addDoc(collection(db, "audit_log"), {
-    colecao, docId: docRef.id,
+  const batch = writeBatch(db);
+  batch.set(newRef, fullPayload);
+  batch.set(doc(collection(db, "audit_log")), {
+    colecao, docId: newRef.id,
     acao: "create",
     alteradoPor: userUid,
     alteradoPorNome: userName || "–",
     alteradoEm: agora,
   });
 
-  return docRef;
+  await batch.commit();
+  return newRef;
 }
 
 // Exclui documento COM trilha de auditoria — guarda um "retrato" do documento
