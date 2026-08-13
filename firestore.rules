@@ -172,7 +172,7 @@ service cloud.firestore {
     match /custos_demanda/{id} {
       allow read:   if isAuth();
       allow create: if isCampo();
-      allow update: if isEncarregado();
+      allow update: if isAuth();  // campo edita próprio custo pendente; gestão aprova
       allow delete: if isGestor();
       match /historico/{hid} {
         allow read:  if isAuth();
