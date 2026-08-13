@@ -18,8 +18,9 @@ const STATUS_LIST = ["NÃO INICIADO", "EM ANDAMENTO", "CONCLUÍDO", "PARALISADO"
 
 function EscopoModal({ escopo, obraId, onClose, addToast }) {
   const { userProfile } = useAuth();
-  const isGestor = userProfile?.perfil === "gestor";
-  const isCampo  = userProfile?.perfil === "campo";
+  const _dep = userProfile?.adm ? "gestao" : (userProfile?.departamento || userProfile?.perfil || "campo");
+  const isGestor = userProfile?.adm || ["gestao","gestor"].includes(_dep);
+  const isCampo  = ["campo","empreiteiro","terceiro"].includes(_dep) && !userProfile?.adm;
 
   const [form, setForm] = useState({
     cod:        escopo?.cod        || "",
@@ -200,8 +201,9 @@ export default function Escopos({ obraAtual }) {
   const [filtro,  setFiltro]  = useState("todos");
   const [modal,   setModal]   = useState(null); // null | { escopo }
 
-  const isGestor = userProfile?.perfil === "gestor";
-  const canAdd   = isGestor || userProfile?.perfil === "encarregado";
+  const depEf = userProfile?.adm ? "gestao" : (userProfile?.departamento || userProfile?.perfil || "campo");
+  const isGestor = userProfile?.adm || ["gestao","gestor"].includes(depEf);
+  const canAdd   = isGestor || ["encarregado","financeiro","comercial","fiscal","compras"].includes(depEf);
 
   useEffect(() => {
     if (!obraAtual) return;

@@ -371,7 +371,7 @@ export default function Garantias() {
       batch.update(doc(db, "garantias", g.id), { status: "VENCIDA", updatedAt: new Date().toISOString() });
     });
     batch.commit().catch(err => console.error("batch vencidas:", err));
-  }, [loading]); // eslint-disable-line
+  }, [loading, garantias]); // eslint-disable-line
 
   // KPIs
   const hj = hoje();

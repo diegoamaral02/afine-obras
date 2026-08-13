@@ -1,7 +1,7 @@
 // src/components/EtapasEditor.js — editor inline de etapas do cronograma
 import React from "react";
 
-const STATUS_ETAPA = ["NÃO_INICIADA", "EM_ANDAMENTO", "CONCLUÍDA", "ATRASADA"];
+const STATUS_ETAPA = ["NÃO INICIADA", "EM ANDAMENTO", "CONCLUÍDA", "ATRASADA"];
 
 const CORES_PRESET = [
   { cor: "#185FA5", label: "Azul"     },

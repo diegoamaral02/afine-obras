@@ -9,14 +9,14 @@ const BAR_RADIUS = 4;
 const MIN_SVG_W  = 700;   // largura mínima útil do viewBox
 
 const COR_STATUS = {
-  "NÃO_INICIADA": "#9CA3AF",
-  "EM_ANDAMENTO":  "#185FA5",
+  "NÃO INICIADA": "#9CA3AF",
+  "EM ANDAMENTO":  "#185FA5",
   "CONCLUÍDA":     "#2A6B3F",
   "ATRASADA":      "#BD3838",
 };
 const TEXTO_STATUS = {
-  "NÃO_INICIADA": "#6B7280",
-  "EM_ANDAMENTO":  "#1D4ED8",
+  "NÃO INICIADA": "#6B7280",
+  "EM ANDAMENTO":  "#1D4ED8",
   "CONCLUÍDA":     "#166534",
   "ATRASADA":      "#991B1B",
 };

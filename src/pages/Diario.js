@@ -239,12 +239,14 @@ export default function Diario({ obraAtual }) {
   const [modal,      setModal]      = useState(false);
   const [modalPerm,  setModalPerm]  = useState(false);
 
-  const perfil = userProfile?.perfil || "campo";
-  const isGestor = perfil === "gestor";
+  const _depD = userProfile?.adm ? "gestao" : (userProfile?.departamento || userProfile?.perfil || "campo");
+  const isGestor = userProfile?.adm || ["gestao","gestor"].includes(_depD);
+  const isEncarregado = isGestor || ["encarregado","financeiro","comercial","fiscal","compras"].includes(_depD);
+  const perfil = _depD;
   const perm = obraInfo?.permissoes || { diarioCampo: true, ocorrenciasCampo: true, usuariosPermitidos: [] };
 
-  const podeCriarRDO = isGestor || perfil === "encarregado" ||
-    (perm.diarioCampo && perfil === "campo") ||
+  const podeCriarRDO = isEncarregado ||
+    (perm.diarioCampo && ["campo","empreiteiro","terceiro"].includes(_depD)) ||
     perm.usuariosPermitidos.includes(currentUser?.uid);
 
   // Detecta tipo da obra para lista de atividades

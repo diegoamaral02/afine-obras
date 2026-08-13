@@ -13,7 +13,8 @@ export default function SLAConfig() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const canEdit = userProfile?.role === "gestor" || userProfile?.role === "encarregado";
+  const dep = userProfile?.adm ? "gestao" : (userProfile?.departamento || userProfile?.perfil || "campo");
+  const canEdit = userProfile?.adm || ["gestao","gestor","encarregado","financeiro","comercial","fiscal","compras"].includes(dep);
 
   useEffect(() => {
     getDoc(doc(db, "sla_config", "manutencao")).then(snap => {
