@@ -1,5 +1,5 @@
 // src/services/auditoria.js — versionamento e log de auditoria
-import { collection, deleteDoc, doc, writeBatch } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, writeBatch } from "firebase/firestore";
 import { db } from "../firebase";
 
 // Atualiza documento COM trilha de auditoria (batch atômico: historico + audit_log + updateDoc)
