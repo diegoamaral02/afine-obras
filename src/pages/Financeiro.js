@@ -4,6 +4,7 @@ import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, order
 import { db } from "../firebase";
 import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
+import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
@@ -28,7 +29,7 @@ const mesAtual= () => new Date().toISOString().slice(0,7);
 
 // ── Modal de Lançamento ───────────────────────────────────────────────────────
 function LancamentoModal({ lanc, obras, onClose, addToast }) {
-  const { userProfile } = useAuth();
+  const { userProfile, currentUser } = useAuth();
   const [form, setForm] = useState({
     tipo:        lanc?.tipo        || "PAGAR",
     descricao:   lanc?.descricao   || "",
@@ -64,8 +65,8 @@ function LancamentoModal({ lanc, obras, onClose, addToast }) {
     const agora=new Date().toISOString();
     const payload={...form,valor:Number(form.valor),valorPago:Number(form.valorPago)||0,updatedAt:agora,autorNome:userProfile?.nome||"–"};
     try {
-      if(lanc?.id){await updateDoc(doc(db,"financeiro",lanc.id),payload);addToast("✓ Atualizado!");}
-      else{payload.createdAt=agora;await addDoc(collection(db,"financeiro"),payload);addToast("✓ Lançamento criado!");}
+      if(lanc?.id){await updateComAuditoria("financeiro",lanc.id,payload,currentUser?.uid,userProfile?.nome);addToast("✓ Atualizado!");}
+      else{await addComAuditoria("financeiro",payload,currentUser?.uid,userProfile?.nome);addToast("✓ Lançamento criado!");}
       onClose();
     }catch(err){addToast("Erro: "+err.message,"error");}
     setSaving(false);
@@ -75,7 +76,7 @@ function LancamentoModal({ lanc, obras, onClose, addToast }) {
     if(!lanc?.id) return;
     setSaving(true);
     const s=form.tipo==="PAGAR"?"PAGO":"RECEBIDO";
-    try { await updateDoc(doc(db,"financeiro",lanc.id),{status:s,pagamento:hoje(),valorPago:Number(form.valor),updatedAt:new Date().toISOString()}); addToast(`✓ ${s}`); onClose(); }
+    try { await updateComAuditoria("financeiro",lanc.id,{status:s,pagamento:hoje(),valorPago:Number(form.valor)},currentUser?.uid,userProfile?.nome); addToast(`✓ ${s}`); onClose(); }
     catch(err){addToast("Erro: "+err.message,"error");}
     setSaving(false);
   }
@@ -422,6 +423,7 @@ function AbaLancamentos({ lancs, obras, addToast }) {
 
 // ── Sub-aba: Contas a Pagar ────────────────────────────────────────────────────
 function AbaContasPagar({ lancs, obras, addToast }) {
+  const { currentUser, userProfile } = useAuth();
   const hj=hoje();
   const [modal,  setModal]  = useState(null);
   const [filtro, setFiltro] = useState("aberto");
@@ -442,7 +444,7 @@ function AbaContasPagar({ lancs, obras, addToast }) {
   },[aberto]);
 
   async function marcar(l) {
-    await updateDoc(doc(db,"financeiro",l.id),{status:"PAGO",pagamento:hj,valorPago:l.valor,updatedAt:new Date().toISOString()});
+    await updateComAuditoria("financeiro",l.id,{status:"PAGO",pagamento:hj,valorPago:l.valor},currentUser?.uid,userProfile?.nome);
     addToast("✓ Marcado como PAGO");
   }
 
@@ -525,6 +527,7 @@ function AbaContasPagar({ lancs, obras, addToast }) {
 
 // ── Sub-aba: Contas a Receber ─────────────────────────────────────────────────
 function AbaContasReceber({ lancs, obras, addToast }) {
+  const { currentUser, userProfile } = useAuth();
   const hj=hoje();
   const [modal,  setModal]  = useState(null);
   const [filtro, setFiltro] = useState("aberto");
@@ -547,7 +550,7 @@ function AbaContasReceber({ lancs, obras, addToast }) {
   },[aberto]);
 
   async function marcar(l) {
-    await updateDoc(doc(db,"financeiro",l.id),{status:"RECEBIDO",pagamento:hj,valorPago:l.valor,updatedAt:new Date().toISOString()});
+    await updateComAuditoria("financeiro",l.id,{status:"RECEBIDO",pagamento:hj,valorPago:l.valor},currentUser?.uid,userProfile?.nome);
     addToast("✓ Marcado como RECEBIDO");
   }
 
@@ -890,7 +893,7 @@ export default function Financeiro() {
     const u1=onSnapshot(query(collection(db,"financeiro"),orderBy("vencimento","asc"),limit(500)),
       snap=>{setLancs(snap.docs.map(x=>({id:x.id,...x.data()})));setLoading(false);});
     const u2=onSnapshot(collection(db,"obras"),snap=>setObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u3=onSnapshot(query(collection(db,"compras"),where("demandaTipo","==","obra")),snap=>setCompras(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u3=onSnapshot(collection(db,"compras"),snap=>setCompras(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u4=onSnapshot(collection(db,"despesas"),snap=>setDespesas(snap.docs.map(d=>({id:d.id,...d.data()}))));
     return()=>{u1();u2();u3();u4();};
   },[]);

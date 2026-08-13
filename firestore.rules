@@ -204,12 +204,20 @@ service cloud.firestore {
     match /boletins/{id} {
       allow read:  if isAuth();
       allow write: if isEncarregado();
+      match /historico/{hid} {
+        allow read:  if isAuth();
+        allow write: if isAuth();
+      }
     }
 
     // ── FVS (Ficha de Verificação) ────────────────────────────────
     match /fvs/{id} {
       allow read:  if isAuth();
       allow write: if isAuth();
+      match /historico/{hid} {
+        allow read:  if isAuth();
+        allow write: if isAuth();
+      }
     }
 
     // ── Log de Auditoria (append-only) ────────────────────────────

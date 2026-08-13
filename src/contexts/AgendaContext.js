@@ -101,18 +101,12 @@ export function AgendaProvider({ children }) {
   async function criarAgendamento(payload) {
     const agora = new Date().toISOString();
     const docRef = await addDoc(collection(db,"agendamentos"), { ...payload, createdAt:agora, updatedAt:agora });
-    if (payload.demandaTipo==="obra" && payload.demandaId) {
-      await updateDoc(doc(db,"obras",payload.demandaId), { inicio:payload.dataInicio, termino:payload.dataFim, updatedAt:agora });
-    }
     return docRef.id;
   }
 
   async function atualizarAgendamento(id, payload) {
     const agora = new Date().toISOString();
     await updateDoc(doc(db,"agendamentos",id), { ...payload, updatedAt:agora });
-    if (payload.demandaTipo==="obra" && payload.demandaId) {
-      await updateDoc(doc(db,"obras",payload.demandaId), { inicio:payload.dataInicio, termino:payload.dataFim, updatedAt:agora });
-    }
   }
 
   async function deletarAgendamento(id) {

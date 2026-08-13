@@ -6,7 +6,7 @@ import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
-import { addComAuditoria } from "../services/auditoria";
+import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
 
 // Checklist padrão FVS por tipo de serviço
@@ -22,7 +22,7 @@ const FVS_CHECKLISTS = {
 };
 
 function FVSModal({ fvs, obraId, escopoNome, onClose, addToast }) {
-  const { userProfile } = useAuth();
+  const { userProfile, currentUser } = useAuth();
   const [tipo, setTipo]           = useState(fvs?.tipo || "Geral");
   const [checks, setChecks]       = useState(fvs?.checks || {});
   const [obs, setObs]             = useState(fvs?.obs || "");
@@ -51,8 +51,8 @@ function FVSModal({ fvs, obraId, escopoNome, onClose, addToast }) {
       updatedAt: agora,
     };
     try {
-      if (fvs?.id) { await updateDoc(doc(db, "fvs", fvs.id), payload); addToast("FVS atualizada!"); }
-      else { payload.createdAt = agora; await addDoc(collection(db, "fvs"), payload); addToast("FVS registrada!"); }
+      if (fvs?.id) { await updateComAuditoria("fvs", fvs.id, payload, currentUser?.uid, userProfile?.nome); addToast("FVS atualizada!"); }
+      else { await addComAuditoria("fvs", payload, currentUser?.uid, userProfile?.nome); addToast("FVS registrada!"); }
       onClose();
     } catch (err) { addToast("Erro: " + err.message, "error"); }
     setSaving(false);
@@ -118,7 +118,7 @@ function FVSModal({ fvs, obraId, escopoNome, onClose, addToast }) {
 }
 
 function BoletiModal({ bm, obraId, escopos, onClose, addToast }) {
-  const { userProfile } = useAuth();
+  const { userProfile, currentUser } = useAuth();
   const [form, setForm] = useState({
     numero: bm?.numero || "",
     periodo: bm?.periodo || "",
@@ -149,8 +149,8 @@ function BoletiModal({ bm, obraId, escopos, onClose, addToast }) {
       updatedAt: agora,
     };
     try {
-      if (bm?.id) { await updateDoc(doc(db, "boletins", bm.id), payload); addToast("BM atualizado!"); }
-      else { payload.createdAt = agora; await addDoc(collection(db, "boletins"), payload); addToast("BM criado!"); }
+      if (bm?.id) { await updateComAuditoria("boletins", bm.id, payload, currentUser?.uid, userProfile?.nome); addToast("BM atualizado!"); }
+      else { await addComAuditoria("boletins", payload, currentUser?.uid, userProfile?.nome); addToast("BM criado!"); }
       onClose();
     } catch (err) { addToast("Erro: " + err.message, "error"); }
     setSaving(false);

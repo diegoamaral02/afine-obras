@@ -24,7 +24,6 @@ export default function Dashboard({ obraAtual }) {
   const { userProfile } = useAuth();
   const [obras,   setObras]   = useState([]);
   const [manuts,  setManuts]  = useState([]);
-  const [ocorr,   setOcorr]   = useState([]);
   const [lancs,   setLancs]   = useState([]);
   const [compras, setCompras] = useState([]);
   const [comprasComprometidas, setComprasComprometidas] = useState([]);
@@ -40,10 +39,6 @@ export default function Dashboard({ obraAtual }) {
     return()=>{u1();u2();u3();u4();u5();};
   },[]);
 
-  useEffect(()=>{
-    if (!obraAtual) return;
-    return onSnapshot(query(collection(db,"ocorrencias"),where("obraId","==",obraAtual),where("status","==","ABERTA")),snap=>setOcorr(snap.docs.map(d=>({id:d.id,...d.data()}))));
-  },[obraAtual]);
 
   const hoje = new Date().toISOString().split("T")[0];
 
