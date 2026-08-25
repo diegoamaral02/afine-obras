@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import AssinaturaDigital from "./AssinaturaDigital";
+import { exportarTermoChavesBradescoParaPDF } from "../utils/exportPDF";
 
 const hoje = () => new Date().toISOString().split("T")[0];
 
@@ -35,12 +36,14 @@ export default function TermoChaves({ obra, onSalvar, onCancelar }) {
   };
 
   const salvar = () => {
-    onSalvar({
+    const tc = {
       ...form,
       modelo: "termo_chaves",
       numero: `TC-${Date.now()}`,
       geradaEm: new Date().toISOString(),
-    });
+    };
+    exportarTermoChavesBradescoParaPDF(tc);
+    onSalvar(tc);
   };
 
   return (
