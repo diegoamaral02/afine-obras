@@ -35,7 +35,7 @@ function calcHoras(pares, date) {
 }
 
 // ── Card de Mão de Obra ────────────────────────────────────────────────────
-function CardMaoDeObra({ obraId, equipeIds, funcionarios }) {
+function CardMaoDeObra({ obraId, equipeIds, funcionarios, onCustoChange }) {
   const [pontos, setPontos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [aberto, setAberto] = useState(false);
@@ -78,6 +78,8 @@ function CardMaoDeObra({ obraId, equipeIds, funcionarios }) {
 
     return {linhas, totalNms, totalE50ms, totalE100ms, totalCusto};
   }, [pontos, funcionarios, equipeIds]);
+
+  useEffect(() => { onCustoChange?.(resultado.totalCusto); }, [resultado.totalCusto]); // eslint-disable-line
 
   return (
     <div style={{background:"#fff",border:"1px solid var(--border)",borderRadius:10,overflow:"hidden"}}>
@@ -255,14 +257,14 @@ function CardImposto({ orcamento, impostoPercent, onChange }) {
 }
 
 // ── Componente principal ───────────────────────────────────────────────────
-export default function CustosMaoDeObra({ obraId, equipeIds, funcionarios, orcamento, impostoPercent, onImpostoChange }) {
+export default function CustosMaoDeObra({ obraId, equipeIds, funcionarios, orcamento, impostoPercent, onImpostoChange, onCustoMaoDeObraChange }) {
   return (
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
       <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>
         Composição de custos
       </div>
       <CardImposto orcamento={orcamento} impostoPercent={impostoPercent} onChange={onImpostoChange} />
-      <CardMaoDeObra obraId={obraId} equipeIds={equipeIds} funcionarios={funcionarios} />
+      <CardMaoDeObra obraId={obraId} equipeIds={equipeIds} funcionarios={funcionarios} onCustoChange={onCustoMaoDeObraChange} />
       <CardTerceiro obraId={obraId} />
       <div style={{height:1,background:"var(--border)",margin:"4px 0"}} />
       <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>

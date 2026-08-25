@@ -139,6 +139,7 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   const [modeloOS,  setModeloOS]  = useState(null); // null | "os" | "termo" | "chaves"
   const [termoChavesModelo, setTermoChavesModelo] = useState("afine"); // "afine" | "bradesco"
   const [impostoPercent, setImpostoPercent] = useState(obra?.impostoPercent||"");
+  const [custoMaoDeObra, setCustoMaoDeObra] = useState(0);
   const [buscandoCEP, setBuscandoCEP] = useState(false);
   const [saving, setSaving] = useState(false);
   const [etapasRecolhidas, setEtapasRecolhidas] = useState(true);
@@ -598,12 +599,15 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
             orcamento={form.valorOrcamento}
             impostoPercent={impostoPercent}
             onImpostoChange={v=>{ setImpostoPercent(v); set("impostoPercent",v); }}
+            onCustoMaoDeObraChange={setCustoMaoDeObra}
           />
           <CustosDemanda
             demandaTipo="obra"
             demandaId={obra.id}
             demandaNome={obra.nome}
             orcamento={form.valorOrcamento}
+            impostoPercent={impostoPercent}
+            custoMaoDeObra={custoMaoDeObra}
           />
         </div>
       )}

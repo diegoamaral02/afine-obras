@@ -23,7 +23,7 @@ const FORM_VAZIO = (nomeUser) => ({
   localCompra:"", reembolsavel:"nao", obs:"",
 });
 
-export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orcamento }) {
+export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orcamento, impostoPercent, custoMaoDeObra }) {
   const { userProfile, currentUser } = useAuth();
   const nomeUser = userProfile?.nome || currentUser?.email || "–";
 
@@ -118,8 +118,12 @@ export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orc
     pendente: custos.filter(c=>c.status==="pendente").reduce((s,c)=>s+(c.valor||0),0),
   }),[custos]);
 
-  const orcNum   = Number(orcamento)||0;
-  const pctGasto = orcNum>0 ? Math.min(100, Math.round(totais.geral/orcNum*100)) : 0;
+  const orcNum      = Number(orcamento)||0;
+  const impPct      = Number(impostoPercent)||0;
+  const maoDeObra   = Number(custoMaoDeObra)||0;
+  // Saldo calculado a partir do líquido (após imposto e mão de obra)
+  const orcLiquido  = orcNum * (1 - impPct/100) - maoDeObra;
+  const pctGasto    = orcLiquido>0 ? Math.min(100, Math.round(totais.geral/orcLiquido*100)) : 0;
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
@@ -131,16 +135,17 @@ export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orc
           <div className="kpi-card" style={{borderLeftColor:"var(--verde)"}}><div className="kpi-label">APROVADO</div><div className="kpi-value" style={{color:"var(--verde)",fontSize:18}}>{fmt(totais.aprovado)}</div></div>
           <div className="kpi-card" style={{borderLeftColor:"#185FA5"}}><div className="kpi-label">PAGO</div><div className="kpi-value" style={{color:"#185FA5",fontSize:18}}>{fmt(totais.pago)}</div></div>
           {orcNum>0 && (
-            <div className="kpi-card" style={{borderLeftColor:totais.geral<=orcNum?"var(--verde)":"var(--vermelho)"}}>
+            <div className="kpi-card" style={{borderLeftColor:totais.geral<=orcLiquido?"var(--verde)":"var(--vermelho)"}}>
               <div className="kpi-label">SALDO ORÇAMENTO</div>
-              <div className="kpi-value" style={{fontSize:18,color:orcNum-totais.geral>=0?"var(--verde)":"var(--vermelho)"}}>{fmt(orcNum-totais.geral)}</div>
+              <div className="kpi-value" style={{fontSize:18,color:orcLiquido-totais.geral>=0?"var(--verde)":"var(--vermelho)"}}>{fmt(orcLiquido-totais.geral)}</div>
+              {(impPct>0||maoDeObra>0) && <div style={{fontSize:10,color:"#7A7A7A"}}>líquido após impostos{maoDeObra>0?" e mão de obra":""}</div>}
             </div>
           )}
         </div>
         {orcNum>0 && (
           <div>
             <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#7A7A7A",marginBottom:4}}>
-              <span>Orçamento: {fmt(orcNum)}</span>
+              <span>Base: {fmt(orcLiquido)}{(impPct>0||maoDeObra>0)?` (líquido)`:""}</span>
               <span style={{fontWeight:700,color:pctGasto>=100?"var(--vermelho)":"var(--afine-black)"}}>{pctGasto}% utilizado</span>
             </div>
             <div className="progress-bar" style={{height:8}}>
