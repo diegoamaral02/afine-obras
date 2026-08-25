@@ -461,6 +461,7 @@ export function exportarTermoChavesBradescoParaPDF(tc) {
 
 <!-- Tabela principal -->
 <table>
+  ${tc.tipoServico ? '<tr><td style="width:18%">Tipo de Serviço:</td><td colspan="3">'+tc.tipoServico+'</td></tr>' : ""}
   <tr>
     <td style="width:18%">Projeto:</td>
     <td style="width:32%">${tc.projeto||""}</td>
@@ -469,7 +470,7 @@ export function exportarTermoChavesBradescoParaPDF(tc) {
   </tr>
   <tr>
     <td>Agência:</td>
-    <td>${tc.agencia||""}</td>
+    <td>${tc.agencia||""}${tc.agenciaNumero ? " - "+tc.agenciaNumero : ""}</td>
     <td>Município:</td>
     <td>${tc.municipio||""}</td>
   </tr>
@@ -535,7 +536,7 @@ export function exportarTermoChavesBradescoParaPDF(tc) {
       ${tc.assinEntregador ? '<img src="'+tc.assinEntregador+'" style="max-height:68px;max-width:92%;object-fit:contain">' : ""}
     </td>
     <td style="font-weight:700;vertical-align:top;padding:4px 7px;width:14%">Agência:</td>
-    <td style="vertical-align:top;padding:4px 7px">${tc.agenciaEntregador||""}</td>
+    <td style="vertical-align:top;padding:4px 7px">${tc.agenciaEntregador||""}${tc.agenciaNumero ? " - "+tc.agenciaNumero : ""}</td>
   </tr>
 </table>
 

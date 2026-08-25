@@ -9,6 +9,7 @@ export default function TermoChaves({ obra, onSalvar, onCancelar }) {
   const [form, setForm] = useState({
     projeto: obra?.nome || "",
     processo: obra?.contrato || "",
+    tipoServico: "",
     agencia: obra?.agenciaNome || "",
     agenciaNumero: obra?.agenciaNumero || "",
     municipio: obra?.cidade || "",
@@ -65,6 +66,17 @@ export default function TermoChaves({ obra, onSalvar, onCancelar }) {
 
       {etapa === 1 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600 }}>Tipo de Serviço</label>
+            <select className="form-control" value={form.tipoServico} onChange={e => set("tipoServico", e.target.value)}>
+              <option value="">Selecione...</option>
+              <option>Alteração de Layout</option>
+              <option>Projeto estratégico</option>
+              <option>Descaracterização de imóveis</option>
+              <option>Devolução de imóveis</option>
+              <option>Devolução de imóveis - BSP</option>
+            </select>
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
               <label style={{ fontSize: 12, fontWeight: 600 }}>Projeto <span style={{ color: "var(--vermelho)" }}>*</span></label>
