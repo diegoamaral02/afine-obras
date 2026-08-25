@@ -159,9 +159,10 @@ function ReatribuirModal({ colaborador, demandasAbertas, onClose, addToast }) {
 }
 
 // ── Card de colaborador com alocações ─────────────────────────────────────────
-function ColaboradorCard({ colaborador, alocacoes, onVerInfo, onReatribuir, canEdit }) {
+function ColaboradorCard({ colaborador, alocacoes, historico = [], onVerInfo, onReatribuir, canEdit }) {
   const dep = DEPARTAMENTOS.find(d=>d.id===colaborador.departamento);
   const semAlocacao = alocacoes.length===0;
+  const [verHistorico, setVerHistorico] = useState(false);
 
   return (
     <div className="rdo-card" style={{borderLeft:`4px solid ${dep?.cor||"#4A4A4A"}`}}>
@@ -177,7 +178,7 @@ function ColaboradorCard({ colaborador, alocacoes, onVerInfo, onReatribuir, canE
             </div>
             <div style={{fontSize:11,color:"#7A7A7A"}}>{colaborador.funcao}</div>
 
-            {/* Alocações */}
+            {/* Alocações ativas */}
             <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:5}}>
               {semAlocacao && (
                 <span style={{fontSize:11,color:"#aaa",fontStyle:"italic"}}>Sem alocação ativa no momento</span>
@@ -191,6 +192,29 @@ function ColaboradorCard({ colaborador, alocacoes, onVerInfo, onReatribuir, canE
                 </div>
               ))}
             </div>
+
+            {/* Histórico de demandas concluídas */}
+            {historico.length>0&&(
+              <div style={{marginTop:8}}>
+                <button type="button" onClick={()=>setVerHistorico(v=>!v)}
+                  style={{background:"none",border:"none",padding:0,cursor:"pointer",fontSize:11,color:"#7A7A7A",display:"flex",alignItems:"center",gap:4}}>
+                  <span>{verHistorico?"▼":"▶"}</span>
+                  <span>Histórico ({historico.length} demanda{historico.length!==1?"s":""} concluída{historico.length!==1?"s":""})</span>
+                </button>
+                {verHistorico&&(
+                  <div style={{marginTop:6,display:"flex",flexDirection:"column",gap:4}}>
+                    {historico.map((a,i)=>(
+                      <div key={i} style={{display:"flex",alignItems:"center",gap:6,fontSize:11,background:"#F3F2EF",borderRadius:6,padding:"4px 8px",opacity:0.75}}>
+                        <span style={{fontSize:12}}>{a.tipo==="obra"?"🏗️":"🔧"}</span>
+                        <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:"#4A4A4A"}}>{a.titulo}</span>
+                        {a.cliente&&<span style={{color:"#9CA3AF",fontSize:10}}>{a.cliente}</span>}
+                        <span className={`badge ${statusBadge(a.status)}`} style={{fontSize:9}}>{a.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
         {canEdit&&(
@@ -221,7 +245,8 @@ export function Equipe() {
 
   useEffect(()=>{
     const u1=onSnapshot(collection(db,"usuarios"),snap=>{
-      setFuncionarios(snap.docs.map(d=>({id:d.id,...d.data()})).filter(f=>f.status==="ATIVO"||!f.status));
+      const DEPS_EQUIPE = ["campo","empreiteiro","terceiro"];
+      setFuncionarios(snap.docs.map(d=>({id:d.id,...d.data()})).filter(f=>(f.status==="ATIVO"||!f.status)&&DEPS_EQUIPE.includes(f.departamento)));
       setLoading(false);
     });
     const u2=onSnapshot(collection(db,"obras"),snap=>setObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
@@ -237,9 +262,7 @@ export function Equipe() {
     return m;
   },[manutencoes]);
 
-  // Cruzamento: para cada funcionário, onde ele está alocado
-  // 1) Obras: colaborador.id está em obra.equipeIds[]
-  // 2) Manutenções: colaboradorId presente no array alocadoIds[] (não concluída)
+  // Cruzamento: para cada funcionário, onde ele está alocado (ativo)
   function alocacoesDe(colaboradorId) {
     const emObras = obras
       .filter(o=>(o.equipeIds||[]).includes(colaboradorId) && o.status!=="CONCLUÍDA")
@@ -250,10 +273,21 @@ export function Equipe() {
     return [...emObras, ...emManuts];
   }
 
+  // Demandas concluídas/canceladas onde o colaborador esteve alocado (histórico)
+  function historicoDe(colaboradorId) {
+    const obrasConc = obras
+      .filter(o=>(o.equipeIds||[]).includes(colaboradorId) && o.status==="CONCLUÍDA")
+      .map(o=>({tipo:"obra",titulo:o.nome,cliente:o.cliente,status:o.status,id:o.id,termino:o.termino}));
+    const manutsConc = manutencoes
+      .filter(m=>(m.alocadoIds||[]).includes(colaboradorId) && ["CONCLUÍDA","CANCELADA"].includes(m.status))
+      .map(m=>({tipo:"manutencao",titulo:m.titulo,cliente:m.cliente,status:m.status,id:m.id,termino:m.updatedAt}));
+    return [...obrasConc, ...manutsConc].sort((a,b)=>(b.termino||"").localeCompare(a.termino||""));
+  }
+
   const lista = useMemo(()=>{
     const q=search.toLowerCase();
     return funcionarios
-      .map(f=>({...f, alocacoes:alocacoesDe(f.id)}))
+      .map(f=>({...f, alocacoes:alocacoesDe(f.id), historico:historicoDe(f.id)}))
       .filter(f=>{
         const mQ=!q||f.nome?.toLowerCase().includes(q)||f.funcao?.toLowerCase().includes(q)||f.alocacoes.some(a=>a.titulo?.toLowerCase().includes(q));
         const mD=filtroDep==="todos"||f.departamento===filtroDep;
@@ -319,6 +353,7 @@ export function Equipe() {
               key={f.id}
               colaborador={f}
               alocacoes={f.alocacoes}
+              historico={f.historico}
               canEdit={canEdit}
               onVerInfo={()=>setModalInfo(f)}
               onReatribuir={()=>setModalReatrib(f)}

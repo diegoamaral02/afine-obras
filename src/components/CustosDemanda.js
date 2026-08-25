@@ -271,10 +271,17 @@ export default function CustosDemanda({ demandaTipo, demandaId, demandaNome, orc
                 {podeAprovar && (<>
                   {c.status==="pendente" && <>
                     <button className="btn btn-sm" style={{background:"var(--verde-lt)",color:"var(--verde)",border:"none",fontSize:11}} onClick={()=>alterarStatus(c.id,"aprovado")}>✓ Aprovar</button>
-                    <button className="btn btn-sm" style={{fontSize:11,color:"var(--vermelho)"}} onClick={()=>alterarStatus(c.id,"cancelado")}>✕</button>
+                    <button className="btn btn-sm" style={{fontSize:11,color:"var(--vermelho)"}} onClick={()=>alterarStatus(c.id,"cancelado")}>✕ Cancelar</button>
                   </>}
-                  {c.status==="aprovado" && (
+                  {c.status==="aprovado" && (<>
                     <button className="btn btn-sm" style={{background:"rgba(24,95,165,.1)",color:"#185FA5",border:"none",fontSize:11}} onClick={()=>alterarStatus(c.id,"pago")}>💳 Pago</button>
+                    <button className="btn btn-sm" style={{fontSize:11,color:"#7A7A7A"}} title="Voltar para pendente" onClick={()=>alterarStatus(c.id,"pendente")}>↩ Pendente</button>
+                  </>)}
+                  {c.status==="pago" && (
+                    <button className="btn btn-sm" style={{fontSize:11,color:"#7A7A7A"}} title="Voltar para aprovado" onClick={()=>alterarStatus(c.id,"aprovado")}>↩ Aprovado</button>
+                  )}
+                  {c.status==="cancelado" && (
+                    <button className="btn btn-sm" style={{fontSize:11,color:"#7A7A7A"}} title="Reativar como pendente" onClick={()=>alterarStatus(c.id,"pendente")}>↩ Reativar</button>
                   )}
                   <button className="btn btn-sm" style={{color:"var(--vermelho)",fontSize:11}} onClick={()=>excluir(c.id)}>🗑️</button>
                 </>)}

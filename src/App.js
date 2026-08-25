@@ -309,12 +309,20 @@ function AppShell() {
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:"auto"}}>
             {filaOffline.pendentes>0 && (
-              <button onClick={filaOffline.tentarSincronizar} disabled={filaOffline.sincronizando}
-                title="Há dados salvos no dispositivo aguardando conexão para sincronizar. Clique para tentar agora."
-                style={{display:"flex",alignItems:"center",gap:6,background:"#FDF2D9",border:"1px solid rgba(184,145,10,.3)",
-                  borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:700,color:"#7A5400",cursor:"pointer"}}>
-                {filaOffline.sincronizando ? "🔄 Sincronizando..." : `📡 ${filaOffline.pendentes} pendente(s) — sincronizar`}
-              </button>
+              <div style={{display:"flex",alignItems:"center",gap:4}}>
+                <button onClick={filaOffline.tentarSincronizar} disabled={filaOffline.sincronizando}
+                  title="Há dados salvos no dispositivo aguardando conexão para sincronizar. Clique para tentar agora."
+                  style={{display:"flex",alignItems:"center",gap:6,background:"#FDF2D9",border:"1px solid rgba(184,145,10,.3)",
+                    borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:700,color:"#7A5400",cursor:"pointer"}}>
+                  {filaOffline.sincronizando ? "🔄 Sincronizando..." : `📡 ${filaOffline.pendentes} pendente(s) — sincronizar`}
+                </button>
+                <button
+                  onClick={()=>{ if(window.confirm("Descartar os itens pendentes da fila offline? Eles não serão enviados.")) filaOffline.descartar(); }}
+                  title="Descartar itens pendentes"
+                  style={{background:"none",border:"1px solid rgba(184,145,10,.3)",borderRadius:8,padding:"5px 8px",fontSize:11,fontWeight:700,color:"#7A5400",cursor:"pointer"}}>
+                  ✕
+                </button>
+              </div>
             )}
             <button onClick={()=>setShowNotifs(!showNotifs)}
               style={{position:"relative",background:"none",border:"none",cursor:"pointer",fontSize:20,padding:"4px",lineHeight:1}}>

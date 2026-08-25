@@ -2,6 +2,7 @@
 // Gera e exporta OS como PDF usando canvas + window.print()
 // Sem bibliotecas externas — funciona 100% no browser
 import { LOGO_BASE64 } from "./assets";
+import { BRADESCO_BASE64, AFINE_TERMO_BASE64, BARRA_BRADESCO_BASE64 } from "./assetsTermo";
 
 export function exportarOSParaPDF(os, contexto) {
   const w = window.open("", "_blank");
@@ -212,6 +213,214 @@ const BASE_STYLE = `
   .footer{text-align:center;font-size:10px;color:#aaa;margin-top:20px;padding-top:12px;border-top:1px solid #eee}
   @media print{body{padding:10px}.no-print{display:none!important}}
 `;
+// ── Termo de Recebimento Definitivo (layout fiel ao docx BRADESCO/AFINE) ─────
+export function exportarTermoRecebimentoParaPDF(tr) {
+  const w = window.open("", "_blank");
+  if (!w) { alert("Permita pop-ups para exportar o PDF."); return; }
+
+  const fmtD = iso => iso ? iso.split("-").reverse().join("/") : "";
+
+  // Checkbox: □ vazio, ☑ marcado — igual ao docx
+  const av = (val, opcao) => {
+    const marcado = val === opcao;
+    return `<td style="text-align:center;border:1px solid #555;padding:3px 4px;font-size:13px">${marcado ? "☑" : "☐"}</td>`;
+  };
+
+  // Coluna de assinatura: área vazia + imagem se houver + linha + label embaixo (igual docx)
+  const assinColuna = (label1, label2, imgBase64) => `
+    <td style="border:1px solid #555;padding:0;text-align:center;vertical-align:bottom;width:33.3%">
+      <div style="height:80px;display:flex;align-items:flex-end;justify-content:center;padding:6px">
+        ${imgBase64 ? `<img src="${imgBase64}" style="max-height:70px;max-width:90%;object-fit:contain">` : ""}
+      </div>
+      <div style="border-top:1px solid #555;padding:4px;font-size:10px;text-align:center;line-height:1.5">
+        ${label1}<br>${label2}
+      </div>
+    </td>`;
+
+  w.document.write(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Termo de Recebimento — ${tr.numero}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a;padding:28px 36px;max-width:860px;margin:0 auto}
+  table{width:100%;border-collapse:collapse;margin-bottom:0}
+  td{border:1px solid #555;padding:4px 6px;vertical-align:middle;font-size:11px}
+  .sh{font-weight:700;font-size:11px;text-transform:uppercase;text-align:center;padding:4px 6px}
+  .footer{text-align:center;font-size:10px;color:#aaa;margin-top:14px;padding-top:6px;border-top:1px solid #eee}
+  @media print{body{padding:12px}button{display:none!important}}
+</style>
+</head>
+<body>
+
+<!-- Faixa diagonal Bradesco — TOPO -->
+<div style="margin:-28px -36px 0 -36px;height:20px;overflow:hidden">
+  <img src="${BARRA_BRADESCO_BASE64}" alt="" style="width:100%;height:20px;object-fit:cover;display:block">
+</div>
+
+<!-- Cabeçalho branco com logos -->
+<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0 8px;border-bottom:1px solid #ccc;margin-bottom:8px">
+  <img src="${BRADESCO_BASE64}" alt="Bradesco" style="height:32px;object-fit:contain">
+  <img src="${AFINE_TERMO_BASE64}" alt="AFINE" style="height:50px;object-fit:contain">
+  <div style="display:flex;align-items:center;gap:6px;border:1px solid #888;padding:4px 10px">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="1"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="15" x2="12" y2="15"/></svg>
+    <span style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Confidencial</span>
+  </div>
+</div>
+
+<!-- Título — negrito, sem borda, centralizado (igual ao docx) -->
+<p style="text-align:center;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin:8px 0 8px">TERMO DE RECEBIMENTO DEFINITIVO</p>
+
+<!-- INFORMAÇÕES GERAIS -->
+<table style="margin-bottom:0">
+  <tr><td colspan="4" class="sh">Informações Gerais</td></tr>
+  <tr>
+    <td style="width:22%">Junção/ Local:</td>
+    <td style="width:28%">${tr.juncaoLocal||""}</td>
+    <td style="width:22%">Nº Processo:</td>
+    <td>${tr.nrProcesso||""}</td>
+  </tr>
+  <tr>
+    <td>Endereço:</td>
+    <td colspan="3">${tr.endereco||""}</td>
+  </tr>
+  <tr>
+    <td>Tipo de Serviço:</td>
+    <td>${tr.tipoServico||""}</td>
+    <td>Área de intervenção:</td>
+    <td>${tr.areaIntervencao||""}</td>
+  </tr>
+</table>
+
+<!-- Patrimônio -->
+<table style="margin-bottom:0">
+  <tr>
+    <td>Patrimônio - Responsável de Projeto:</td>
+    <td>${tr.respPatrimonioProjeto||""}</td>
+  </tr>
+  <tr>
+    <td>Patrimônio - Responsável de Obra:</td>
+    <td>${tr.respPatrimonioObra||""}</td>
+  </tr>
+  <tr>
+    <td>Acompanhamento da obra:</td>
+    <td>${tr.acompanhamento||""}</td>
+  </tr>
+</table>
+
+<!-- Construtora | Gerenciadora — 3 colunas, 2 linhas, texto normal centrado -->
+<table style="margin-bottom:0">
+  <tr>
+    <td style="width:33%;text-align:center">Construtora/Executora<br>AFINE</td>
+    <td style="width:34%;text-align:center">Responsável Construtora<br>${tr.nomeAssinConstrutora||"Diego Amaral"}</td>
+    <td style="width:33%;text-align:center">Contato<br>(11) 99188-5538</td>
+  </tr>
+  <tr>
+    <td style="text-align:center">Gerenciadora / Mantenedora</td>
+    <td style="text-align:center">Responsável Gerenciadora/ Mantenedora:<br>${tr.respGerenciadora||""}</td>
+    <td style="text-align:center">Contato<br>${tr.contatoGerenciadora||""}</td>
+  </tr>
+</table>
+
+<!-- Datas + texto legal + escopo — tudo em uma única tabela como no docx -->
+<table style="margin-bottom:0;margin-top:0">
+  <tr>
+    <td colspan="2" class="sh" style="width:50%">Programação Inicial</td>
+    <td colspan="2" class="sh" style="width:50%">Datas Efetivas</td>
+  </tr>
+  <tr>
+    <td style="text-align:center;width:25%">Início:</td>
+    <td style="text-align:center;width:25%">Término:</td>
+    <td style="text-align:center;width:25%">Início:</td>
+    <td style="text-align:center;width:25%">Término:</td>
+  </tr>
+  <tr>
+    <td style="text-align:center">${fmtD(tr.inicioObra)}</td>
+    <td style="text-align:center">${fmtD(tr.terminoObra)}</td>
+    <td style="text-align:center">${fmtD(tr.inicioEfetivo)}</td>
+    <td style="text-align:center">${fmtD(tr.terminoEfetivo)}</td>
+  </tr>
+  <tr>
+    <td colspan="4" style="font-size:11px;line-height:1.6;text-align:justify;padding:6px 8px">
+      Constatamos para os devidos fins que a obra realizada na nossa dependência considera-se <strong>recebida pela dependência/unidade</strong> conforme a execução do escopo abaixo. Este documento não tem propriedades avaliativas técnicas, apenas quanto ao acompanhamento e entrega do escopo acordado.
+    </td>
+  </tr>
+  <tr><td colspan="4" class="sh">Escopo dos Principais Serviços</td></tr>
+  <tr><td colspan="4" style="min-height:80px;height:80px;padding:6px;vertical-align:top;white-space:pre-wrap">${tr.escopo||""}</td></tr>
+  <tr><td colspan="4" style="height:36px">&nbsp;</td></tr>
+</table>
+
+<!-- Avaliação -->
+<table style="margin-bottom:0;margin-top:0">
+  <tr><td colspan="6" class="sh">Avaliação pela Gerência do Recebimento da Obra</td></tr>
+  <tr>
+    <td style="width:34%"></td>
+    <td style="text-align:center;width:13%">Ruim*</td>
+    <td style="text-align:center;width:13%">Regular*</td>
+    <td style="text-align:center;width:13%">Bom</td>
+    <td style="text-align:center;width:13%">Ótimo</td>
+    <td style="text-align:center;width:14%">Não se aplica</td>
+  </tr>
+  <tr>
+    <td>Patrimônio:</td>
+    ${av(tr.avPatrimonio,"Ruim")}${av(tr.avPatrimonio,"Regular")}${av(tr.avPatrimonio,"Bom")}${av(tr.avPatrimonio,"Ótimo")}${av(tr.avPatrimonio,"Não se aplica")}
+  </tr>
+  <tr>
+    <td>Construtora/Empresa executora:</td>
+    ${av(tr.avConstrutora,"Ruim")}${av(tr.avConstrutora,"Regular")}${av(tr.avConstrutora,"Bom")}${av(tr.avConstrutora,"Ótimo")}${av(tr.avConstrutora,"Não se aplica")}
+  </tr>
+  <tr>
+    <td>Gerenciadora / Mantenedora:</td>
+    ${av(tr.avGerenciadora,"Ruim")}${av(tr.avGerenciadora,"Regular")}${av(tr.avGerenciadora,"Bom")}${av(tr.avGerenciadora,"Ótimo")}${av(tr.avGerenciadora,"Não se aplica")}
+  </tr>
+  <tr>
+    <td>Outros. Especifique:</td>
+    ${av(tr.avOutros,"Ruim")}${av(tr.avOutros,"Regular")}${av(tr.avOutros,"Bom")}${av(tr.avOutros,"Ótimo")}${av(tr.avOutros,"Não se aplica")}
+  </tr>
+  <tr>
+    <td colspan="6" class="sh">Comentários</td>
+  </tr>
+  <tr>
+    <td colspan="6" style="font-size:10px;text-align:center;padding:3px">*Justificar caso a avaliação caso seja Regular ou Ruim</td>
+  </tr>
+  <tr>
+    <td colspan="6" style="min-height:50px;height:50px;padding:6px;vertical-align:top;white-space:pre-wrap">${tr.comentarios||""}</td>
+  </tr>
+</table>
+
+<!-- Assinaturas -->
+<table style="margin-top:0">
+  <tr><td colspan="3" class="sh">Assinatura dos Envolvidos</td></tr>
+  <tr>
+    <td colspan="3" style="font-size:11px;padding:6px 8px;line-height:1.6;text-align:justify">
+      Considerando que os trabalhos do escopo do processo foram atendidos, declaramos estar de acordo com o recebimento de obra.
+    </td>
+  </tr>
+  <tr style="height:90px">
+    ${assinColuna("Assinatura da Gerência","Visto e Carimbo", tr.assinGerencia)}
+    ${assinColuna("Assinatura da Construtora/Executora","Visto", tr.assinConstrutora)}
+    ${assinColuna("Assinatura Gerenciadora/Mantenedora","Visto", tr.assinGerenciadora)}
+  </tr>
+</table>
+
+<div class="footer">
+  ${tr.numero} · Gerado em ${new Date(tr.geradaEm||Date.now()).toLocaleString("pt-BR")} · Sistema AFINE
+</div>
+<br>
+<div class="no-print" style="text-align:center">
+  <button onclick="window.print()" style="background:#1A1A1A;color:#F5C800;border:none;padding:10px 28px;border-radius:6px;font-size:14px;cursor:pointer;margin-right:10px">🖨️ Imprimir / PDF</button>
+  <button onclick="window.close()" style="background:#eee;border:none;padding:10px 20px;border-radius:6px;font-size:14px;cursor:pointer">Fechar</button>
+</div>
+</body></html>`);
+  w.document.close();
+}
+
+const BOTOES_PDF_STR = `<br><div class="no-print" style="text-align:center">
+<button onclick="window.print()" style="background:#1A1A1A;color:#F5C800;border:none;padding:10px 28px;border-radius:6px;font-size:14px;cursor:pointer;margin-right:10px">🖨️ Imprimir / PDF</button>
+<button onclick="window.close()" style="background:#eee;border:none;padding:10px 20px;border-radius:6px;font-size:14px;cursor:pointer">Fechar</button>
+</div>`;
+
 const BOTOES_PDF = `
 <br><div class="no-print" style="text-align:center">
 <button onclick="window.print()" style="background:#1A1A1A;color:#F5C800;border:none;padding:10px 28px;border-radius:6px;font-size:14px;cursor:pointer;margin-right:10px">🖨️ Imprimir / PDF</button>

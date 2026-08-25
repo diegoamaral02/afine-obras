@@ -121,11 +121,16 @@ function FuncionarioModal({ func, obras, onClose, addToast }) {
     cartaoCorporativo: func?.cartaoCorporativo || "",
     empresa:      func?.empresa      || "",
     cnpj:         func?.cnpj         || "",
+    salario:      func?.salario      || "",
+    tipoContrato: func?.tipoContrato || "CLT",
   });
   const [senha,     setSenha]     = useState("");
   const [modoSenha, setModoSenha] = useState("criar");
   const [saving,    setSaving]    = useState(false);
   const isNovo = !func?.id;
+
+  // Apenas ADM (Master) e Financeiro podem ver/editar remuneração
+  const podeVerSalario = authProfile?.adm || authProfile?.departamento === "financeiro";
 
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
   function toggleObra(id) { setForm(p=>({...p,obras:p.obras.includes(id)?p.obras.filter(x=>x!==id):[...p.obras,id]})); }
@@ -226,6 +231,38 @@ function FuncionarioModal({ func, obras, onClose, addToast }) {
           </>)}
           <div className="form-group"><label>Data de entrada</label><input type="date" value={form.entrada} onChange={e=>set("entrada",e.target.value)}/></div>
         </div>
+
+        {/* REMUNERAÇÃO — visível apenas para ADM e Financeiro */}
+        {podeVerSalario && (<>
+          <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em",display:"flex",alignItems:"center",gap:6}}>
+            🔒 Remuneração
+            <span style={{fontSize:10,fontWeight:400,color:"#9CA3AF",textTransform:"none"}}>— visível apenas para ADM e Financeiro</span>
+          </div>
+          <div className="form-grid">
+            <div className="form-group">
+              <label>Salário / Remuneração (R$)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.salario}
+                onChange={e=>set("salario",e.target.value)}
+                placeholder="Ex: 3500.00"
+              />
+            </div>
+            <div className="form-group">
+              <label>Tipo de contrato</label>
+              <select value={form.tipoContrato} onChange={e=>set("tipoContrato",e.target.value)}>
+                <option value="CLT">CLT</option>
+                <option value="PJ">PJ</option>
+                <option value="Estágio">Estágio</option>
+                <option value="Autônomo">Autônomo</option>
+                <option value="Empreitada">Empreitada</option>
+                <option value="Outro">Outro</option>
+              </select>
+            </div>
+          </div>
+        </>)}
 
         {/* DEPARTAMENTO E PERMISSÕES */}
         <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>Departamento e permissões</div>

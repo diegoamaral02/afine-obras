@@ -7,7 +7,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { isCampo, isGestorOuAdm, isExterno } from "../constants/departamentos";
 import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 import { salvarComFallbackOffline } from "../utils/offlineQueue";
-import { exportarObraParaPDF, exportarTermoChavesParaPDF, exportarOSParaPDF } from "../utils/exportPDF";
+import { exportarObraParaPDF, exportarTermoChavesParaPDF, exportarOSParaPDF, exportarTermoRecebimentoParaPDF } from "../utils/exportPDF";
 import { registrarExecutorOffline } from "../hooks/useFilaOffline";
 import { buscarCEP } from "../utils/cep";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
@@ -16,6 +16,7 @@ import { useIsMobile } from "../hooks/useIsMobile";
 import Modal from "../components/Modal";
 import PhotoUploader from "../components/PhotoUploader";
 import OSDigital from "../components/OSDigital";
+import TermoRecebimento from "../components/TermoRecebimento";
 import AssinaturaDigital from "../components/AssinaturaDigital";
 import CustosDemanda from "../components/CustosDemanda";
 import { useToast } from "../hooks/useToast";
@@ -25,6 +26,7 @@ import Diario from "./Diario";
 import GanttChart from "../components/GanttChart";
 import HistoricoAlteracoes from "../components/HistoricoAlteracoes";
 import EtapasEditor from "../components/EtapasEditor";
+import { importarCronogramaExcel } from "../utils/importarCronogramaExcel";
 
 // Registra como reenviar uma obra que ficou pendente na fila offline —
 // fica fora do componente pra continuar disponível mesmo se a tela de Obras
@@ -131,9 +133,11 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   // Checklist específico de Descaracterização: { [item]: { avaliacao, foto } }
   const [checklistDescaract, setChecklistDescaract] = useState(obra?.checklistDescaract||{});
   const [osDigital, setOsDigital] = useState(obra?.osDigital||null);
-  const [showOS, setShowOS] = useState(false);
+  const [showOS,    setShowOS]    = useState(false);
+  const [modeloOS,  setModeloOS]  = useState(null); // null | "os" | "termo"
   const [buscandoCEP, setBuscandoCEP] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [etapasRecolhidas, setEtapasRecolhidas] = useState(true);
   const [matNome, setMatNome] = useState("");
   const [matQtd,  setMatQtd]  = useState("");
   const [matUn,   setMatUn]   = useState("un");
@@ -343,6 +347,13 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
     } else if (resultado.enfileirado) {
       addToast("📡 Sem conexão — salvo no dispositivo. Será enviado automaticamente quando a internet voltar.", "warning");
       onClose();
+    } else if (resultado.erroOriginal) {
+      const code = resultado.erroOriginal?.code || "";
+      if (code === "permission-denied" || code === "unauthenticated") {
+        addToast("Sem permissão para salvar. Faça login novamente.", "error");
+      } else {
+        addToast("Erro ao salvar: " + (resultado.erroOriginal?.message || "tente novamente."), "error");
+      }
     }
     setSaving(false);
   }
@@ -355,7 +366,7 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
 
   return (
     <Modal title={obra?.id?"Editar obra":"Nova obra"} onClose={onClose}
-      footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving?"Salvando...":"Salvar"}</button></>}>
+      footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" onClick={()=>save()} disabled={saving}>{saving?"Salvando...":"Salvar"}</button></>}>
 
       <div style={{display:"flex",gap:4,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
         {ABAS.map((a,i)=>(
@@ -856,16 +867,64 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
 
       {aba==="cronograma" && (
         <div style={{display:"flex",flexDirection:"column",gap:20}}>
-          <div className="alert alert-info" style={{fontSize:12}}>
-            📅 Defina as etapas da obra. As datas de início e término da obra (aba Dados) são usadas como período de referência do Gantt.
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+            <div className="alert alert-info" style={{fontSize:12,margin:0,flex:1}}>
+              📅 Defina as etapas da obra. As datas de início e término da obra (aba Dados) são usadas como período de referência do Gantt.
+            </div>
+            <div>
+              <input type="file" accept=".xlsx,.xls" id="importar-cronograma-xlsx" style={{display:"none"}}
+                onChange={async e => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  e.target.value = "";
+                  try {
+                    const etapas = await importarCronogramaExcel(file);
+                    if (form.etapas.length > 0) {
+                      if (!window.confirm(`Substituir as ${form.etapas.length} etapa(s) existentes pelas ${etapas.length} importadas?`)) return;
+                    }
+                    set("etapas", etapas);
+                    addToast(`✅ ${etapas.length} etapa(s) importadas do Excel!`);
+                  } catch (err) {
+                    addToast("Erro ao importar: " + err.message, "error");
+                  }
+                }}
+              />
+              <button className="btn btn-sm" onClick={() => document.getElementById("importar-cronograma-xlsx").click()}
+                title="Importar etapas de planilha Excel no formato AFINE">
+                📥 Importar Excel
+              </button>
+            </div>
           </div>
 
-          <EtapasEditor
-            etapas={form.etapas}
-            onChange={etapas=>set("etapas",etapas)}
-            dataInicioObra={form.inicio}
-            dataFimObra={form.termino}
-          />
+          <div>
+            <div
+              onClick={() => setEtapasRecolhidas(v => !v)}
+              style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",
+                padding:"8px 12px",background:"var(--bg-card,#F3F2EF)",borderRadius:etapasRecolhidas?8:"8px 8px 0 0",
+                border:"1px solid var(--border,#E2DFD8)",userSelect:"none"}}>
+              <span style={{fontSize:12,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>
+                Etapas do cronograma ({form.etapas.length})
+              </span>
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                <button className="btn btn-primary btn-sm" type="button"
+                  onClick={e => { e.stopPropagation(); setEtapasRecolhidas(false); set("etapas",[...form.etapas,{nome:"",dataInicio:form.inicio||"",dataFim:form.termino||"",status:"NÃO INICIADA",cor:"#185FA5"}]); }}>
+                  ＋ Adicionar etapa
+                </button>
+                <span style={{fontSize:16,color:"#7A7A7A"}}>{etapasRecolhidas ? "▶" : "▼"}</span>
+              </div>
+            </div>
+            {!etapasRecolhidas && (
+              <div style={{border:"1px solid var(--border,#E2DFD8)",borderTop:"none",borderRadius:"0 0 8px 8px",overflow:"hidden"}}>
+                <EtapasEditor
+                  etapas={form.etapas}
+                  onChange={etapas=>set("etapas",etapas)}
+                  dataInicioObra={form.inicio}
+                  dataFimObra={form.termino}
+                  hideHeader
+                />
+              </div>
+            )}
+          </div>
 
           {form.etapas.length>0&&(
             <>
@@ -910,24 +969,56 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
           ):(
             <div style={{background:"var(--verde-lt)",border:"1px solid rgba(45,106,31,.3)",borderRadius:8,padding:12,textAlign:"center"}}>
               <div style={{fontSize:32,marginBottom:4}}>✅</div>
-              <div style={{fontWeight:600,color:"var(--verde)"}}>OS assinada!</div>
+              <div style={{fontWeight:600,color:"var(--verde)"}}>
+                {osDigital.modelo==="termo_recebimento"?"Termo de Recebimento assinado!":"OS assinada!"}
+              </div>
               <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:8}}>
-                <button className="btn btn-sm" onClick={()=>exportarOSParaPDF(osDigital, form)}>📄 Ver PDF</button>
-                <button className="btn btn-sm" onClick={()=>setOsDigital(null)} style={{fontSize:11}}>Refazer assinatura</button>
+                <button className="btn btn-sm" onClick={()=> osDigital.modelo==="termo_recebimento" ? exportarTermoRecebimentoParaPDF(osDigital) : exportarOSParaPDF(osDigital, form)}>📄 Ver PDF</button>
+                <button className="btn btn-sm" onClick={()=>{setOsDigital(null);setModeloOS(null);}} style={{fontSize:11}}>Refazer assinatura</button>
               </div>
             </div>
           )}
 
-          {showOS&&(
-            <Modal title="Ordem de Serviço Digital" onClose={()=>setShowOS(false)}>
+          {/* Seletor de modelo */}
+          {showOS && !modeloOS && (
+            <Modal title="Escolher modelo de OS Digital" onClose={()=>setShowOS(false)}>
+              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                <div style={{fontSize:13,color:"#4A4A4A",marginBottom:4}}>Selecione qual documento será assinado:</div>
+                <button className="btn" style={{padding:"16px",textAlign:"left",display:"flex",flexDirection:"column",gap:4,background:"var(--cinza-lt)",border:"2px solid var(--border)"}}
+                  onClick={()=>setModeloOS("os")}>
+                  <span style={{fontWeight:700,fontSize:13}}>✍️ Ordem de Serviço Digital (OS)</span>
+                  <span style={{fontSize:11,color:"#7A7A7A"}}>Checklist de serviços, EPIs, assinaturas do prestador e do gerente da agência.</span>
+                </button>
+                <button className="btn" style={{padding:"16px",textAlign:"left",display:"flex",flexDirection:"column",gap:4,background:"var(--cinza-lt)",border:"2px solid var(--border)"}}
+                  onClick={()=>setModeloOS("termo")}>
+                  <span style={{fontWeight:700,fontSize:13}}>📋 Termo de Recebimento Definitivo</span>
+                  <span style={{fontSize:11,color:"#7A7A7A"}}>Modelo BRADESCO/AFINE — informações gerais, escopo, avaliação e assinaturas (Gerência, Construtora e Gerenciadora).</span>
+                </button>
+                <button className="btn" onClick={()=>setShowOS(false)}>Cancelar</button>
+              </div>
+            </Modal>
+          )}
+
+          {showOS && modeloOS==="os" && (
+            <Modal title="Ordem de Serviço Digital" onClose={()=>{setShowOS(false);setModeloOS(null);}}>
               <OSDigital
                 manutencao={false}
                 descExtra={form.obs}
                 funcionario={{ nome: nomeUser, funcao: userProfile?.departamento||userProfile?.perfil||"" }}
                 loja={form.agenciaNome||""}
                 otTicket={form.contrato||""}
-                onSalvar={(os)=>{setOsDigital(os);setShowOS(false);}}
-                onFechar={()=>setShowOS(false)}
+                onSalvar={(os)=>{setOsDigital(os);setShowOS(false);setModeloOS(null);}}
+                onFechar={()=>{setShowOS(false);setModeloOS(null);}}
+              />
+            </Modal>
+          )}
+
+          {showOS && modeloOS==="termo" && (
+            <Modal title="Termo de Recebimento Definitivo" onClose={()=>{setShowOS(false);setModeloOS(null);}}>
+              <TermoRecebimento
+                obra={{...form, id: obra?.id}}
+                onSalvar={(tr)=>{setOsDigital(tr);setShowOS(false);setModeloOS(null);}}
+                onFechar={()=>{setShowOS(false);setModeloOS(null);}}
               />
             </Modal>
           )}

@@ -3,7 +3,7 @@
 // Suporta autenticação por geolocalização (usada para assinatura de gerente/responsável)
 import React, { useRef, useEffect, useState } from "react";
 
-export default function AssinaturaDigital({ label, assinatura, onChange, requererLocalizacao, geoInicial, onGeoChange }) {
+export default function AssinaturaDigital({ label, assinatura, onChange, requererLocalizacao, geoInicial, onGeoChange, opcional = false }) {
   const canvasRef = useRef(null);
   const [desenhando, setDesenhando] = useState(false);
   const [temAssinatura, setTemAssinatura] = useState(!!assinatura);
@@ -140,7 +140,7 @@ export default function AssinaturaDigital({ label, assinatura, onChange, requere
   return (
     <div>
       <label style={{ fontSize: 12, fontWeight: 600, color: "#444", display: "block", marginBottom: 6 }}>
-        {label} <span style={{ color: "var(--vermelho)" }}>*</span>
+        {label} {!opcional && <span style={{ color: "var(--vermelho)" }}>*</span>}
       </label>
 
       {confirmado ? (
