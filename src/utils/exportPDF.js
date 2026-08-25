@@ -502,52 +502,40 @@ export function exportarTermoChavesBradescoParaPDF(tc) {
 </table>
 
 <!-- Assinatura Recebedor -->
-<table style="margin-top:8px">
+<p style="text-align:center;font-weight:700;font-size:11px;margin:10px 0 4px">Gerência da Agência – RECEBEDOR CHAVES</p>
+<table>
   <tr>
-    <td colspan="3" class="sh">Gerência da Agência – Recebedor Chaves</td>
-  </tr>
-  <tr>
-    <td style="width:50%">Nome completo: ${tc.nomeRecebedor||""}</td>
-    <td colspan="2"></td>
+    <td style="width:26%;font-weight:700">Nome completo:</td>
+    <td colspan="3">${tc.nomeRecebedor||""}</td>
   </tr>
   <tr style="height:80px">
-    <td style="vertical-align:bottom;padding:6px;text-align:center">
-      ${tc.assinRecebedor ? '<img src="'+tc.assinRecebedor+'" style="max-height:70px;max-width:90%;object-fit:contain">' : ""}
+    <td style="font-weight:700;vertical-align:top;padding:4px 7px">Assinatura:</td>
+    <td style="vertical-align:middle;text-align:center;width:42%">
+      ${tc.assinRecebedor ? '<img src="'+tc.assinRecebedor+'" style="max-height:68px;max-width:92%;object-fit:contain">' : ""}
     </td>
-    <td style="width:35%;vertical-align:bottom;padding:6px;text-align:center"></td>
-    <td style="width:20%;vertical-align:bottom;padding:6px;text-align:center"></td>
-  </tr>
-  <tr>
-    <td>Assinatura:</td>
-    <td>Data: ${fmtD(tc.dataRecebedor)}</td>
-    <td></td>
+    <td style="font-weight:700;vertical-align:top;padding:4px 7px;width:14%">Data:</td>
+    <td style="vertical-align:top;padding:4px 7px">${fmtD(tc.dataRecebedor)}</td>
   </tr>
 </table>
 
 <!-- Assinatura Entregador -->
-<table style="margin-top:8px">
+<p style="text-align:center;font-weight:700;font-size:11px;margin:10px 0 4px">CONSTRUTORA – ENTREGADOR CHAVES</p>
+<table>
   <tr>
-    <td colspan="3" class="sh">Construtora – Entregador Chaves</td>
+    <td style="width:26%;font-weight:700">Nome completo:</td>
+    <td colspan="3">${tc.nomeEntregador||""}</td>
   </tr>
   <tr>
-    <td style="width:50%">Nome completo: ${tc.nomeEntregador||""}</td>
-    <td colspan="2"></td>
-  </tr>
-  <tr>
-    <td>Celular: ${tc.celularEntregador||""}</td>
-    <td colspan="2"></td>
+    <td style="font-weight:700">Celular:</td>
+    <td colspan="3">${tc.celularEntregador||""}</td>
   </tr>
   <tr style="height:80px">
-    <td style="vertical-align:bottom;padding:6px;text-align:center">
-      ${tc.assinEntregador ? '<img src="'+tc.assinEntregador+'" style="max-height:70px;max-width:90%;object-fit:contain">' : ""}
+    <td style="font-weight:700;vertical-align:top;padding:4px 7px">Assinatura:</td>
+    <td style="vertical-align:middle;text-align:center;width:42%">
+      ${tc.assinEntregador ? '<img src="'+tc.assinEntregador+'" style="max-height:68px;max-width:92%;object-fit:contain">' : ""}
     </td>
-    <td style="width:35%;vertical-align:bottom;padding:6px;text-align:center"></td>
-    <td style="width:20%;vertical-align:bottom;padding:6px;text-align:center"></td>
-  </tr>
-  <tr>
-    <td>Assinatura:</td>
-    <td>Agência: ${tc.agenciaEntregador||""}</td>
-    <td></td>
+    <td style="font-weight:700;vertical-align:top;padding:4px 7px;width:14%">Agência:</td>
+    <td style="vertical-align:top;padding:4px 7px">${tc.agenciaEntregador||""}</td>
   </tr>
 </table>
 
