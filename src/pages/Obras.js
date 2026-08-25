@@ -7,7 +7,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { isCampo, isGestorOuAdm, isExterno } from "../constants/departamentos";
 import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 import { salvarComFallbackOffline } from "../utils/offlineQueue";
-import { exportarObraParaPDF, exportarOSParaPDF, exportarTermoRecebimentoParaPDF, exportarTermoChavesParaPDF } from "../utils/exportPDF";
+import { exportarObraParaPDF, exportarOSParaPDF, exportarTermoRecebimentoParaPDF, exportarTermoChavesBradescoParaPDF } from "../utils/exportPDF";
 import { registrarExecutorOffline } from "../hooks/useFilaOffline";
 import { buscarCEP } from "../utils/cep";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
@@ -974,7 +974,7 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
                 {osDigital.modelo==="termo_recebimento"?"Termo de Recebimento assinado!":osDigital.modelo==="termo_chaves"?"Termo de Entrega de Chaves assinado!":"OS assinada!"}
               </div>
               <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:8}}>
-                <button className="btn btn-sm" onClick={()=> osDigital.modelo==="termo_recebimento" ? exportarTermoRecebimentoParaPDF(osDigital) : osDigital.modelo==="termo_chaves" ? exportarTermoChavesParaPDF(osDigital) : exportarOSParaPDF(osDigital, form)}>📄 Ver PDF</button>
+                <button className="btn btn-sm" onClick={()=> osDigital.modelo==="termo_recebimento" ? exportarTermoRecebimentoParaPDF(osDigital) : osDigital.modelo==="termo_chaves" ? exportarTermoChavesBradescoParaPDF(osDigital) : exportarOSParaPDF(osDigital, form)}>📄 Ver PDF</button>
                 <button className="btn btn-sm" onClick={()=>{setOsDigital(null);setModeloOS(null);}} style={{fontSize:11}}>Refazer assinatura</button>
               </div>
             </div>
