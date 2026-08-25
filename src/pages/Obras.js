@@ -7,7 +7,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { isCampo, isGestorOuAdm, isExterno } from "../constants/departamentos";
 import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 import { salvarComFallbackOffline } from "../utils/offlineQueue";
-import { exportarObraParaPDF, exportarOSParaPDF, exportarTermoRecebimentoParaPDF, exportarTermoChavesBradescoParaPDF } from "../utils/exportPDF";
+import { exportarObraParaPDF, exportarOSParaPDF, exportarTermoRecebimentoParaPDF, exportarTermoChavesBradescoParaPDF, exportarTermoChavesParaPDF } from "../utils/exportPDF";
 import { registrarExecutorOffline } from "../hooks/useFilaOffline";
 import { buscarCEP } from "../utils/cep";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
