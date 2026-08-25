@@ -512,7 +512,7 @@ export function exportarTermoChavesBradescoParaPDF(tc) {
   </tr>
   <tr style="height:80px">
     <td style="vertical-align:bottom;padding:6px;text-align:center">
-      ${tc.assinRecebedor ? `<img src="${tc.assinRecebedor}" style="max-height:70px;max-width:90%;object-fit:contain">` : ""}
+      ${tc.assinRecebedor ? '<img src="'+tc.assinRecebedor+'" style="max-height:70px;max-width:90%;object-fit:contain">' : ""}
     </td>
     <td style="width:35%;vertical-align:bottom;padding:6px;text-align:center"></td>
     <td style="width:20%;vertical-align:bottom;padding:6px;text-align:center"></td>
@@ -539,7 +539,7 @@ export function exportarTermoChavesBradescoParaPDF(tc) {
   </tr>
   <tr style="height:80px">
     <td style="vertical-align:bottom;padding:6px;text-align:center">
-      ${tc.assinEntregador ? `<img src="${tc.assinEntregador}" style="max-height:70px;max-width:90%;object-fit:contain">` : ""}
+      ${tc.assinEntregador ? '<img src="'+tc.assinEntregador+'" style="max-height:70px;max-width:90%;object-fit:contain">' : ""}
     </td>
     <td style="width:35%;vertical-align:bottom;padding:6px;text-align:center"></td>
     <td style="width:20%;vertical-align:bottom;padding:6px;text-align:center"></td>
