@@ -996,12 +996,7 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
                   <span style={{fontWeight:700,fontSize:13}}>📋 Termo de Recebimento Definitivo</span>
                   <span style={{fontSize:11,color:"#7A7A7A"}}>Modelo BRADESCO/AFINE — informações gerais, escopo, avaliação e assinaturas (Gerência, Construtora e Gerenciadora).</span>
                 </button>
-                <button className="btn" style={{padding:"16px",textAlign:"left",display:"flex",flexDirection:"column",gap:4,background:"var(--cinza-lt)",border:"2px solid var(--border)"}}
-                  onClick={()=>setModeloOS("chaves")}>
-                  <span style={{fontWeight:700,fontSize:13}}>🔑 Termo de Entrega de Chaves</span>
-                  <span style={{fontSize:11,color:"#7A7A7A"}}>Modelo BRADESCO — recebimento de chaves do imóvel, assinaturas do recebedor e entregador.</span>
-                </button>
-                <button className="btn" onClick={()=>setShowOS(false)}>Cancelar</button>
+<button className="btn" onClick={()=>setShowOS(false)}>Cancelar</button>
               </div>
             </Modal>
           )}
