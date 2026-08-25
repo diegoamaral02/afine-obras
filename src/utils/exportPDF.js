@@ -3,6 +3,7 @@
 // Sem bibliotecas externas — funciona 100% no browser
 import { LOGO_BASE64 } from "./assets";
 import { BRADESCO_BASE64, AFINE_TERMO_BASE64, BARRA_BRADESCO_BASE64 } from "./assetsTermo";
+import { CHAVES_LOGO1_BASE64, CHAVES_LOGO2_BASE64, CHAVES_BARRA_BASE64 } from "./assetsChaves";
 
 export function exportarOSParaPDF(os, contexto) {
   const w = window.open("", "_blank");
@@ -406,6 +407,152 @@ export function exportarTermoRecebimentoParaPDF(tr) {
 
 <div class="footer">
   ${tr.numero} · Gerado em ${new Date(tr.geradaEm||Date.now()).toLocaleString("pt-BR")} · Sistema AFINE
+</div>
+<br>
+<div class="no-print" style="text-align:center">
+  <button onclick="window.print()" style="background:#1A1A1A;color:#F5C800;border:none;padding:10px 28px;border-radius:6px;font-size:14px;cursor:pointer;margin-right:10px">🖨️ Imprimir / PDF</button>
+  <button onclick="window.close()" style="background:#eee;border:none;padding:10px 20px;border-radius:6px;font-size:14px;cursor:pointer">Fechar</button>
+</div>
+</body></html>`);
+  w.document.close();
+}
+
+// ── Termo de Entrega de Chaves ────────────────────────────────────────────────
+export function exportarTermoChavesParaPDF(tc) {
+  const w = window.open("", "_blank");
+  if (!w) { alert("Permita pop-ups para exportar o PDF."); return; }
+
+  const fmtD = iso => iso ? iso.split("-").reverse().join("/") : "__/__/____";
+
+  w.document.write(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Termo de Entrega de Chaves — ${tc.numero}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a;padding:28px 36px;max-width:860px;margin:0 auto}
+  table{width:100%;border-collapse:collapse;margin-bottom:0}
+  td{border:1px solid #555;padding:4px 7px;vertical-align:middle;font-size:11px}
+  .sh{font-weight:700;font-size:11px;text-transform:uppercase;text-align:center;padding:4px 6px}
+  .footer{text-align:center;font-size:10px;color:#aaa;margin-top:14px;padding-top:6px;border-top:1px solid #eee}
+  @media print{body{padding:12px}button{display:none!important}}
+</style>
+</head>
+<body>
+
+<!-- Faixa diagonal — TOPO -->
+<div style="margin:-28px -36px 0 -36px;height:20px;overflow:hidden">
+  <img src="${CHAVES_BARRA_BASE64}" alt="" style="width:100%;height:20px;object-fit:cover;display:block">
+</div>
+
+<!-- Cabeçalho com logos -->
+<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0 8px;border-bottom:1px solid #ccc;margin-bottom:8px">
+  <img src="${CHAVES_LOGO1_BASE64}" alt="" style="height:32px;object-fit:contain">
+  <img src="${CHAVES_LOGO2_BASE64}" alt="" style="height:50px;object-fit:contain">
+  <div style="display:flex;align-items:center;gap:6px;border:1px solid #888;padding:4px 10px">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="1"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="15" x2="12" y2="15"/></svg>
+    <span style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase">Confidencial</span>
+  </div>
+</div>
+
+<!-- Título -->
+<p style="text-align:center;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin:8px 0">TERMO – ENTREGA CHAVES</p>
+
+<!-- Tabela principal -->
+<table>
+  <tr>
+    <td style="width:18%">Projeto:</td>
+    <td style="width:32%">${tc.projeto||""}</td>
+    <td style="width:18%">Processo:</td>
+    <td>${tc.processo||""}</td>
+  </tr>
+  <tr>
+    <td>Agência:</td>
+    <td>${tc.agencia||""}</td>
+    <td>Município:</td>
+    <td>${tc.municipio||""}</td>
+  </tr>
+  <tr>
+    <td>Lote:</td>
+    <td colspan="3">${tc.lote||""}</td>
+  </tr>
+  <tr>
+    <td>Construtora:</td>
+    <td colspan="3">${tc.construtora||"AFINE"}</td>
+  </tr>
+  <tr>
+    <td>Gerenciadora:</td>
+    <td colspan="3">${tc.gerenciadora||""}</td>
+  </tr>
+  <tr>
+    <td colspan="4" style="height:12px;border:none"></td>
+  </tr>
+  <tr>
+    <td colspan="4" class="sh">Recebimento Chaves Imóvel BSP</td>
+  </tr>
+  <tr>
+    <td colspan="4" style="line-height:1.6;padding:8px;text-align:justify">
+      Declaro que recebi nesta data as chaves do imóvel da agência ${tc.agencia||"___"}, assumindo a responsabilidade pela guarda e utilização das mesmas.
+    </td>
+  </tr>
+  <tr>
+    <td colspan="4">Data recebimento chaves em: ${fmtD(tc.dataRecebimento)}</td>
+  </tr>
+</table>
+
+<!-- Assinatura Recebedor -->
+<table style="margin-top:8px">
+  <tr>
+    <td colspan="3" class="sh">Gerência da Agência – Recebedor Chaves</td>
+  </tr>
+  <tr>
+    <td style="width:50%">Nome completo: ${tc.nomeRecebedor||""}</td>
+    <td colspan="2"></td>
+  </tr>
+  <tr style="height:80px">
+    <td style="vertical-align:bottom;padding:6px;text-align:center">
+      ${tc.assinRecebedor ? `<img src="${tc.assinRecebedor}" style="max-height:70px;max-width:90%;object-fit:contain">` : ""}
+    </td>
+    <td style="width:35%;vertical-align:bottom;padding:6px;text-align:center"></td>
+    <td style="width:20%;vertical-align:bottom;padding:6px;text-align:center"></td>
+  </tr>
+  <tr>
+    <td>Assinatura:</td>
+    <td>Data: ${fmtD(tc.dataRecebedor)}</td>
+    <td></td>
+  </tr>
+</table>
+
+<!-- Assinatura Entregador -->
+<table style="margin-top:8px">
+  <tr>
+    <td colspan="3" class="sh">Construtora – Entregador Chaves</td>
+  </tr>
+  <tr>
+    <td style="width:50%">Nome completo: ${tc.nomeEntregador||""}</td>
+    <td colspan="2"></td>
+  </tr>
+  <tr>
+    <td>Celular: ${tc.celularEntregador||""}</td>
+    <td colspan="2"></td>
+  </tr>
+  <tr style="height:80px">
+    <td style="vertical-align:bottom;padding:6px;text-align:center">
+      ${tc.assinEntregador ? `<img src="${tc.assinEntregador}" style="max-height:70px;max-width:90%;object-fit:contain">` : ""}
+    </td>
+    <td style="width:35%;vertical-align:bottom;padding:6px;text-align:center"></td>
+    <td style="width:20%;vertical-align:bottom;padding:6px;text-align:center"></td>
+  </tr>
+  <tr>
+    <td>Assinatura:</td>
+    <td>Agência: ${tc.agenciaEntregador||""}</td>
+    <td></td>
+  </tr>
+</table>
+
+<div class="footer">
+  ${tc.numero} · Gerado em ${new Date(tc.geradaEm||Date.now()).toLocaleString("pt-BR")} · Sistema AFINE
 </div>
 <br>
 <div class="no-print" style="text-align:center">

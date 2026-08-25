@@ -7,7 +7,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { isCampo, isGestorOuAdm, isExterno } from "../constants/departamentos";
 import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 import { salvarComFallbackOffline } from "../utils/offlineQueue";
-import { exportarObraParaPDF, exportarTermoChavesParaPDF, exportarOSParaPDF, exportarTermoRecebimentoParaPDF } from "../utils/exportPDF";
+import { exportarObraParaPDF, exportarOSParaPDF, exportarTermoRecebimentoParaPDF, exportarTermoChavesParaPDF } from "../utils/exportPDF";
 import { registrarExecutorOffline } from "../hooks/useFilaOffline";
 import { buscarCEP } from "../utils/cep";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
@@ -17,6 +17,7 @@ import Modal from "../components/Modal";
 import PhotoUploader from "../components/PhotoUploader";
 import OSDigital from "../components/OSDigital";
 import TermoRecebimento from "../components/TermoRecebimento";
+import TermoChaves from "../components/TermoChaves";
 import AssinaturaDigital from "../components/AssinaturaDigital";
 import CustosDemanda from "../components/CustosDemanda";
 import { useToast } from "../hooks/useToast";
@@ -970,10 +971,10 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
             <div style={{background:"var(--verde-lt)",border:"1px solid rgba(45,106,31,.3)",borderRadius:8,padding:12,textAlign:"center"}}>
               <div style={{fontSize:32,marginBottom:4}}>✅</div>
               <div style={{fontWeight:600,color:"var(--verde)"}}>
-                {osDigital.modelo==="termo_recebimento"?"Termo de Recebimento assinado!":"OS assinada!"}
+                {osDigital.modelo==="termo_recebimento"?"Termo de Recebimento assinado!":osDigital.modelo==="termo_chaves"?"Termo de Entrega de Chaves assinado!":"OS assinada!"}
               </div>
               <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:8}}>
-                <button className="btn btn-sm" onClick={()=> osDigital.modelo==="termo_recebimento" ? exportarTermoRecebimentoParaPDF(osDigital) : exportarOSParaPDF(osDigital, form)}>📄 Ver PDF</button>
+                <button className="btn btn-sm" onClick={()=> osDigital.modelo==="termo_recebimento" ? exportarTermoRecebimentoParaPDF(osDigital) : osDigital.modelo==="termo_chaves" ? exportarTermoChavesParaPDF(osDigital) : exportarOSParaPDF(osDigital, form)}>📄 Ver PDF</button>
                 <button className="btn btn-sm" onClick={()=>{setOsDigital(null);setModeloOS(null);}} style={{fontSize:11}}>Refazer assinatura</button>
               </div>
             </div>
@@ -993,6 +994,11 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
                   onClick={()=>setModeloOS("termo")}>
                   <span style={{fontWeight:700,fontSize:13}}>📋 Termo de Recebimento Definitivo</span>
                   <span style={{fontSize:11,color:"#7A7A7A"}}>Modelo BRADESCO/AFINE — informações gerais, escopo, avaliação e assinaturas (Gerência, Construtora e Gerenciadora).</span>
+                </button>
+                <button className="btn" style={{padding:"16px",textAlign:"left",display:"flex",flexDirection:"column",gap:4,background:"var(--cinza-lt)",border:"2px solid var(--border)"}}
+                  onClick={()=>setModeloOS("chaves")}>
+                  <span style={{fontWeight:700,fontSize:13}}>🔑 Termo de Entrega de Chaves</span>
+                  <span style={{fontSize:11,color:"#7A7A7A"}}>Modelo BRADESCO — recebimento de chaves do imóvel, assinaturas do recebedor e entregador.</span>
                 </button>
                 <button className="btn" onClick={()=>setShowOS(false)}>Cancelar</button>
               </div>
@@ -1019,6 +1025,16 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
                 obra={{...form, id: obra?.id}}
                 onSalvar={(tr)=>{setOsDigital(tr);setShowOS(false);setModeloOS(null);}}
                 onFechar={()=>{setShowOS(false);setModeloOS(null);}}
+              />
+            </Modal>
+          )}
+
+          {showOS && modeloOS==="chaves" && (
+            <Modal title="Termo de Entrega de Chaves" onClose={()=>{setShowOS(false);setModeloOS(null);}}>
+              <TermoChaves
+                obra={{...form, id: obra?.id}}
+                onSalvar={(tc)=>{setOsDigital(tc);setShowOS(false);setModeloOS(null);}}
+                onCancelar={()=>{setShowOS(false);setModeloOS(null);}}
               />
             </Modal>
           )}
