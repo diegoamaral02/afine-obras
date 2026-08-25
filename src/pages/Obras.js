@@ -20,6 +20,7 @@ import TermoRecebimento from "../components/TermoRecebimento";
 import TermoChaves from "../components/TermoChaves";
 import AssinaturaDigital from "../components/AssinaturaDigital";
 import CustosDemanda from "../components/CustosDemanda";
+import CustosMaoDeObra from "../components/CustosMaoDeObra";
 import { useToast } from "../hooks/useToast";
 import { Ocorrencias } from "./Equipe";
 import Medicao from "./Medicao";
@@ -137,6 +138,7 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   const [showOS,    setShowOS]    = useState(false);
   const [modeloOS,  setModeloOS]  = useState(null); // null | "os" | "termo" | "chaves"
   const [termoChavesModelo, setTermoChavesModelo] = useState("afine"); // "afine" | "bradesco"
+  const [impostoPercent, setImpostoPercent] = useState(obra?.impostoPercent||"");
   const [buscandoCEP, setBuscandoCEP] = useState(false);
   const [saving, setSaving] = useState(false);
   const [etapasRecolhidas, setEtapasRecolhidas] = useState(true);
@@ -588,12 +590,22 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
       )}
 
       {aba==="custos" && obra?.id && (
-        <CustosDemanda
-          demandaTipo="obra"
-          demandaId={obra.id}
-          demandaNome={obra.nome}
-          orcamento={form.valorOrcamento}
-        />
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          <CustosMaoDeObra
+            obraId={obra.id}
+            equipeIds={form.equipeIds||[]}
+            funcionarios={funcionarios}
+            orcamento={form.valorOrcamento}
+            impostoPercent={impostoPercent}
+            onImpostoChange={v=>{ setImpostoPercent(v); set("impostoPercent",v); }}
+          />
+          <CustosDemanda
+            demandaTipo="obra"
+            demandaId={obra.id}
+            demandaNome={obra.nome}
+            orcamento={form.valorOrcamento}
+          />
+        </div>
       )}
 
       {aba==="materiais" && (
