@@ -135,7 +135,8 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   const [checklistDescaract, setChecklistDescaract] = useState(obra?.checklistDescaract||{});
   const [osDigital, setOsDigital] = useState(obra?.osDigital||null);
   const [showOS,    setShowOS]    = useState(false);
-  const [modeloOS,  setModeloOS]  = useState(null); // null | "os" | "termo"
+  const [modeloOS,  setModeloOS]  = useState(null); // null | "os" | "termo" | "chaves"
+  const [termoChavesModelo, setTermoChavesModelo] = useState("afine"); // "afine" | "bradesco"
   const [buscandoCEP, setBuscandoCEP] = useState(false);
   const [saving, setSaving] = useState(false);
   const [etapasRecolhidas, setEtapasRecolhidas] = useState(true);
@@ -1104,30 +1105,63 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
                 onChange={(b64)=>setTermoChaves("assinatura",b64)}
               />
 
-              {(() => {
-                const faltam = !form.termoChaves.nomeRecebeu||!form.termoChaves.quantidadeChaves||!form.termoChaves.cpf||!form.termoChaves.rg||!form.termoChaves.assinatura;
-                return (
-                  <>
-                    <button className="btn btn-primary" style={{padding:14,fontSize:14}}
-                      disabled={faltam}
-                      onClick={()=>exportarTermoChavesParaPDF({
-                        enderecoCompleto: form.logradouro?`${form.logradouro}, ${form.numero}${form.bairro?` — ${form.bairro}`:""}`:"",
-                        agenciaNome: form.agenciaNome||"",
-                        cidade: form.cidade, estado: form.uf,
-                        quantidadeChaves: form.termoChaves.quantidadeChaves,
-                        nomeRecebeu: form.termoChaves.nomeRecebeu,
-                        cpf: form.termoChaves.cpf, rg: form.termoChaves.rg,
-                        assinatura: form.termoChaves.assinatura,
-                        dataDocumento: form.termoChaves.dataDocumento,
-                      })}>
-                      📄 Gerar PDF do Termo de Entrega de Chaves
-                    </button>
-                    {faltam && (
-                      <div style={{fontSize:11,color:"var(--vermelho)"}}>Preencha quantidade, nome, CPF, RG e assinatura para gerar o PDF.</div>
-                    )}
-                  </>
-                );
-              })()}
+              {/* Seletor de formato */}
+              <div style={{display:"flex",gap:8,marginBottom:8}}>
+                <button type="button"
+                  onClick={()=>setTermoChavesModelo("afine")}
+                  style={{flex:1,padding:"8px 4px",fontSize:12,borderRadius:7,cursor:"pointer",fontWeight:600,
+                    background:termoChavesModelo==="afine"?"var(--afine-yellow-dk)":"var(--cinza-lt)",
+                    color:termoChavesModelo==="afine"?"#fff":"#333",
+                    border:`1px solid ${termoChavesModelo==="afine"?"var(--afine-yellow-dk)":"var(--border)"}`}}>
+                  📄 Formato AFINE
+                </button>
+                <button type="button"
+                  onClick={()=>setTermoChavesModelo("bradesco")}
+                  style={{flex:1,padding:"8px 4px",fontSize:12,borderRadius:7,cursor:"pointer",fontWeight:600,
+                    background:termoChavesModelo==="bradesco"?"#cc0000":"var(--cinza-lt)",
+                    color:termoChavesModelo==="bradesco"?"#fff":"#333",
+                    border:`1px solid ${termoChavesModelo==="bradesco"?"#cc0000":"var(--border)"}`}}>
+                  🏦 Formato BRADESCO
+                </button>
+              </div>
+
+              {termoChavesModelo==="bradesco" ? (
+                <TermoChaves
+                  obra={{
+                    nome: form.agenciaNome||form.nome||"",
+                    contrato: form.contrato||"",
+                    agenciaNome: form.agenciaNome||"",
+                    cidade: form.cidade||"",
+                  }}
+                  onSalvar={()=>{}}
+                  onCancelar={()=>setTermoChavesModelo("afine")}
+                />
+              ) : (
+                (() => {
+                  const faltam = !form.termoChaves.nomeRecebeu||!form.termoChaves.quantidadeChaves||!form.termoChaves.cpf||!form.termoChaves.rg||!form.termoChaves.assinatura;
+                  return (
+                    <>
+                      <button className="btn btn-primary" style={{padding:14,fontSize:14}}
+                        disabled={faltam}
+                        onClick={()=>exportarTermoChavesParaPDF({
+                          enderecoCompleto: form.logradouro?`${form.logradouro}, ${form.numero}${form.bairro?` — ${form.bairro}`:""}`:"",
+                          agenciaNome: form.agenciaNome||"",
+                          cidade: form.cidade, estado: form.uf,
+                          quantidadeChaves: form.termoChaves.quantidadeChaves,
+                          nomeRecebeu: form.termoChaves.nomeRecebeu,
+                          cpf: form.termoChaves.cpf, rg: form.termoChaves.rg,
+                          assinatura: form.termoChaves.assinatura,
+                          dataDocumento: form.termoChaves.dataDocumento,
+                        })}>
+                        📄 Gerar PDF do Termo de Entrega de Chaves
+                      </button>
+                      {faltam && (
+                        <div style={{fontSize:11,color:"var(--vermelho)"}}>Preencha quantidade, nome, CPF, RG e assinatura para gerar o PDF.</div>
+                      )}
+                    </>
+                  );
+                })()
+              )}
             </>
           )}
         </div>
