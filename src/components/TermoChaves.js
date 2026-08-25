@@ -10,6 +10,7 @@ export default function TermoChaves({ obra, onSalvar, onCancelar }) {
     projeto: obra?.nome || "",
     processo: obra?.contrato || "",
     agencia: obra?.agenciaNome || "",
+    agenciaNumero: obra?.agenciaNumero || "",
     municipio: obra?.cidade || "",
     lote: "",
     construtora: "AFINE",
@@ -76,6 +77,10 @@ export default function TermoChaves({ obra, onSalvar, onCancelar }) {
             <div>
               <label style={{ fontSize: 12, fontWeight: 600 }}>Agência <span style={{ color: "var(--vermelho)" }}>*</span></label>
               <input className="form-control" value={form.agencia} onChange={e => set("agencia", e.target.value)} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600 }}>Número da Agência</label>
+              <input className="form-control" value={form.agenciaNumero} onChange={e => set("agenciaNumero", e.target.value)} placeholder="ex: 1407" />
             </div>
             <div>
               <label style={{ fontSize: 12, fontWeight: 600 }}>Município</label>

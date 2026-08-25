@@ -493,7 +493,7 @@ export function exportarTermoChavesBradescoParaPDF(tc) {
   </tr>
   <tr>
     <td colspan="4" style="line-height:1.6;padding:8px;text-align:justify">
-      Declaro que recebi nesta data as chaves do imóvel da agência ${tc.agencia||"___"}, assumindo a responsabilidade pela guarda e utilização das mesmas.
+      Declaro que recebi nesta data as chaves do imóvel da agência ${tc.agencia||"___"}${tc.agenciaNumero ? ` - ${tc.agenciaNumero}` : ""}, assumindo a responsabilidade pela guarda e utilização das mesmas.
     </td>
   </tr>
   <tr>
