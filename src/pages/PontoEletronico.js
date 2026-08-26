@@ -10,6 +10,7 @@ import { useToast } from "../hooks/useToast";
 import { addComAuditoria } from "../services/auditoria";
 import { resolverPerfilMenu, isCampo } from "../constants/departamentos";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
+import { prepararDadosPonto, gerarPontoPDFIndividual, gerarPontoPDFGeral, gerarPontoExcel } from "../utils/exportPontoPDF";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -455,6 +456,12 @@ function RelatorioGestor({ obras, manutencoes }) {
   }
   const kpiEntradas = Object.entries(kpiObra).sort((a, b) => b[1] - a[1]);
 
+  const periodo = `${fmtData(filtroDe + "T12:00:00")} a ${fmtData(filtroAte + "T12:00:00")}`;
+
+  function getDadosPonto() {
+    return prepararDadosPonto(pontosFiltrados);
+  }
+
   function handleExportar() {
     exportarExcel(
       linhas,
@@ -468,6 +475,19 @@ function RelatorioGestor({ obras, manutencoes }) {
         { key: "horas", header: "Horas", format: v => v || "Em aberto" },
       ]
     );
+  }
+
+  function handlePDFIndividual() {
+    if (!filtroFuncionario) { alert("Selecione um funcionário no filtro para gerar o PDF individual."); return; }
+    gerarPontoPDFIndividual(getDadosPonto(), filtroFuncionario, periodo);
+  }
+
+  function handlePDFGeral() {
+    gerarPontoPDFGeral(getDadosPonto(), periodo);
+  }
+
+  function handleExcelDetalhado() {
+    gerarPontoExcel(getDadosPonto(), periodo);
   }
 
   // Opções de obras+manutencoes para filtro
@@ -532,7 +552,25 @@ function RelatorioGestor({ obras, manutencoes }) {
               {linhas.length} linha{linhas.length !== 1 ? "s" : ""}
             </span>
           </div>
-          <BtnExcel onClick={handleExportar} disabled={linhas.length === 0} />
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              onClick={handlePDFIndividual}
+              disabled={linhas.length === 0 || !filtroFuncionario}
+              title={!filtroFuncionario ? "Selecione um funcionário no filtro" : "PDF por funcionário"}
+              style={{ background: "var(--afine-gray, #555)", color: "#fff", border: "none", borderRadius: 6, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: linhas.length === 0 || !filtroFuncionario ? "not-allowed" : "pointer", opacity: linhas.length === 0 || !filtroFuncionario ? 0.5 : 1 }}
+            >📄 PDF Individual</button>
+            <button
+              onClick={handlePDFGeral}
+              disabled={linhas.length === 0}
+              style={{ background: "#1A1A1A", color: "#F5C800", border: "none", borderRadius: 6, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: linhas.length === 0 ? "not-allowed" : "pointer", opacity: linhas.length === 0 ? 0.5 : 1 }}
+            >📋 PDF Geral</button>
+            <button
+              onClick={handleExcelDetalhado}
+              disabled={linhas.length === 0}
+              style={{ background: "#217346", color: "#fff", border: "none", borderRadius: 6, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: linhas.length === 0 ? "not-allowed" : "pointer", opacity: linhas.length === 0 ? 0.5 : 1 }}
+            >📊 Excel Detalhado</button>
+            <BtnExcel onClick={handleExportar} disabled={linhas.length === 0} />
+          </div>
         </div>
         {carregando ? (
           <div className="spinner" />
