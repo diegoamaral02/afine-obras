@@ -671,6 +671,8 @@ export default function PontoEletronico() {
 
   const perfil = resolverPerfilMenu(userProfile);
   const ehCampo = isCampo(userProfile);
+  // PJ não-campo não bate ponto (apenas vê relatório se tiver acesso)
+  const ehPJNaoCampo = userProfile?.tipoContrato === "PJ" && !ehCampo;
 
   // Carrega obras ativas
   useEffect(() => {
@@ -731,8 +733,11 @@ export default function PontoEletronico() {
             pontosHoje={pontosHoje}
             addToast={addToast}
           />
+        ) : ehPJNaoCampo ? (
+          /* PJ não-campo: não bate ponto, acessa só relatório */
+          <RelatorioGestor obras={obras} manutencoes={manutencoes} userProfile={userProfile} />
         ) : (
-          /* Gestor/Encarregado: abas */
+          /* Gestor/Encarregado CLT: abas Registrar + Relatório */
           <>
             <div className="tabs" style={{ marginBottom: 20 }}>
               <button
