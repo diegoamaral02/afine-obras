@@ -8,7 +8,7 @@ import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../hooks/useToast";
 import { addComAuditoria } from "../services/auditoria";
-import { resolverPerfilMenu, isCampo } from "../constants/departamentos";
+import { resolverPerfilMenu, isCampo, getDepartamentoEfetivo } from "../constants/departamentos";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
 import { prepararDadosPonto, gerarPontoPDFIndividual, gerarPontoPDFGeral, gerarPontoExcel } from "../utils/exportPontoPDF";
 
@@ -375,9 +375,15 @@ function HistoricoProprioUsuario({ userId }) {
 
 // ─── Aba Relatório (gestor) ───────────────────────────────────────────────────
 
-function RelatorioGestor({ obras, manutencoes }) {
+// Departamentos visíveis por perfil
+const DEPS_CAMPO = ["campo", "empreiteiro", "terceiro"];
+const PERFIS_VER_TUDO = ["gestao", "financeiro", "adm"];
+const PERFIS_VER_CAMPO = ["fiscal", "comercial"];
+
+function RelatorioGestor({ obras, manutencoes, userProfile }) {
   const [pontos, setPontos] = useState([]);
   const [funcionarios, setFuncionarios] = useState([]);
+  const [usuariosMap, setUsuariosMap] = useState({}); // uid → departamento
   const [filtroFuncionario, setFiltroFuncionario] = useState("");
   const [filtroObra, setFiltroObra] = useState("");
   const [filtroDe, setFiltroDe] = useState(() => {
@@ -386,6 +392,16 @@ function RelatorioGestor({ obras, manutencoes }) {
   });
   const [filtroAte, setFiltroAte] = useState(hojeStr());
   const [carregando, setCarregando] = useState(true);
+
+  // Carrega mapa de departamentos dos usuários
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "usuarios"), snap => {
+      const mapa = {};
+      snap.docs.forEach(d => { mapa[d.id] = d.data().departamento || d.data().perfil || "campo"; });
+      setUsuariosMap(mapa);
+    });
+    return unsub;
+  }, []);
 
   // Carrega pontos do período
   useEffect(() => {
@@ -399,19 +415,40 @@ function RelatorioGestor({ obras, manutencoes }) {
     const unsub = onSnapshot(q, snap => {
       const todos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setPontos(todos);
-      // Extrai funcionários únicos
-      const mapa = {};
-      for (const p of todos) {
-        if (!mapa[p.usuarioId]) mapa[p.usuarioId] = p.usuarioNome;
-      }
-      setFuncionarios(Object.entries(mapa).map(([id, nome]) => ({ id, nome })));
       setCarregando(false);
     });
     return unsub;
   }, [filtroDe, filtroAte]);
 
-  // Filtra por funcionário e obra
+  // Determina quais funcionários o perfil pode ver
+  const depAtual = getDepartamentoEfetivo(userProfile);
+  const verTudo = PERFIS_VER_TUDO.includes(depAtual);
+  const verCampo = PERFIS_VER_CAMPO.includes(depAtual);
+
+  function podVerFuncionario(uid) {
+    if (verTudo) return true;
+    if (verCampo) {
+      const dep = usuariosMap[uid] || "campo";
+      return DEPS_CAMPO.includes(dep);
+    }
+    return false;
+  }
+
+  // Extrai funcionários visíveis dos pontos carregados
+  useEffect(() => {
+    const mapa = {};
+    for (const p of pontos) {
+      if (!mapa[p.usuarioId] && podVerFuncionario(p.usuarioId)) {
+        mapa[p.usuarioId] = p.usuarioNome;
+      }
+    }
+    setFuncionarios(Object.entries(mapa).map(([id, nome]) => ({ id, nome })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pontos, usuariosMap]);
+
+  // Filtra por funcionário, obra e permissão de acesso
   const pontosFiltrados = pontos.filter(p => {
+    if (!podVerFuncionario(p.usuarioId)) return false;
     if (filtroFuncionario && p.usuarioId !== filtroFuncionario) return false;
     if (filtroObra) {
       if (p.vinculoId !== filtroObra && p.vinculoNome !== filtroObra) return false;
@@ -724,7 +761,7 @@ export default function PontoEletronico() {
             )}
 
             {abaAtiva === "relatorio" && (
-              <RelatorioGestor obras={obras} manutencoes={manutencoes} />
+              <RelatorioGestor obras={obras} manutencoes={manutencoes} userProfile={userProfile} />
             )}
           </>
         )}
