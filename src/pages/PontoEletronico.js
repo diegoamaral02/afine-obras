@@ -7,7 +7,7 @@ import {
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../hooks/useToast";
-import { addComAuditoria } from "../services/auditoria";
+import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 import { resolverPerfilMenu, isCampo, getDepartamentoEfetivo } from "../constants/departamentos";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
 import { prepararDadosPonto, gerarPontoPDFIndividual, gerarPontoPDFGeral, gerarPontoExcel } from "../utils/exportPontoPDF";
@@ -424,12 +424,195 @@ function HistoricoProprioUsuario({ userId }) {
 
 // ─── Aba Relatório (gestor) ───────────────────────────────────────────────────
 
+// ─── Modal de correção de ponto ───────────────────────────────────────────────
+
+function isoParaDatetimeLocal(iso) {
+  if (!iso) return "";
+  // "2026-08-25T14:30:00.000Z" → local datetime-local string
+  const d = new Date(iso);
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function datetimeLocalParaIso(val) {
+  if (!val) return null;
+  return new Date(val).toISOString();
+}
+
+function ModalCorrecaoPonto({ linha, obras, manutencoes, currentUser, userProfile, onFechar }) {
+  const ent = linha.entradaDoc;
+  const sai = linha.saidaDoc;
+
+  const [entHorario, setEntHorario]   = useState(isoParaDatetimeLocal(ent?.timestamp));
+  const [entObs,     setEntObs]       = useState(ent?.obs || "");
+  const [entVincTipo, setEntVincTipo] = useState(ent?.vinculoTipo || "escritorio");
+  const [entVincId,  setEntVincId]    = useState(ent?.vinculoId   || "escritorio");
+
+  const [saiHorario, setSaiHorario]   = useState(isoParaDatetimeLocal(sai?.timestamp));
+  const [saiObs,     setSaiObs]       = useState(sai?.obs || "");
+
+  const [salvando, setSalvando] = useState(false);
+  const [erro,     setErro]     = useState("");
+
+  const opcoesVinculo =
+    entVincTipo === "obra"       ? obras.map(o => ({ id: o.id, nome: o.nome }))
+    : entVincTipo === "manutencao" ? manutencoes.map(m => ({ id: m.id, nome: m.titulo }))
+    : [];
+
+  function nomeVinculo(tipo, id) {
+    if (tipo === "escritorio") return "Escritório";
+    const all = [...obras.map(o=>({id:o.id,nome:o.nome})), ...manutencoes.map(m=>({id:m.id,nome:m.titulo}))];
+    return all.find(x => x.id === id)?.nome || id;
+  }
+
+  async function salvar() {
+    if (!entHorario) { setErro("Horário de entrada é obrigatório."); return; }
+    if (saiHorario && saiHorario < entHorario) { setErro("Saída não pode ser anterior à entrada."); return; }
+    setSalvando(true); setErro("");
+    try {
+      const nome = userProfile?.nome || currentUser.email;
+      const vinculoNome = nomeVinculo(entVincTipo, entVincId);
+      // Atualiza entrada
+      if (ent?.id) {
+        await updateComAuditoria("pontos", ent.id, {
+          timestamp: datetimeLocalParaIso(entHorario),
+          vinculoTipo: entVincTipo,
+          vinculoId: entVincTipo === "escritorio" ? "escritorio" : entVincId,
+          vinculoNome,
+          obs: entObs.trim(),
+        }, currentUser.uid, nome);
+      }
+      // Atualiza saída (se existir)
+      if (sai?.id && saiHorario) {
+        await updateComAuditoria("pontos", sai.id, {
+          timestamp: datetimeLocalParaIso(saiHorario),
+          vinculoNome,
+          obs: saiObs.trim(),
+        }, currentUser.uid, nome);
+      }
+      onFechar();
+    } catch (err) {
+      setErro("Erro ao salvar: " + err.message);
+    }
+    setSalvando(false);
+  }
+
+  async function excluirDoc(id, snapshot) {
+    if (!window.confirm("Excluir este registro de ponto? Esta ação não pode ser desfeita.")) return;
+    setSalvando(true);
+    try {
+      await deleteComAuditoria("pontos", id, currentUser.uid, userProfile?.nome || currentUser.email, snapshot);
+      onFechar();
+    } catch (err) {
+      setErro("Erro ao excluir: " + err.message);
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 9000,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+    }} onClick={e => { if (e.target === e.currentTarget) onFechar(); }}>
+      <div style={{
+        background: "var(--surface)", borderRadius: 12, padding: 28,
+        width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto",
+        boxShadow: "0 8px 40px rgba(0,0,0,.28)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 16 }}>✏️ Corrigir Ponto</div>
+            <div style={{ fontSize: 12, color: "var(--afine-gray)", marginTop: 2 }}>
+              {linha.usuarioNome} — {fmtData(linha.dia + "T12:00:00")}
+            </div>
+          </div>
+          <button onClick={onFechar} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--afine-gray)" }}>×</button>
+        </div>
+
+        {erro && <div style={{ background: "#FFEBEE", color: "#C62828", borderRadius: 6, padding: "8px 12px", marginBottom: 14, fontSize: 13 }}>{erro}</div>}
+
+        {/* ENTRADA */}
+        <div style={{ background: "var(--n-100)", borderRadius: 8, padding: 14, marginBottom: 14 }}>
+          <div style={{ fontWeight: 700, fontSize: 12, textTransform: "uppercase", color: "var(--verde)", marginBottom: 10 }}>↗ Entrada</div>
+
+          <div className="form-group" style={{ marginBottom: 10 }}>
+            <label>Horário</label>
+            <input type="datetime-local" value={entHorario} onChange={e => setEntHorario(e.target.value)} />
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            {[{v:"escritorio",l:"🏢 Escritório"},{v:"obra",l:"🏗️ Obra"},{v:"manutencao",l:"🔧 Manutenção"}].map(({v,l}) => (
+              <button key={v} className={`chip${entVincTipo===v?" active":""}`}
+                onClick={() => { setEntVincTipo(v); setEntVincId("escritorio"); }} style={{ fontSize: 11 }}>{l}</button>
+            ))}
+          </div>
+
+          {entVincTipo !== "escritorio" && (
+            <div className="form-group" style={{ marginBottom: 10 }}>
+              <label>{entVincTipo === "obra" ? "Obra" : "Manutenção"}</label>
+              <select value={entVincId} onChange={e => setEntVincId(e.target.value)}>
+                <option value="">Selecione...</option>
+                {opcoesVinculo.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
+              </select>
+            </div>
+          )}
+
+          <div className="form-group" style={{ marginBottom: ent?.id ? 10 : 0 }}>
+            <label>Observação</label>
+            <input value={entObs} onChange={e => setEntObs(e.target.value)} placeholder="Opcional" />
+          </div>
+
+          {ent?.id && (
+            <button onClick={() => excluirDoc(ent.id, ent)} disabled={salvando}
+              style={{ background: "none", border: "1px solid #C62828", color: "#C62828", borderRadius: 6, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
+              🗑️ Excluir entrada
+            </button>
+          )}
+        </div>
+
+        {/* SAÍDA */}
+        <div style={{ background: "var(--n-100)", borderRadius: 8, padding: 14, marginBottom: 20 }}>
+          <div style={{ fontWeight: 700, fontSize: 12, textTransform: "uppercase", color: "#C62828", marginBottom: 10 }}>↙ Saída</div>
+
+          <div className="form-group" style={{ marginBottom: 10 }}>
+            <label>Horário {!sai && <span style={{ fontWeight: 400, color: "var(--afine-gray)" }}>(em aberto)</span>}</label>
+            <input type="datetime-local" value={saiHorario} onChange={e => setSaiHorario(e.target.value)} />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: sai?.id ? 10 : 0 }}>
+            <label>Observação</label>
+            <input value={saiObs} onChange={e => setSaiObs(e.target.value)} placeholder="Opcional" />
+          </div>
+
+          {sai?.id && (
+            <button onClick={() => excluirDoc(sai.id, sai)} disabled={salvando}
+              style={{ background: "none", border: "1px solid #C62828", color: "#C62828", borderRadius: 6, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
+              🗑️ Excluir saída
+            </button>
+          )}
+        </div>
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={salvar} disabled={salvando}
+            className="btn btn-primary" style={{ flex: 1 }}>
+            {salvando ? "Salvando..." : "✅ Salvar Correção"}
+          </button>
+          <button onClick={onFechar} disabled={salvando}
+            className="btn" style={{ padding: "10px 20px" }}>
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Departamentos visíveis por perfil
 const DEPS_CAMPO = ["campo", "empreiteiro", "terceiro"];
 const PERFIS_VER_TUDO = ["gestao", "financeiro", "adm"];
 const PERFIS_VER_CAMPO = ["fiscal", "comercial"];
 
-function RelatorioGestor({ obras, manutencoes, userProfile }) {
+function RelatorioGestor({ obras, manutencoes, userProfile, currentUser }) {
   const [pontos, setPontos] = useState([]);
   const [funcionarios, setFuncionarios] = useState([]);
   const [usuariosMap, setUsuariosMap] = useState({}); // uid → departamento
@@ -469,8 +652,11 @@ function RelatorioGestor({ obras, manutencoes, userProfile }) {
     return unsub;
   }, [filtroDe, filtroAte]);
 
+  const [pontoParaEditar, setPontoParaEditar] = useState(null); // linha completa
+
   // Determina quais funcionários o perfil pode ver
   const depAtual = getDepartamentoEfetivo(userProfile);
+  const podeCorrigir = ["gestao", "adm", "financeiro"].includes(depAtual);
   const verTudo = PERFIS_VER_TUDO.includes(depAtual);
   const verCampo = PERFIS_VER_CAMPO.includes(depAtual);
 
@@ -527,6 +713,8 @@ function RelatorioGestor({ obras, manutencoes, userProfile }) {
         geoEntrada: par.entrada.geo,
         geoSaida: par.saida?.geo || null,
         horas: par.saida ? calcHoras(par.entrada.timestamp, par.saida.timestamp) : null,
+        entradaDoc: par.entrada,
+        saidaDoc: par.saida || null,
       });
     }
   }
@@ -584,6 +772,18 @@ function RelatorioGestor({ obras, manutencoes, userProfile }) {
 
   return (
     <div>
+      {/* Modal de correção de ponto */}
+      {pontoParaEditar && podeCorrigir && (
+        <ModalCorrecaoPonto
+          linha={pontoParaEditar}
+          obras={obras}
+          manutencoes={manutencoes}
+          currentUser={currentUser}
+          userProfile={userProfile}
+          onFechar={() => setPontoParaEditar(null)}
+        />
+      )}
+
       {/* Filtros */}
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="form-grid cols-3" style={{ gap: 12 }}>
@@ -678,6 +878,7 @@ function RelatorioGestor({ obras, manutencoes, userProfile }) {
                   <th>Horas</th>
                   <th className="col-hide-lg">Geo Entrada</th>
                   <th className="col-hide-lg">Geo Saída</th>
+                  {podeCorrigir && <th style={{ width: 40 }}></th>}
                 </tr>
               </thead>
               <tbody>
@@ -697,6 +898,15 @@ function RelatorioGestor({ obras, manutencoes, userProfile }) {
                     </td>
                     <td className="col-hide-lg"><GeoLink geo={l.geoEntrada} /></td>
                     <td className="col-hide-lg"><GeoLink geo={l.geoSaida} /></td>
+                    {podeCorrigir && (
+                      <td>
+                        <button
+                          onClick={() => setPontoParaEditar(l)}
+                          title="Corrigir ponto"
+                          style={{ background: "none", border: "none", cursor: "pointer", fontSize: 15, padding: "2px 4px", color: "var(--afine-gray)", borderRadius: 4 }}
+                        >✏️</button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -784,7 +994,7 @@ export default function PontoEletronico() {
           />
         ) : ehPJNaoCampo ? (
           /* PJ não-campo: não bate ponto, acessa só relatório */
-          <RelatorioGestor obras={obras} manutencoes={manutencoes} userProfile={userProfile} />
+          <RelatorioGestor obras={obras} manutencoes={manutencoes} userProfile={userProfile} currentUser={currentUser} />
         ) : (
           /* Gestor/Encarregado CLT: abas Registrar + Relatório */
           <>
@@ -815,7 +1025,7 @@ export default function PontoEletronico() {
             )}
 
             {abaAtiva === "relatorio" && (
-              <RelatorioGestor obras={obras} manutencoes={manutencoes} userProfile={userProfile} />
+              <RelatorioGestor obras={obras} manutencoes={manutencoes} userProfile={userProfile} currentUser={currentUser} />
             )}
           </>
         )}
