@@ -428,9 +428,10 @@ function HistoricoProprioUsuario({ userId }) {
                   {ps.map(p => (
                     <tr key={p.id}>
                       <td>
-                        <span className={`badge ${p.tipo === "ENTRADA" ? (p.subTipo === "almoco" ? "" : "badge-green") : (p.subTipo === "almoco" ? "" : "badge-red")}`}
-                          style={p.subTipo === "almoco" ? { background: "#FFF8E1", color: "#B8860B", border: "1px solid #F5C800" } : {}}>
-                          {p.subTipo === "almoco" ? "🍽️ ALMOÇO" : p.tipo}
+                        <span
+                          className={`badge ${p.subTipo === "almoco" || p.subTipo === "retorno_almoco" ? "" : p.tipo === "ENTRADA" ? "badge-green" : "badge-red"}`}
+                          style={p.subTipo === "almoco" || p.subTipo === "retorno_almoco" ? { background: "#FFF8E1", color: "#B8860B", border: "1px solid #F5C800" } : {}}>
+                          {p.subTipo === "almoco" ? "🍽️ ALMOÇO" : p.subTipo === "retorno_almoco" ? "↗ RETORNO" : p.tipo}
                         </span>
                       </td>
                       <td style={{ fontWeight: 600 }}>{fmtHora(p.timestamp)}</td>
