@@ -119,6 +119,7 @@ function RegistroPonto({ userProfile, currentUser, obras, manutencoes, pontosHoj
   const pontosOrdenados = [...pontosHoje].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
   const ultimoPonto = pontosOrdenados[pontosOrdenados.length - 1];
   const proximoTipo = !ultimoPonto || ultimoPonto.tipo === "SAIDA" ? "ENTRADA" : "SAIDA";
+  const emAlmoco = ultimoPonto?.tipo === "SAIDA" && ultimoPonto?.subTipo === "almoco";
 
   // Verifica regra: só pode SAIDA se já bateu ENTRADA
   const podeRegistrar =
@@ -174,6 +175,32 @@ function RegistroPonto({ userProfile, currentUser, obras, manutencoes, pontosHoj
     setSalvando(false);
   }
 
+  async function handleAlmoco() {
+    if (!parAberto) { addToast("Bata a entrada antes de registrar almoço.", "error"); return; }
+    setSalvando(true);
+    try {
+      const geo = await obterGeo();
+      const payload = {
+        usuarioId: currentUser.uid,
+        usuarioNome: userProfile?.nome || currentUser.email,
+        tipo: "SAIDA",
+        subTipo: "almoco",
+        timestamp: new Date().toISOString(),
+        vinculoTipo: parAberto.entrada.vinculoTipo,
+        vinculoId: parAberto.entrada.vinculoId,
+        vinculoNome: parAberto.entrada.vinculoNome,
+        geo: geo || null,
+        obs: "Saída para almoço",
+      };
+      await addComAuditoria("pontos", payload, currentUser.uid, userProfile?.nome);
+      addToast("Saída para almoço registrada!");
+      setObs("");
+    } catch (err) {
+      addToast("Erro ao registrar almoço: " + err.message, "error");
+    }
+    setSalvando(false);
+  }
+
   const isEntrada = proximoTipo === "ENTRADA";
 
   return (
@@ -194,16 +221,18 @@ function RegistroPonto({ userProfile, currentUser, obras, manutencoes, pontosHoj
 
         {/* Status */}
         <div style={{
-          background: parAberto ? "var(--verde-lt)" : "var(--n-100)",
-          border: `1px solid ${parAberto ? "rgba(42,107,63,.22)" : "var(--border)"}`,
+          background: emAlmoco ? "#FFF8E1" : parAberto ? "var(--verde-lt)" : "var(--n-100)",
+          border: `1px solid ${emAlmoco ? "#F5C800" : parAberto ? "rgba(42,107,63,.22)" : "var(--border)"}`,
           borderRadius: "var(--r-lg)",
           padding: "12px 20px",
           marginBottom: 24,
-          color: parAberto ? "var(--verde)" : "var(--afine-gray)",
+          color: emAlmoco ? "#B8860B" : parAberto ? "var(--verde)" : "var(--afine-gray)",
           fontWeight: 600,
           fontSize: 13,
         }}>
-          {parAberto
+          {emAlmoco
+            ? `🍽️ Em almoço desde ${fmtHora(ultimoPonto.timestamp)}`
+            : parAberto
             ? `Entrada batida às ${fmtHora(parAberto.entrada.timestamp)} — ${parAberto.entrada.vinculoNome}`
             : "Aguardando entrada"}
         </div>
@@ -255,10 +284,29 @@ function RegistroPonto({ userProfile, currentUser, obras, manutencoes, pontosHoj
         >
           {salvando
             ? "Registrando..."
+            : isEntrada && emAlmoco
+            ? "🍽️ Retornar do Almoço"
             : isEntrada
             ? "🟢 Registrar Entrada"
             : "🔴 Registrar Saída"}
         </button>
+
+        {/* Botão almoço — aparece só quando há ENTRADA em aberto */}
+        {!isEntrada && (
+          <button
+            onClick={handleAlmoco}
+            disabled={salvando}
+            style={{
+              width: "100%", marginTop: 10, padding: "13px 20px",
+              fontSize: 14, fontWeight: 700, borderRadius: "var(--r-lg)",
+              background: "#FFF8E1", color: "#B8860B",
+              border: "1.5px solid #F5C800", cursor: salvando ? "not-allowed" : "pointer",
+              letterSpacing: "-.01em",
+            }}
+          >
+            🍽️ Saída para Almoço
+          </button>
+        )}
 
         {/* KPI horas hoje */}
         <div style={{
@@ -351,8 +399,9 @@ function HistoricoProprioUsuario({ userId }) {
                   {ps.map(p => (
                     <tr key={p.id}>
                       <td>
-                        <span className={`badge ${p.tipo === "ENTRADA" ? "badge-green" : "badge-red"}`}>
-                          {p.tipo}
+                        <span className={`badge ${p.tipo === "ENTRADA" ? (p.subTipo === "almoco" ? "" : "badge-green") : (p.subTipo === "almoco" ? "" : "badge-red")}`}
+                          style={p.subTipo === "almoco" ? { background: "#FFF8E1", color: "#B8860B", border: "1px solid #F5C800" } : {}}>
+                          {p.subTipo === "almoco" ? "🍽️ ALMOÇO" : p.tipo}
                         </span>
                       </td>
                       <td style={{ fontWeight: 600 }}>{fmtHora(p.timestamp)}</td>
