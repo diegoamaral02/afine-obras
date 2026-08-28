@@ -678,7 +678,7 @@ function RelatorioGestor({ obras, manutencoes, userProfile, currentUser }) {
       }
     }
     setFuncionarios(Object.entries(mapa).map(([id, nome]) => ({ id, nome })));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line
   }, [pontos, usuariosMap]);
 
   // Filtra por funcionário, obra e permissão de acesso
