@@ -470,6 +470,7 @@ function datetimeLocalParaIso(val) {
 function ModalCorrecaoPonto({ linha, obras, manutencoes, currentUser, userProfile, onFechar }) {
   const ent = linha.entradaDoc;
   const sai = linha.saidaDoc;
+  const ehAlmoco = sai?.subTipo === "almoco";
 
   const [entHorario, setEntHorario]   = useState(isoParaDatetimeLocal(ent?.timestamp));
   const [entObs,     setEntObs]       = useState(ent?.obs || "");
@@ -478,6 +479,14 @@ function ModalCorrecaoPonto({ linha, obras, manutencoes, currentUser, userProfil
 
   const [saiHorario, setSaiHorario]   = useState(isoParaDatetimeLocal(sai?.timestamp));
   const [saiObs,     setSaiObs]       = useState(sai?.obs || "");
+
+  // Seção "adicionar registro" — para retorno de almoço ou qualquer ponto faltante
+  const [novoTipo,     setNovoTipo]     = useState(ehAlmoco ? "ENTRADA" : "SAIDA");
+  const [novoHorario,  setNovoHorario]  = useState("");
+  const [novoObs,      setNovoObs]      = useState(ehAlmoco ? "Retorno do almoço" : "");
+  const [novoVincTipo, setNovoVincTipo] = useState(ent?.vinculoTipo || "escritorio");
+  const [novoVincId,   setNovoVincId]   = useState(ent?.vinculoId   || "escritorio");
+  const [adicionando,  setAdicionando]  = useState(false);
 
   const [salvando, setSalvando] = useState(false);
   const [erro,     setErro]     = useState("");
@@ -523,6 +532,35 @@ function ModalCorrecaoPonto({ linha, obras, manutencoes, currentUser, userProfil
       setErro("Erro ao salvar: " + err.message);
     }
     setSalvando(false);
+  }
+
+  async function adicionarPonto() {
+    if (!novoHorario) { setErro("Informe o horário do novo registro."); return; }
+    setAdicionando(true); setErro("");
+    try {
+      const nome = userProfile?.nome || currentUser.email;
+      const novoVincNome = nomeVinculo(novoVincTipo, novoVincId);
+      const payload = {
+        usuarioId: ent.usuarioId,
+        usuarioNome: ent.usuarioNome,
+        tipo: novoTipo,
+        subTipo: ehAlmoco && novoTipo === "ENTRADA" ? "retorno_almoco" : "normal",
+        timestamp: datetimeLocalParaIso(novoHorario),
+        vinculoTipo: novoVincTipo,
+        vinculoId: novoVincTipo === "escritorio" ? "escritorio" : novoVincId,
+        vinculoNome: novoVincNome,
+        geo: null,
+        obs: novoObs.trim(),
+        corrigidoPor: nome,
+        corrigidoEm: new Date().toISOString(),
+      };
+      await addComAuditoria("pontos", payload, currentUser.uid, nome);
+      setNovoHorario(""); setNovoObs(""); setErro("");
+      onFechar();
+    } catch (err) {
+      setErro("Erro ao adicionar: " + err.message);
+    }
+    setAdicionando(false);
   }
 
   async function excluirDoc(id, snapshot) {
@@ -618,6 +656,63 @@ function ModalCorrecaoPonto({ linha, obras, manutencoes, currentUser, userProfil
               🗑️ Excluir saída
             </button>
           )}
+        </div>
+
+        {/* Adicionar registro faltante */}
+        <div style={{
+          background: ehAlmoco ? "#FFF8E1" : "var(--n-100)",
+          border: `1.5px dashed ${ehAlmoco ? "#F5C800" : "var(--border)"}`,
+          borderRadius: 8, padding: 14, marginBottom: 20,
+        }}>
+          <div style={{ fontWeight: 700, fontSize: 12, textTransform: "uppercase", color: ehAlmoco ? "#B8860B" : "var(--afine-gray)", marginBottom: 10 }}>
+            {ehAlmoco ? "🍽️ Adicionar Retorno do Almoço" : "➕ Adicionar Registro Faltante"}
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            {[{v:"ENTRADA",l:"↗ Entrada"},{v:"SAIDA",l:"↙ Saída"}].map(({v,l}) => (
+              <button key={v} className={`chip${novoTipo===v?" active":""}`}
+                onClick={() => setNovoTipo(v)} style={{ fontSize: 11 }}>{l}</button>
+            ))}
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 10 }}>
+            <label>Horário</label>
+            <input type="datetime-local" value={novoHorario} onChange={e => setNovoHorario(e.target.value)} />
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            {[{v:"escritorio",l:"🏢"},{v:"obra",l:"🏗️ Obra"},{v:"manutencao",l:"🔧 Manutenção"}].map(({v,l}) => (
+              <button key={v} className={`chip${novoVincTipo===v?" active":""}`}
+                onClick={() => { setNovoVincTipo(v); setNovoVincId("escritorio"); }} style={{ fontSize: 11 }}>{l}</button>
+            ))}
+          </div>
+
+          {novoVincTipo !== "escritorio" && (
+            <div className="form-group" style={{ marginBottom: 10 }}>
+              <select value={novoVincId} onChange={e => setNovoVincId(e.target.value)}>
+                <option value="">Selecione...</option>
+                {(novoVincTipo === "obra" ? obras : manutencoes).map(o => (
+                  <option key={o.id} value={o.id}>{o.nome || o.titulo}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="form-group" style={{ marginBottom: 10 }}>
+            <label>Observação</label>
+            <input value={novoObs} onChange={e => setNovoObs(e.target.value)} placeholder="Opcional" />
+          </div>
+
+          <button onClick={adicionarPonto} disabled={adicionando || !novoHorario}
+            style={{
+              background: ehAlmoco ? "#F5C800" : "var(--afine-black)",
+              color: ehAlmoco ? "#1A1A1A" : "#fff",
+              border: "none", borderRadius: 6, padding: "8px 16px",
+              fontSize: 13, fontWeight: 700, cursor: !novoHorario ? "not-allowed" : "pointer",
+              opacity: !novoHorario ? 0.5 : 1,
+            }}>
+            {adicionando ? "Adicionando..." : ehAlmoco ? "🍽️ Adicionar Retorno" : "➕ Adicionar Registro"}
+          </button>
         </div>
 
         <div style={{ display: "flex", gap: 10 }}>
