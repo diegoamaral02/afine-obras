@@ -78,10 +78,38 @@ function msToHorasStr(ms) {
 async function obterGeo() {
   return new Promise((resolve) => {
     if (!navigator.geolocation) { resolve(null); return; }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, precisao: Math.round(pos.coords.accuracy) }),
-      () => resolve(null),
-      { timeout: 10000, enableHighAccuracy: true }
+
+    const PRECISAO_ALVO = 50;  // metros — aceita imediatamente se atingir
+    const TIMEOUT_MS    = 20000; // aguarda até 20s por uma leitura boa
+    let melhor = null;
+    let watchId = null;
+
+    const concluir = () => {
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      resolve(melhor);
+    };
+
+    const timer = setTimeout(concluir, TIMEOUT_MS);
+
+    watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const candidato = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          precisao: Math.round(pos.coords.accuracy),
+        };
+        // Guarda sempre a melhor leitura obtida até agora
+        if (!melhor || candidato.precisao < melhor.precisao) {
+          melhor = candidato;
+        }
+        // Se atingiu a precisão alvo, encerra imediatamente
+        if (melhor.precisao <= PRECISAO_ALVO) {
+          clearTimeout(timer);
+          concluir();
+        }
+      },
+      () => { clearTimeout(timer); resolve(melhor); },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: TIMEOUT_MS }
     );
   });
 }
@@ -283,7 +311,7 @@ function RegistroPonto({ userProfile, currentUser, obras, manutencoes, pontosHoj
           disabled={salvando || !podeRegistrar}
         >
           {salvando
-            ? "Registrando..."
+            ? "📡 Obtendo localização..."
             : isEntrada && emAlmoco
             ? "🍽️ Retornar do Almoço"
             : isEntrada
