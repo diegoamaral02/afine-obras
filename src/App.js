@@ -29,7 +29,6 @@ import Comercial       from "./pages/Comercial";
 import MateriaisGlobal from "./pages/Materiais";
 import Gerenciamento   from "./pages/Gerenciamento";
 import SeedPage        from "./pages/SeedPage";
-import Contratos       from "./pages/Contratos";
 import SLADashboard    from "./pages/SLADashboard";
 import SLAConfig       from "./pages/SLAConfig";
 import ChecklistTemplates from "./pages/ChecklistTemplates";
@@ -64,7 +63,6 @@ const MENU = [
   { id:"comercial", label:"Comercial", roles:["gestor","encarregado"], items:[
     { to:"/comercial/clientes", icon:"🏢", label:"Clientes",     roles:["gestor","encarregado"] },
     { to:"/fornecedores",       icon:"🤝", label:"Fornecedores", roles:["gestor","encarregado"] },
-    { to:"/contratos",          icon:"📄", label:"Contratos",    roles:["gestor","encarregado"] },
   ]},
   { id:"pessoas", label:"Pessoas", roles:["gestor","encarregado","campo"], items:[
     { to:"/equipe",       icon:"👷", label:"Equipe",            roles:["gestor","encarregado"] },
@@ -363,7 +361,6 @@ function AppShell() {
             <Route path="/despesas"           element={<Despesas/>}/>
             <Route path="/dre"                element={<DRE/>}/>
             <Route path="/materiais"          element={<MateriaisGlobal/>}/>
-            <Route path="/contratos"          element={<Contratos/>}/>
             <Route path="/sla"               element={<SLADashboard/>}/>
             <Route path="/sla/config"             element={<SLAConfig/>}/>
             <Route path="/checklist-templates"    element={<ChecklistTemplates/>}/>
