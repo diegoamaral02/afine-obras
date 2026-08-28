@@ -187,6 +187,7 @@ function RegistroPonto({ userProfile, currentUser, obras, manutencoes, pontosHoj
         usuarioId: currentUser.uid,
         usuarioNome: userProfile?.nome || currentUser.email,
         tipo: proximoTipo,
+        subTipo: proximoTipo === "ENTRADA" && emAlmoco ? "retorno_almoco" : "normal",
         timestamp: new Date().toISOString(),
         vinculoTipo,
         vinculoId: vinculoTipo === "escritorio" ? "escritorio" : vinculoId,
@@ -498,11 +499,14 @@ function ModalCorrecaoPonto({ linha, obras, manutencoes, currentUser, userProfil
   function labelTipo(p) {
     if (p.tipo === "ENTRADA" && p.subTipo === "retorno_almoco") return "↗ Retorno Almoço";
     if (p.tipo === "SAIDA"   && p.subTipo === "almoco")         return "🍽️ Saída Almoço";
+    // fallback: ENTRADA que vem depois de uma SAIDA almoco = retorno (registros antigos sem subTipo)
+    if (p.tipo === "ENTRADA" && linha.retornoDoc?.id === p.id)  return "↗ Retorno Almoço";
     if (p.tipo === "ENTRADA") return "↗ Entrada";
     return "↙ Saída";
   }
   function corTipo(p) {
     if (p.subTipo === "almoco" || p.subTipo === "retorno_almoco") return "#B8860B";
+    if (p.tipo === "ENTRADA" && linha.retornoDoc?.id === p.id)    return "#B8860B";
     return p.tipo === "ENTRADA" ? "var(--verde)" : "#C62828";
   }
 
