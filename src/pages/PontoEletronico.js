@@ -468,33 +468,26 @@ function datetimeLocalParaIso(val) {
 }
 
 function ModalCorrecaoPonto({ linha, obras, manutencoes, currentUser, userProfile, onFechar }) {
-  const ent = linha.entradaDoc;
-  const sai = linha.saidaDoc;
-  const ehAlmoco = sai?.subTipo === "almoco";
+  const todosOsPontos = linha.todosOsPontos || [];
+  const primeiroDoc   = todosOsPontos[0];
 
-  const [entHorario, setEntHorario]   = useState(isoParaDatetimeLocal(ent?.timestamp));
-  const [entObs,     setEntObs]       = useState(ent?.obs || "");
-  const [entVincTipo, setEntVincTipo] = useState(ent?.vinculoTipo || "escritorio");
-  const [entVincId,  setEntVincId]    = useState(ent?.vinculoId   || "escritorio");
+  // Estado editável para cada ponto existente: { id → horario }
+  const [horarios, setHorarios] = useState(() => {
+    const m = {};
+    todosOsPontos.forEach(p => { m[p.id] = isoParaDatetimeLocal(p.timestamp); });
+    return m;
+  });
 
-  const [saiHorario, setSaiHorario]   = useState(isoParaDatetimeLocal(sai?.timestamp));
-  const [saiObs,     setSaiObs]       = useState(sai?.obs || "");
-
-  // Seção "adicionar registro" — para retorno de almoço ou qualquer ponto faltante
-  const [novoTipo,     setNovoTipo]     = useState(ehAlmoco ? "ENTRADA" : "SAIDA");
+  // Novo registro
+  const [novoTipo,     setNovoTipo]     = useState("ENTRADA");
   const [novoHorario,  setNovoHorario]  = useState("");
-  const [novoObs,      setNovoObs]      = useState(ehAlmoco ? "Retorno do almoço" : "");
-  const [novoVincTipo, setNovoVincTipo] = useState(ent?.vinculoTipo || "escritorio");
-  const [novoVincId,   setNovoVincId]   = useState(ent?.vinculoId   || "escritorio");
-  const [adicionando,  setAdicionando]  = useState(false);
+  const [novoObs,      setNovoObs]      = useState("");
+  const [novoVincTipo, setNovoVincTipo] = useState(primeiroDoc?.vinculoTipo || "escritorio");
+  const [novoVincId,   setNovoVincId]   = useState(primeiroDoc?.vinculoId   || "escritorio");
 
-  const [salvando, setSalvando] = useState(false);
-  const [erro,     setErro]     = useState("");
-
-  const opcoesVinculo =
-    entVincTipo === "obra"       ? obras.map(o => ({ id: o.id, nome: o.nome }))
-    : entVincTipo === "manutencao" ? manutencoes.map(m => ({ id: m.id, nome: m.titulo }))
-    : [];
+  const [salvando,    setSalvando]    = useState(false);
+  const [adicionando, setAdicionando] = useState(false);
+  const [erro,        setErro]        = useState("");
 
   function nomeVinculo(tipo, id) {
     if (tipo === "escritorio") return "Escritório";
@@ -502,31 +495,28 @@ function ModalCorrecaoPonto({ linha, obras, manutencoes, currentUser, userProfil
     return all.find(x => x.id === id)?.nome || id;
   }
 
-  async function salvar() {
-    if (!entHorario) { setErro("Horário de entrada é obrigatório."); return; }
-    if (saiHorario && saiHorario < entHorario) { setErro("Saída não pode ser anterior à entrada."); return; }
+  function labelTipo(p) {
+    if (p.tipo === "ENTRADA" && p.subTipo === "retorno_almoco") return "↗ Retorno Almoço";
+    if (p.tipo === "SAIDA"   && p.subTipo === "almoco")         return "🍽️ Saída Almoço";
+    if (p.tipo === "ENTRADA") return "↗ Entrada";
+    return "↙ Saída";
+  }
+  function corTipo(p) {
+    if (p.subTipo === "almoco" || p.subTipo === "retorno_almoco") return "#B8860B";
+    return p.tipo === "ENTRADA" ? "var(--verde)" : "#C62828";
+  }
+
+  async function salvarTodos() {
     setSalvando(true); setErro("");
     try {
       const nome = userProfile?.nome || currentUser.email;
-      const vinculoNome = nomeVinculo(entVincTipo, entVincId);
-      // Atualiza entrada
-      if (ent?.id) {
-        await updateComAuditoria("pontos", ent.id, {
-          timestamp: datetimeLocalParaIso(entHorario),
-          vinculoTipo: entVincTipo,
-          vinculoId: entVincTipo === "escritorio" ? "escritorio" : entVincId,
-          vinculoNome,
-          obs: entObs.trim(),
+      await Promise.all(todosOsPontos.map(p => {
+        const h = horarios[p.id];
+        if (!h) return null;
+        return updateComAuditoria("pontos", p.id, {
+          timestamp: datetimeLocalParaIso(h),
         }, currentUser.uid, nome);
-      }
-      // Atualiza saída (se existir)
-      if (sai?.id && saiHorario) {
-        await updateComAuditoria("pontos", sai.id, {
-          timestamp: datetimeLocalParaIso(saiHorario),
-          vinculoNome,
-          obs: saiObs.trim(),
-        }, currentUser.uid, nome);
-      }
+      }));
       onFechar();
     } catch (err) {
       setErro("Erro ao salvar: " + err.message);
@@ -534,28 +524,38 @@ function ModalCorrecaoPonto({ linha, obras, manutencoes, currentUser, userProfil
     setSalvando(false);
   }
 
+  async function excluirDoc(p) {
+    if (!window.confirm("Excluir este registro de ponto?")) return;
+    setSalvando(true);
+    try {
+      await deleteComAuditoria("pontos", p.id, currentUser.uid, userProfile?.nome || currentUser.email, p);
+      onFechar();
+    } catch (err) {
+      setErro("Erro ao excluir: " + err.message);
+      setSalvando(false);
+    }
+  }
+
   async function adicionarPonto() {
     if (!novoHorario) { setErro("Informe o horário do novo registro."); return; }
     setAdicionando(true); setErro("");
     try {
       const nome = userProfile?.nome || currentUser.email;
-      const novoVincNome = nomeVinculo(novoVincTipo, novoVincId);
       const payload = {
-        usuarioId: ent.usuarioId,
-        usuarioNome: ent.usuarioNome,
-        tipo: novoTipo,
-        subTipo: ehAlmoco && novoTipo === "ENTRADA" ? "retorno_almoco" : "normal",
-        timestamp: datetimeLocalParaIso(novoHorario),
+        usuarioId:   primeiroDoc.usuarioId,
+        usuarioNome: primeiroDoc.usuarioNome,
+        tipo:        novoTipo,
+        subTipo:     "normal",
+        timestamp:   datetimeLocalParaIso(novoHorario),
         vinculoTipo: novoVincTipo,
-        vinculoId: novoVincTipo === "escritorio" ? "escritorio" : novoVincId,
-        vinculoNome: novoVincNome,
-        geo: null,
-        obs: novoObs.trim(),
+        vinculoId:   novoVincTipo === "escritorio" ? "escritorio" : novoVincId,
+        vinculoNome: nomeVinculo(novoVincTipo, novoVincId),
+        geo:         null,
+        obs:         novoObs.trim(),
         corrigidoPor: nome,
-        corrigidoEm: new Date().toISOString(),
+        corrigidoEm:  new Date().toISOString(),
       };
       await addComAuditoria("pontos", payload, currentUser.uid, nome);
-      setNovoHorario(""); setNovoObs(""); setErro("");
       onFechar();
     } catch (err) {
       setErro("Erro ao adicionar: " + err.message);
@@ -563,17 +563,11 @@ function ModalCorrecaoPonto({ linha, obras, manutencoes, currentUser, userProfil
     setAdicionando(false);
   }
 
-  async function excluirDoc(id, snapshot) {
-    if (!window.confirm("Excluir este registro de ponto? Esta ação não pode ser desfeita.")) return;
-    setSalvando(true);
-    try {
-      await deleteComAuditoria("pontos", id, currentUser.uid, userProfile?.nome || currentUser.email, snapshot);
-      onFechar();
-    } catch (err) {
-      setErro("Erro ao excluir: " + err.message);
-      setSalvando(false);
-    }
-  }
+  const opcoesNovoVinc = novoVincTipo === "obra"
+    ? obras.map(o => ({ id: o.id, nome: o.nome }))
+    : novoVincTipo === "manutencao"
+    ? manutencoes.map(m => ({ id: m.id, nome: m.titulo }))
+    : [];
 
   return (
     <div style={{
@@ -582,10 +576,10 @@ function ModalCorrecaoPonto({ linha, obras, manutencoes, currentUser, userProfil
     }} onClick={e => { if (e.target === e.currentTarget) onFechar(); }}>
       <div style={{
         background: "var(--surface)", borderRadius: 12, padding: 28,
-        width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto",
+        width: "100%", maxWidth: 480, maxHeight: "92vh", overflowY: "auto",
         boxShadow: "0 8px 40px rgba(0,0,0,.28)",
       }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
           <div>
             <div style={{ fontWeight: 800, fontSize: 16 }}>✏️ Corrigir Ponto</div>
             <div style={{ fontSize: 12, color: "var(--afine-gray)", marginTop: 2 }}>
@@ -597,76 +591,34 @@ function ModalCorrecaoPonto({ linha, obras, manutencoes, currentUser, userProfil
 
         {erro && <div style={{ background: "#FFEBEE", color: "#C62828", borderRadius: 6, padding: "8px 12px", marginBottom: 14, fontSize: 13 }}>{erro}</div>}
 
-        {/* ENTRADA */}
-        <div style={{ background: "var(--n-100)", borderRadius: 8, padding: 14, marginBottom: 14 }}>
-          <div style={{ fontWeight: 700, fontSize: 12, textTransform: "uppercase", color: "var(--verde)", marginBottom: 10 }}>↗ Entrada</div>
-
-          <div className="form-group" style={{ marginBottom: 10 }}>
-            <label>Horário</label>
-            <input type="datetime-local" value={entHorario} onChange={e => setEntHorario(e.target.value)} />
-          </div>
-
-          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-            {[{v:"escritorio",l:"🏢 Escritório"},{v:"obra",l:"🏗️ Obra"},{v:"manutencao",l:"🔧 Manutenção"}].map(({v,l}) => (
-              <button key={v} className={`chip${entVincTipo===v?" active":""}`}
-                onClick={() => { setEntVincTipo(v); setEntVincId("escritorio"); }} style={{ fontSize: 11 }}>{l}</button>
-            ))}
-          </div>
-
-          {entVincTipo !== "escritorio" && (
-            <div className="form-group" style={{ marginBottom: 10 }}>
-              <label>{entVincTipo === "obra" ? "Obra" : "Manutenção"}</label>
-              <select value={entVincId} onChange={e => setEntVincId(e.target.value)}>
-                <option value="">Selecione...</option>
-                {opcoesVinculo.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
-              </select>
+        {/* Lista de todos os registros do dia */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
+          {todosOsPontos.map(p => (
+            <div key={p.id} style={{ background: "var(--n-100)", borderRadius: 8, padding: 12, borderLeft: `3px solid ${corTipo(p)}` }}>
+              <div style={{ fontWeight: 700, fontSize: 11, textTransform: "uppercase", color: corTipo(p), marginBottom: 8 }}>
+                {labelTipo(p)}
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  type="datetime-local"
+                  value={horarios[p.id] || ""}
+                  onChange={e => setHorarios(h => ({ ...h, [p.id]: e.target.value }))}
+                  style={{ flex: 1, fontSize: 13 }}
+                />
+                <button onClick={() => excluirDoc(p)} disabled={salvando}
+                  title="Excluir registro"
+                  style={{ background: "none", border: "1px solid #C62828", color: "#C62828", borderRadius: 6, padding: "5px 10px", fontSize: 12, cursor: "pointer" }}>
+                  🗑️
+                </button>
+              </div>
+              {p.obs ? <div style={{ fontSize: 11, color: "var(--afine-gray)", marginTop: 4 }}>Obs: {p.obs}</div> : null}
             </div>
-          )}
-
-          <div className="form-group" style={{ marginBottom: ent?.id ? 10 : 0 }}>
-            <label>Observação</label>
-            <input value={entObs} onChange={e => setEntObs(e.target.value)} placeholder="Opcional" />
-          </div>
-
-          {ent?.id && (
-            <button onClick={() => excluirDoc(ent.id, ent)} disabled={salvando}
-              style={{ background: "none", border: "1px solid #C62828", color: "#C62828", borderRadius: 6, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
-              🗑️ Excluir entrada
-            </button>
-          )}
+          ))}
         </div>
 
-        {/* SAÍDA */}
-        <div style={{ background: "var(--n-100)", borderRadius: 8, padding: 14, marginBottom: 20 }}>
-          <div style={{ fontWeight: 700, fontSize: 12, textTransform: "uppercase", color: "#C62828", marginBottom: 10 }}>↙ Saída</div>
-
-          <div className="form-group" style={{ marginBottom: 10 }}>
-            <label>Horário {!sai && <span style={{ fontWeight: 400, color: "var(--afine-gray)" }}>(em aberto)</span>}</label>
-            <input type="datetime-local" value={saiHorario} onChange={e => setSaiHorario(e.target.value)} />
-          </div>
-
-          <div className="form-group" style={{ marginBottom: sai?.id ? 10 : 0 }}>
-            <label>Observação</label>
-            <input value={saiObs} onChange={e => setSaiObs(e.target.value)} placeholder="Opcional" />
-          </div>
-
-          {sai?.id && (
-            <button onClick={() => excluirDoc(sai.id, sai)} disabled={salvando}
-              style={{ background: "none", border: "1px solid #C62828", color: "#C62828", borderRadius: 6, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
-              🗑️ Excluir saída
-            </button>
-          )}
-        </div>
-
-        {/* Adicionar registro faltante */}
-        <div style={{
-          background: ehAlmoco ? "#FFF8E1" : "var(--n-100)",
-          border: `1.5px dashed ${ehAlmoco ? "#F5C800" : "var(--border)"}`,
-          borderRadius: 8, padding: 14, marginBottom: 20,
-        }}>
-          <div style={{ fontWeight: 700, fontSize: 12, textTransform: "uppercase", color: ehAlmoco ? "#B8860B" : "var(--afine-gray)", marginBottom: 10 }}>
-            {ehAlmoco ? "🍽️ Adicionar Retorno do Almoço" : "➕ Adicionar Registro Faltante"}
-          </div>
+        {/* Adicionar registro */}
+        <div style={{ background: "var(--n-100)", border: "1.5px dashed var(--border)", borderRadius: 8, padding: 14, marginBottom: 20 }}>
+          <div style={{ fontWeight: 700, fontSize: 11, textTransform: "uppercase", color: "var(--afine-gray)", marginBottom: 10 }}>➕ Adicionar Registro</div>
 
           <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
             {[{v:"ENTRADA",l:"↗ Entrada"},{v:"SAIDA",l:"↙ Saída"}].map(({v,l}) => (
@@ -676,7 +628,6 @@ function ModalCorrecaoPonto({ linha, obras, manutencoes, currentUser, userProfil
           </div>
 
           <div className="form-group" style={{ marginBottom: 10 }}>
-            <label>Horário</label>
             <input type="datetime-local" value={novoHorario} onChange={e => setNovoHorario(e.target.value)} />
           </div>
 
@@ -691,34 +642,25 @@ function ModalCorrecaoPonto({ linha, obras, manutencoes, currentUser, userProfil
             <div className="form-group" style={{ marginBottom: 10 }}>
               <select value={novoVincId} onChange={e => setNovoVincId(e.target.value)}>
                 <option value="">Selecione...</option>
-                {(novoVincTipo === "obra" ? obras : manutencoes).map(o => (
-                  <option key={o.id} value={o.id}>{o.nome || o.titulo}</option>
-                ))}
+                {opcoesNovoVinc.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
               </select>
             </div>
           )}
 
           <div className="form-group" style={{ marginBottom: 10 }}>
-            <label>Observação</label>
-            <input value={novoObs} onChange={e => setNovoObs(e.target.value)} placeholder="Opcional" />
+            <input value={novoObs} onChange={e => setNovoObs(e.target.value)} placeholder="Observação (opcional)" />
           </div>
 
           <button onClick={adicionarPonto} disabled={adicionando || !novoHorario}
-            style={{
-              background: ehAlmoco ? "#F5C800" : "var(--afine-black)",
-              color: ehAlmoco ? "#1A1A1A" : "#fff",
-              border: "none", borderRadius: 6, padding: "8px 16px",
-              fontSize: 13, fontWeight: 700, cursor: !novoHorario ? "not-allowed" : "pointer",
-              opacity: !novoHorario ? 0.5 : 1,
-            }}>
-            {adicionando ? "Adicionando..." : ehAlmoco ? "🍽️ Adicionar Retorno" : "➕ Adicionar Registro"}
+            style={{ background: "var(--afine-black)", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: !novoHorario ? "not-allowed" : "pointer", opacity: !novoHorario ? 0.5 : 1 }}>
+            {adicionando ? "Adicionando..." : "➕ Adicionar"}
           </button>
         </div>
 
         <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={salvar} disabled={salvando}
+          <button onClick={salvarTodos} disabled={salvando}
             className="btn btn-primary" style={{ flex: 1 }}>
-            {salvando ? "Salvando..." : "✅ Salvar Correção"}
+            {salvando ? "Salvando..." : "✅ Salvar Correções"}
           </button>
           <button onClick={onFechar} disabled={salvando}
             className="btn" style={{ padding: "10px 20px" }}>
@@ -814,7 +756,7 @@ function RelatorioGestor({ obras, manutencoes, userProfile, currentUser }) {
     return true;
   });
 
-  // Agrupa por (usuário + dia) → pares entrada/saída
+  // Agrupa por (usuário + dia) → UMA linha por dia com todas as marcações
   const linhas = [];
   const grupoChave = {};
   for (const p of pontosFiltrados) {
@@ -824,32 +766,38 @@ function RelatorioGestor({ obras, manutencoes, userProfile, currentUser }) {
     grupoChave[chave].pontos.push(p);
   }
   for (const g of Object.values(grupoChave)) {
-    const pares = pararPontos(g.pontos);
-    for (const par of pares) {
-      linhas.push({
-        usuarioId: g.usuarioId,
-        usuarioNome: g.usuarioNome,
-        dia: g.dia,
-        vinculoNome: par.entrada.vinculoNome,
-        entrada: par.entrada.timestamp,
-        saida: par.saida?.timestamp || null,
-        geoEntrada: par.entrada.geo,
-        geoSaida: par.saida?.geo || null,
-        horas: par.saida ? calcHoras(par.entrada.timestamp, par.saida.timestamp) : null,
-        entradaDoc: par.entrada,
-        saidaDoc: par.saida || null,
-      });
-    }
+    const pts = [...g.pontos].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    const entradaDoc    = pts.find(p => p.tipo === "ENTRADA");
+    const saidaAlmDoc   = pts.find(p => p.tipo === "SAIDA" && p.subTipo === "almoco");
+    const retornoDoc    = saidaAlmDoc
+      ? pts.find(p => p.tipo === "ENTRADA" && p.timestamp > saidaAlmDoc.timestamp)
+      : null;
+    const saidaFinalDoc = [...pts].reverse().find(p => p.tipo === "SAIDA" && p.subTipo !== "almoco");
+    const totalMs       = totalMsFromPares(pararPontos(pts));
+    linhas.push({
+      usuarioId:   g.usuarioId,
+      usuarioNome: g.usuarioNome,
+      dia:         g.dia,
+      vinculoNome: entradaDoc?.vinculoNome || "",
+      entradaDoc,
+      saidaAlmDoc,
+      retornoDoc,
+      saidaFinalDoc,
+      totalMs,
+      horas: totalMs > 0 ? msToHorasStr(totalMs) : null,
+      geoEntrada: entradaDoc?.geo,
+      geoSaida:   saidaFinalDoc?.geo,
+      todosOsPontos: pts,
+    });
   }
   linhas.sort((a, b) => b.dia.localeCompare(a.dia) || a.usuarioNome.localeCompare(b.usuarioNome));
 
   // KPI: total de horas por obra
   const kpiObra = {};
   for (const l of linhas) {
-    if (!l.saida) continue;
-    const ms = new Date(l.saida) - new Date(l.entrada);
+    if (!l.totalMs) continue;
     if (!kpiObra[l.vinculoNome]) kpiObra[l.vinculoNome] = 0;
-    kpiObra[l.vinculoNome] += ms;
+    kpiObra[l.vinculoNome] += l.totalMs;
   }
   const kpiEntradas = Object.entries(kpiObra).sort((a, b) => b[1] - a[1]);
 
@@ -864,12 +812,14 @@ function RelatorioGestor({ obras, manutencoes, userProfile, currentUser }) {
       linhas,
       `ponto_eletronico_${filtroDe}_${filtroAte}`,
       [
-        { key: "usuarioNome", header: "Funcionário" },
-        { key: "vinculoNome", header: "Obra/Vínculo" },
-        { key: "dia", header: "Data", format: v => fmtData(v + "T12:00:00") },
-        { key: "entrada", header: "Entrada", format: v => fmtHora(v) },
-        { key: "saida", header: "Saída", format: v => fmtHora(v) },
-        { key: "horas", header: "Horas", format: v => v || "Em aberto" },
+        { key: "usuarioNome",   header: "Funcionário" },
+        { key: "vinculoNome",   header: "Obra/Vínculo" },
+        { key: "dia",           header: "Data",          format: v => fmtData(v + "T12:00:00") },
+        { key: "entradaDoc",    header: "Entrada",       format: v => fmtHora(v?.timestamp) },
+        { key: "saidaAlmDoc",   header: "Saída Almoço",  format: v => fmtHora(v?.timestamp) },
+        { key: "retornoDoc",    header: "Retorno Almoço",format: v => fmtHora(v?.timestamp) },
+        { key: "saidaFinalDoc", header: "Saída",         format: v => fmtHora(v?.timestamp) },
+        { key: "horas",         header: "Total Horas",   format: v => v || "Em aberto" },
       ]
     );
   }
@@ -996,42 +946,49 @@ function RelatorioGestor({ obras, manutencoes, userProfile, currentUser }) {
                   <th>Funcionário</th>
                   <th>Vínculo</th>
                   <th>Data</th>
-                  <th>Entrada</th>
-                  <th>Saída</th>
-                  <th>Horas</th>
-                  <th className="col-hide-lg">Geo Entrada</th>
-                  <th className="col-hide-lg">Geo Saída</th>
+                  <th>↗ Entrada</th>
+                  <th>🍽️ Almoço</th>
+                  <th>↗ Retorno</th>
+                  <th>↙ Saída</th>
+                  <th>Total</th>
+                  <th className="col-hide-lg">Geo E</th>
+                  <th className="col-hide-lg">Geo S</th>
                   {podeCorrigir && <th style={{ width: 40 }}></th>}
                 </tr>
               </thead>
               <tbody>
-                {linhas.map((l, i) => (
-                  <tr key={i}>
-                    <td style={{ fontWeight: 600 }}>{l.usuarioNome}</td>
-                    <td>{l.vinculoNome}</td>
-                    <td>{fmtData(l.dia + "T12:00:00")}</td>
-                    <td>{fmtHora(l.entrada)}</td>
-                    <td>
-                      {l.saida
-                        ? fmtHora(l.saida)
-                        : <span className="badge badge-amber">Em aberto</span>}
-                    </td>
-                    <td style={{ fontWeight: 700, color: l.horas ? "var(--verde)" : "var(--afine-gray)" }}>
-                      {l.horas || "—"}
-                    </td>
-                    <td className="col-hide-lg"><GeoLink geo={l.geoEntrada} /></td>
-                    <td className="col-hide-lg"><GeoLink geo={l.geoSaida} /></td>
-                    {podeCorrigir && (
+                {linhas.map((l, i) => {
+                  const semSaida = !l.saidaFinalDoc;
+                  return (
+                    <tr key={i}>
+                      <td style={{ fontWeight: 600 }}>{l.usuarioNome}</td>
+                      <td>{l.vinculoNome}</td>
+                      <td>{fmtData(l.dia + "T12:00:00")}</td>
+                      <td>{l.entradaDoc ? fmtHora(l.entradaDoc.timestamp) : "—"}</td>
+                      <td style={{ color: "#B8860B" }}>{l.saidaAlmDoc ? fmtHora(l.saidaAlmDoc.timestamp) : <span style={{ color: "var(--afine-gray)" }}>—</span>}</td>
+                      <td>{l.retornoDoc ? fmtHora(l.retornoDoc.timestamp) : <span style={{ color: "var(--afine-gray)" }}>—</span>}</td>
                       <td>
-                        <button
-                          onClick={() => setPontoParaEditar(l)}
-                          title="Corrigir ponto"
-                          style={{ background: "none", border: "none", cursor: "pointer", fontSize: 15, padding: "2px 4px", color: "var(--afine-gray)", borderRadius: 4 }}
-                        >✏️</button>
+                        {l.saidaFinalDoc
+                          ? fmtHora(l.saidaFinalDoc.timestamp)
+                          : <span className="badge badge-amber">Em aberto</span>}
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td style={{ fontWeight: 700, color: semSaida ? "var(--afine-gray)" : "var(--verde)" }}>
+                        {l.horas ? `${l.horas}h` : "—"}
+                      </td>
+                      <td className="col-hide-lg"><GeoLink geo={l.geoEntrada} /></td>
+                      <td className="col-hide-lg"><GeoLink geo={l.geoSaida} /></td>
+                      {podeCorrigir && (
+                        <td>
+                          <button
+                            onClick={() => setPontoParaEditar(l)}
+                            title="Corrigir ponto"
+                            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 15, padding: "2px 4px", color: "var(--afine-gray)", borderRadius: 4 }}
+                          >✏️</button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
