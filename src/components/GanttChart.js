@@ -1,8 +1,8 @@
 // src/components/GanttChart.js — Gantt em SVG puro, sem bibliotecas externas
 import React, { useState, useRef, useCallback } from "react";
 
-const LABEL_COL  = 200;   // largura da coluna de rótulos (px no viewBox)
-const ROW_H      = 40;    // altura de cada linha de etapa
+const LABEL_COL  = 340;   // largura da coluna de rótulos (px no viewBox)
+const ROW_H      = 52;    // altura de cada linha de etapa (maior para 2 linhas de texto)
 const HEADER_H   = 48;    // altura do cabeçalho de datas
 const BAR_H      = 22;    // altura da barra dentro do row
 const BAR_RADIUS = 4;
@@ -59,6 +59,17 @@ function buildTicks(inicio, fim) {
     }
   }
   return ticks;
+}
+
+// Quebra o texto em até 2 linhas de maxChars caracteres cada
+function quebrarTexto(texto, maxChars) {
+  if (texto.length <= maxChars) return [texto, null];
+  const corte = texto.lastIndexOf(" ", maxChars);
+  const pos = corte > 0 ? corte : maxChars;
+  const linha1 = texto.slice(0, pos).trim();
+  const resto  = texto.slice(pos).trim();
+  const linha2 = resto.length > maxChars ? resto.slice(0, maxChars - 1) + "…" : resto;
+  return [linha1, linha2];
 }
 
 function pct(date, inicio, totalMs) {
@@ -177,15 +188,29 @@ export default function GanttChart({ etapas = [], dataInicioObra, dataFimObra, o
               <line x1="0" y1={y0 + ROW_H} x2={MIN_SVG_W} y2={y0 + ROW_H}
                 stroke="#E2DFD8" strokeWidth="0.5"/>
 
-              {/* rótulo */}
-              <text x={8} y={y0 + ROW_H / 2 + 5} fill="#17171A" fontSize="12" fontWeight="600">
-                {etapa.nome.length > 22 ? etapa.nome.slice(0, 21) + "…" : etapa.nome}
-              </text>
-              {etapa.status && (
-                <text x={8} y={y0 + ROW_H / 2 + 18} fill={corTx} fontSize="9" fontWeight="700">
-                  {etapa.status.replace("_", " ")}
-                </text>
-              )}
+              {/* rótulo com quebra de linha automática */}
+              {(() => {
+                const [l1, l2] = quebrarTexto(etapa.nome, 42);
+                const baseY = l2 ? y0 + 14 : y0 + ROW_H / 2 - 4;
+                return (
+                  <>
+                    <text x={8} y={baseY} fill="#17171A" fontSize="11" fontWeight="600">
+                      <title>{etapa.nome}</title>
+                      {l1}
+                    </text>
+                    {l2 && (
+                      <text x={8} y={baseY + 14} fill="#17171A" fontSize="11" fontWeight="600">
+                        {l2}
+                      </text>
+                    )}
+                    {etapa.status && (
+                      <text x={8} y={l2 ? baseY + 28 : y0 + ROW_H / 2 + 12} fill={corTx} fontSize="9" fontWeight="700">
+                        {etapa.status.replace("_", " ")}
+                      </text>
+                    )}
+                  </>
+                );
+              })()}
 
               {/* barra */}
               {dI && dF && (
@@ -216,10 +241,14 @@ export default function GanttChart({ etapas = [], dataInicioObra, dataFimObra, o
           <g>
             <line x1={hojeX} y1={HEADER_H} x2={hojeX} y2={svgH}
               stroke="#BD3838" strokeWidth="1.5" strokeDasharray="5,3"/>
-            <rect x={hojeX - 16} y={HEADER_H - 18} width={32} height={16}
+            <rect x={hojeX - 34} y={HEADER_H - 30} width={68} height={26}
               rx="4" fill="#BD3838"/>
-            <text x={hojeX} y={HEADER_H - 7} textAnchor="middle"
+            <text x={hojeX} y={HEADER_H - 18} textAnchor="middle"
               fill="#fff" fontSize="9" fontWeight="800">HOJE</text>
+            <text x={hojeX} y={HEADER_H - 7} textAnchor="middle"
+              fill="#fff" fontSize="8" fontWeight="600">
+              {hoje.toLocaleDateString("pt-BR", { day:"2-digit", month:"2-digit", year:"2-digit", timeZone:"UTC" })}
+            </text>
           </g>
         )}
 

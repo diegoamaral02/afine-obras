@@ -1,37 +1,101 @@
-// public/sw.js — Service Worker para modo offline
-const CACHE = "afine-v4";
+// public/sw.js — Service Worker v5: offline, background sync, push notifications
+const CACHE = "afine-v5";
 const STATIC = ["/", "/index.html", "/logo.png", "/manifest.json"];
 
+// ── Install: cache static assets ──────────────────────────────────────────────
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(STATIC)));
   self.skipWaiting();
 });
 
+// ── Activate: clean old caches ────────────────────────────────────────────────
 self.addEventListener("activate", e => {
-  e.waitUntil(caches.keys().then(keys =>
-    Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-  ));
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+    )
+  );
   self.clients.claim();
 });
 
+// ── Fetch: network-first for Firebase, cache-first for static ─────────────────
 self.addEventListener("fetch", e => {
-  // Network first para Firebase, cache first para assets estáticos
-  if (e.request.url.includes("firebase") || e.request.url.includes("googleapis")) {
+  if (
+    e.request.url.includes("firebase") ||
+    e.request.url.includes("googleapis") ||
+    e.request.url.includes("firestore") ||
+    e.request.method !== "GET"
+  ) {
     e.respondWith(
       fetch(e.request).catch(() => caches.match(e.request))
     );
     return;
   }
+
   e.respondWith(
     caches.match(e.request).then(cached => {
-      if (cached) return cached;
-      return fetch(e.request).then(res => {
+      const networkFetch = fetch(e.request).then(res => {
         if (res && res.status === 200 && res.type === "basic") {
           const clone = res.clone();
           caches.open(CACHE).then(c => c.put(e.request, clone));
         }
         return res;
-      }).catch(() => caches.match("/index.html"));
+      });
+      // Cache first (fast), background revalidate for HTML
+      return cached || networkFetch.catch(() => caches.match("/index.html"));
     })
   );
+});
+
+// ── Background Sync: avisar app para processar fila offline ───────────────────
+self.addEventListener("sync", e => {
+  if (e.tag === "afine-offline-queue") {
+    e.waitUntil(notifyClientsToSync());
+  }
+});
+
+async function notifyClientsToSync() {
+  const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+  clients.forEach(client => client.postMessage({ type: "SYNC_QUEUE" }));
+}
+
+// ── Push Notifications ────────────────────────────────────────────────────────
+self.addEventListener("push", e => {
+  let payload = { title: "AFINE Obras", body: "Nova notificação", url: "/" };
+  try { payload = { ...payload, ...e.data.json() }; } catch {}
+
+  const options = {
+    body:    payload.body,
+    icon:    "/logo.png",
+    badge:   "/logo.png",
+    tag:     payload.tag || "afine-notif",
+    renotify: true,
+    vibrate: [200, 100, 200],
+    data:    { url: payload.url || "/" },
+    actions: payload.actions || [],
+  };
+
+  e.waitUntil(self.registration.showNotification(payload.title, options));
+});
+
+// ── Notification click: abre ou foca a URL associada ─────────────────────────
+self.addEventListener("notificationclick", e => {
+  e.notification.close();
+  const url = e.notification.data?.url || "/";
+
+  e.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(clients => {
+      const existing = clients.find(c => c.url.includes(url) && "focus" in c);
+      if (existing) return existing.focus();
+      return self.clients.openWindow(url);
+    })
+  );
+});
+
+// ── Message from app ──────────────────────────────────────────────────────────
+self.addEventListener("message", e => {
+  if (e.data?.type === "SKIP_WAITING") self.skipWaiting();
+  if (e.data?.type === "REGISTER_SYNC") {
+    self.registration.sync?.register("afine-offline-queue").catch(() => {});
+  }
 });

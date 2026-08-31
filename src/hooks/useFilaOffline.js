@@ -1,6 +1,6 @@
 // src/hooks/useFilaOffline.js
 import { useState, useEffect, useCallback, useRef } from "react";
-import { tamanhoFila, processarFila } from "../utils/offlineQueue";
+import { tamanhoFila, processarFila, limparFila } from "../utils/offlineQueue";
 
 // Mapa global de executores — cada página que precisa de fallback offline
 // registra aqui como reenviar seu próprio tipo de payload. Fica fora do
@@ -35,13 +35,21 @@ export function useFilaOffline() {
     const interval = setInterval(() => setPendentes(tamanhoFila()), 4000);
     // Tenta sincronizar automaticamente quando a internet volta
     window.addEventListener("online", tentarSincronizar);
+    // Também escuta o evento do Service Worker (Background Sync)
+    window.addEventListener("afine-sync-queue", tentarSincronizar);
     // Tenta uma vez ao montar, caso já esteja online com itens pendentes de uma sessão anterior
     tentarSincronizar();
     return () => {
       clearInterval(interval);
       window.removeEventListener("online", tentarSincronizar);
+      window.removeEventListener("afine-sync-queue", tentarSincronizar);
     };
   }, [tentarSincronizar]);
 
-  return { pendentes, sincronizando, tentarSincronizar };
+  const descartar = useCallback(() => {
+    limparFila();
+    setPendentes(0);
+  }, []);
+
+  return { pendentes, sincronizando, tentarSincronizar, descartar };
 }

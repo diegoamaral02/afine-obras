@@ -16,7 +16,20 @@ root.render(
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js")
-      .then(() => console.log("SW registrado"))
+      .then(reg => {
+        console.log("SW registrado");
+        // Dispara Background Sync ao voltar online
+        window.addEventListener("online", () => {
+          if (reg.sync) reg.sync.register("afine-offline-queue").catch(()=>{});
+        });
+      })
       .catch(err => console.log("SW erro:", err));
+
+    // Recebe mensagem do SW para processar fila offline
+    navigator.serviceWorker.addEventListener("message", e => {
+      if (e.data?.type === "SYNC_QUEUE") {
+        window.dispatchEvent(new Event("afine-sync-queue"));
+      }
+    });
   });
 }

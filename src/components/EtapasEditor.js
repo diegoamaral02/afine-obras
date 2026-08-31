@@ -16,7 +16,7 @@ function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-export default function EtapasEditor({ etapas = [], onChange, dataInicioObra, dataFimObra }) {
+export default function EtapasEditor({ etapas = [], onChange, dataInicioObra, dataFimObra, hideHeader = false }) {
   function update(idx, campo, valor) {
     const nova = etapas.map((e, i) => i === idx ? { ...e, [campo]: valor } : e);
     onChange(nova);
@@ -47,19 +47,17 @@ export default function EtapasEditor({ etapas = [], onChange, dataInicioObra, da
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: "#7A7A7A", textTransform: "uppercase", letterSpacing: ".06em" }}>
-          Etapas do cronograma ({etapas.length})
-        </span>
-        <button
-          className="btn btn-primary btn-sm"
-          onClick={adicionar}
-          type="button"
-        >
-          ＋ Adicionar etapa
-        </button>
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: hideHeader ? "10px 0" : 0 }}>
+      {!hideHeader && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "#7A7A7A", textTransform: "uppercase", letterSpacing: ".06em" }}>
+            Etapas do cronograma ({etapas.length})
+          </span>
+          <button className="btn btn-primary btn-sm" onClick={adicionar} type="button">
+            ＋ Adicionar etapa
+          </button>
+        </div>
+      )}
 
       {etapas.length === 0 && (
         <div style={{ textAlign: "center", padding: "20px 16px", color: "#9CA3AF",

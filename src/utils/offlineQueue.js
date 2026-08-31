@@ -20,13 +20,33 @@ function gravarFila(fila) {
   catch (err) { console.error("Não foi possível gravar a fila offline (localStorage cheio?):", err); }
 }
 
+// Clona o payload garantindo que seja serializável em JSON.
+// Remove File, Blob, elementos DOM e referências circulares.
+function payloadSeguro(payload) {
+  try {
+    return JSON.parse(JSON.stringify(payload, (_, v) => {
+      if (v instanceof File || v instanceof Blob) return null;
+      if (v instanceof Element || v instanceof Node) return null;
+      return v;
+    }));
+  } catch {
+    return null;
+  }
+}
+
 // Adiciona um item à fila. `tipo` deve identificar a operação (ex: "obra:update"),
 // `payload` é tudo que a função executora precisa pra refazer a operação depois.
+// Retorna o id do item ou null se o payload não for serializável.
 export function enfileirar(tipo, payload) {
+  const payloadLimpo = payloadSeguro(payload);
+  if (payloadLimpo === null) {
+    console.error("offlineQueue: payload não serializável — item não enfileirado.", payload);
+    return null;
+  }
   const fila = lerFila();
   const item = {
     id: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
-    tipo, payload,
+    tipo, payload: payloadLimpo,
     criadoEm: new Date().toISOString(),
     tentativas: 0,
     ultimoErro: null,
@@ -41,6 +61,10 @@ export function tamanhoFila() { return lerFila().length; }
 
 export function removerDaFila(id) {
   gravarFila(lerFila().filter(i => i.id !== id));
+}
+
+export function limparFila() {
+  gravarFila([]);
 }
 
 // Tenta processar todos os itens pendentes. `executores` é um mapa
@@ -87,10 +111,13 @@ export async function salvarComFallbackOffline(tipo, payload, executar) {
     await executar(payload);
     return { ok: true };
   } catch (err) {
-    // Erros de rede do Firestore geralmente vêm com code "unavailable" ou
-    // a mensagem menciona "network" — mas, por segurança, enfileira em
-    // QUALQUER falha de escrita: é melhor guardar de novo do que perder.
-    enfileirar(tipo, payload);
-    return { ok: false, enfileirado: true, erroOriginal: err };
+    // Não enfileira erros de permissão (nunca vão resolver sozinhos)
+    // nem erros de autenticação. Só enfileira falhas de rede/disponibilidade.
+    const code = err?.code || "";
+    if (code === "permission-denied" || code === "unauthenticated") {
+      return { ok: false, enfileirado: false, erroOriginal: err };
+    }
+    const id = enfileirar(tipo, payload);
+    return { ok: false, enfileirado: id !== null, erroOriginal: err };
   }
 }
