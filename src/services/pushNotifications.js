@@ -13,7 +13,7 @@
 
 // ── Substituir pela chave pública VAPID do seu projeto ────────────────────────
 // Gerada em: npx web-push generate-vapid-keys --universal
-const VAPID_PUBLIC_KEY = ""; // TODO: preencher após gerar as chaves
+const VAPID_PUBLIC_KEY = "BFEbLdW2rGL6vu3htRpe5vhwzVNt04vw3G5di466GpNL-fYm1yR1ITo68H2cK5pTGJVLTRPg0sD9Dl7fNLhJd8A";
 
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
