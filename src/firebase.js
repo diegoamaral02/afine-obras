@@ -11,12 +11,12 @@ import { getFirestore }  from "firebase/firestore";
 // Plano GRATUITO (Spark) — sem cartão de crédito necessário.
 
 const firebaseConfig = {
-  apiKey:            "AIzaSyCNcxH1HhuEWkZCEWYHrv0XD2eMQ3Njlj8",
-  authDomain:        "afine-obras-be3fa.firebaseapp.com",
-  projectId:         "afine-obras-be3fa",
-  storageBucket:     "afine-obras-be3fa.firebasestorage.app",
-  messagingSenderId: "151293225943",
-  appId:             "1:151293225943:web:a0e88cf53a6990f6c8f992",
+  apiKey:            "AIzaSyBzhRx4tCtVzxhSfSp7_A3aKBazAoIDySI",
+  authDomain:        "afine-obras-deaeb.firebaseapp.com",
+  projectId:         "afine-obras-deaeb",
+  storageBucket:     "afine-obras-deaeb.firebasestorage.app",
+  messagingSenderId: "445289736678",
+  appId:             "1:445289736678:web:10fdb656ca1ae81cb6ce27",
 };
 
 const app     = initializeApp(firebaseConfig);
