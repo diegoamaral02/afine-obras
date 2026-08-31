@@ -1,10 +1,12 @@
 // functions/index.js — Cloud Functions AFINE Obras
 // Deploy: firebase deploy --only functions
 //
-// Antes do deploy, configure as chaves VAPID (NÃO commitar a chave privada):
-//   firebase functions:config:set vapid.public="<VAPID_PUBLIC_KEY>"
-//   firebase functions:config:set vapid.private="<VAPID_PRIVATE_KEY>"
-//   firebase functions:config:set vapid.email="mailto:bear.barbershop.bb@gmail.com"
+// Chaves VAPID via variáveis de ambiente (NÃO commitar a chave privada):
+// Crie functions/.env com:
+//   VAPID_PUBLIC=<chave pública>
+//   VAPID_PRIVATE=<chave privada>
+//   VAPID_EMAIL=mailto:bear.barbershop.bb@gmail.com
+// Em produção, defina via Firebase Console → Functions → Edit → Environment variables
 
 const functions = require("firebase-functions");
 const admin     = require("firebase-admin");
@@ -15,11 +17,10 @@ const db = admin.firestore();
 
 // Configura VAPID a partir das variáveis de ambiente do Functions
 function initWebPush() {
-  const cfg = functions.config().vapid || {};
-  const pub  = cfg.public  || process.env.VAPID_PUBLIC;
-  const priv = cfg.private || process.env.VAPID_PRIVATE;
-  const mail = cfg.email   || process.env.VAPID_EMAIL   || "mailto:bear.barbershop.bb@gmail.com";
-  if (!pub || !priv) throw new Error("VAPID keys não configuradas. Rode: firebase functions:config:set vapid.public=... vapid.private=...");
+  const pub  = process.env.VAPID_PUBLIC;
+  const priv = process.env.VAPID_PRIVATE;
+  const mail = process.env.VAPID_EMAIL || "mailto:bear.barbershop.bb@gmail.com";
+  if (!pub || !priv) throw new Error("VAPID keys não configuradas. Adicione VAPID_PUBLIC e VAPID_PRIVATE em functions/.env");
   webpush.setVapidDetails(mail, pub, priv);
 }
 
