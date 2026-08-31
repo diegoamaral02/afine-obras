@@ -7,7 +7,6 @@ import { useAuth } from "./contexts/AuthContext";
 import { AgendaProvider, useAgenda } from "./contexts/AgendaContext";
 import { useNotificacoes } from "./hooks/useNotificacoes";
 import { useFilaOffline } from "./hooks/useFilaOffline";
-import { usePushNotificacoes } from "./hooks/usePushNotificacoes";
 import { initials } from "./utils/helpers";
 import { LOGO_BASE64 } from "./utils/assets";
 import { getAcesso, podeVer, isCampo, resolverPerfilMenu } from "./constants/departamentos";
@@ -272,7 +271,6 @@ function AppShell() {
   const { agendamentosDodia } = useAgenda();
   const { notifs, naoLidas, marcarLida, marcarTodasLidas } = useNotificacoes(currentUser?.uid);
   const filaOffline = useFilaOffline();
-  const push = usePushNotificacoes(currentUser?.uid);
 
   const hoje = new Date().toISOString().split("T")[0];
   const agsHoje = agendamentosDodia(hoje).length;
@@ -323,16 +321,6 @@ function AppShell() {
                   ✕
                 </button>
               </div>
-            )}
-            {push.suportado && push.permissao !== "denied" && (
-              <button
-                onClick={push.ativo ? push.desativar : push.ativar}
-                disabled={push.carregando}
-                title={push.ativo ? "Desativar notificações push" : "Ativar notificações push"}
-                style={{ background: push.ativo ? "rgba(245,200,0,.15)" : "none", border: push.ativo ? "1px solid rgba(245,200,0,.4)" : "none", borderRadius: 8, cursor: "pointer", fontSize: 18, padding: "4px 8px", lineHeight: 1, color: push.ativo ? "var(--afine-yellow-dk)" : "#7A7A7A", transition: "all .2s" }}
-              >
-                {push.carregando ? "⏳" : push.ativo ? "🔔" : "🔕"}
-              </button>
             )}
             <button onClick={()=>setShowNotifs(!showNotifs)}
               style={{position:"relative",background:"none",border:"none",cursor:"pointer",fontSize:20,padding:"4px",lineHeight:1}}>
