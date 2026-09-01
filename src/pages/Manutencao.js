@@ -136,6 +136,8 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
     semMaterial:       manut?.semMaterial       || false,
     motivoSemMaterial: manut?.motivoSemMaterial || "",
     valorServico: manut?.valorServico || "",
+    inicioExecucao: manut?.inicioExecucao || "",
+    fimExecucao:    manut?.fimExecucao    || "",
   });
   const [impostoPercent, setImpostoPercent] = useState(manut?.impostoPercent || "");
   const [custoMaoDeObra, setCustoMaoDeObra] = useState(0);
@@ -530,6 +532,16 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
                 value={form.valorServico} onChange={e=>set("valorServico",e.target.value)}/>
             </div>
           </div>
+          <div className="form-grid">
+            <div className="form-group">
+              <label>Início da execução</label>
+              <input type="datetime-local" value={form.inicioExecucao} onChange={e=>set("inicioExecucao",e.target.value)}/>
+            </div>
+            <div className="form-group">
+              <label>Fim da execução</label>
+              <input type="datetime-local" value={form.fimExecucao} onChange={e=>set("fimExecucao",e.target.value)}/>
+            </div>
+          </div>
           <div className="form-group"><label>Observações</label><textarea value={form.obs} onChange={e=>set("obs",e.target.value)} rows={2}/></div>
         </div>
       )}
@@ -577,6 +589,7 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
             impostoPercent={impostoPercent}
             onImpostoChange={v=>setImpostoPercent(v)}
             onCustoMaoDeObraChange={setCustoMaoDeObra}
+            execucao={form.inicioExecucao&&form.fimExecucao?{inicio:form.inicioExecucao,fim:form.fimExecucao}:undefined}
           />
           <CustosDemanda
             demandaTipo="manutencao"

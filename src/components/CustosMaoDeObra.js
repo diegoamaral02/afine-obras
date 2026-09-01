@@ -100,22 +100,59 @@ function calcViagem(pontos) {
   return dias;
 }
 
+/** Distribui um span contínuo [inicio, fim] pelas regras de horas diárias */
+function calcSpan(inicio, fim) {
+  const tIn  = new Date(inicio).getTime();
+  const tFim = new Date(fim).getTime();
+  if (!tIn || !tFim || tFim <= tIn) return { normalMs:0, e50Ms:0, e100Ms:0, notMs:0 };
+  let normalMs=0, e50Ms=0, e100Ms=0, notMs=0, cur=tIn;
+  while (cur < tFim) {
+    const d        = new Date(cur);
+    const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const dayEnd   = dayStart + 24*3600000;
+    const segEnd   = Math.min(tFim, dayEnd);
+    const isoDate  = new Date(dayStart + 12*3600000).toISOString().slice(0,10); // meio-dia evita DST
+    const pares    = [{ entrada:{ timestamp: new Date(cur).toISOString() }, saida:{ timestamp: new Date(segEnd).toISOString() } }];
+    const r        = calcDia(pares, isoDate);
+    normalMs+=r.normalMs; e50Ms+=r.e50Ms; e100Ms+=r.e100Ms; notMs+=r.notMs;
+    cur = dayEnd;
+  }
+  return { normalMs, e50Ms, e100Ms, notMs };
+}
+
 // ── Card Mão de Obra ─────────────────────────────────────────────────────
-function CardMaoDeObra({ demandaId, demandaTipo="obra", equipeIds, funcionarios, onCustoChange }) {
+// execucao: { inicio: "2025-08-01T08:00", fim: "2025-08-01T17:00" } — modo manutenção
+// Quando execucao está presente, calcula pelo intervalo em vez de ler pontos
+function CardMaoDeObra({ demandaId, demandaTipo="obra", equipeIds, funcionarios, onCustoChange, execucao }) {
   const [pontos,  setPontos]  = useState([]);
   const [loading, setLoading] = useState(true);
   const [aberto,  setAberto]  = useState(false);
 
   useEffect(()=>{
+    if(execucao) { setLoading(false); return; } // modo execução: sem query pontos
     if(!demandaId) return;
     const q=query(collection(db,"pontos"),where("vinculoId","==",demandaId),where("vinculoTipo","==",demandaTipo));
     return onSnapshot(q,snap=>{setPontos(snap.docs.map(d=>({id:d.id,...d.data()}))); setLoading(false);});
-  },[demandaId,demandaTipo]);
+  },[demandaId,demandaTipo,execucao]); // eslint-disable-line
 
   const resultado = useMemo(()=>{
     const equipe=(funcionarios||[]).filter(f=>(equipeIds||[]).includes(f.id)&&Number(f.salario)>0);
 
-    // agrupa por usuário
+    let totNorm=0,totE50=0,totE100=0,totNot=0,totViagem=0,totCusto=0;
+
+    // ── Modo execução: duração direta inicioExecucao→fimExecucao ──────────
+    if (execucao?.inicio && execucao?.fim) {
+      const span = calcSpan(execucao.inicio, execucao.fim);
+      const linhas = equipe.map(f=>{
+        const sal=Number(f.salario), taxa=sal/HORA_MES;
+        const custo=taxa*(span.normalMs/3600000)+taxa*1.5*(span.e50Ms/3600000)+taxa*2*(span.e100Ms/3600000)+taxa*0.2*(span.notMs/3600000);
+        totNorm+=span.normalMs; totE50+=span.e50Ms; totE100+=span.e100Ms; totNot+=span.notMs; totCusto+=custo;
+        return {f,nMs:span.normalMs,e50Ms:span.e50Ms,e100Ms:span.e100Ms,notMs:span.notMs,diasViagem:0,custo,isCLT:f.tipoContrato==="CLT"&&f.departamento==="campo"};
+      });
+      return {linhas,totNorm,totE50,totE100,totNot,totViagem,totCusto};
+    }
+
+    // ── Modo pontos: leitura do registro de ponto ─────────────────────────
     const byUser={};
     for(const p of pontos){
       const uid=p.usuarioId; if(!uid) continue;
@@ -126,7 +163,6 @@ function CardMaoDeObra({ demandaId, demandaTipo="obra", equipeIds, funcionarios,
       byUser[uid].todos.push(p);
     }
 
-    let totNorm=0,totE50=0,totE100=0,totNot=0,totViagem=0,totCusto=0;
     const linhas=equipe.map(f=>{
       const sal=Number(f.salario), taxa=sal/HORA_MES;
       const isCLT=f.tipoContrato==="CLT"&&f.departamento==="campo";
@@ -149,7 +185,7 @@ function CardMaoDeObra({ demandaId, demandaTipo="obra", equipeIds, funcionarios,
     });
 
     return {linhas,totNorm,totE50,totE100,totNot,totViagem,totCusto};
-  },[pontos,funcionarios,equipeIds]);
+  },[pontos,funcionarios,equipeIds,execucao]);
 
   useEffect(()=>{ onCustoChange?.(resultado.totCusto); },[resultado.totCusto]); // eslint-disable-line
 
@@ -180,11 +216,17 @@ function CardMaoDeObra({ demandaId, demandaTipo="obra", equipeIds, funcionarios,
         </div>
         {/* Legenda */}
         <div style={{fontSize:10,color:"#7A7A7A",marginBottom:8,lineHeight:1.5}}>
-          Seg–Sex: 8h normal · Sáb: 08h–12h normal, após 50% · Dom/Feriado: 100%<br/>
-          Noturno 20% (22h–05h) · Diária viagem: +1 dia/noite fora de SP &gt;100 km (CLT campo)
+          {execucao?.inicio&&execucao?.fim
+            ? <>Base: período de execução do atendimento (início → fim). Seg–Sex: 8h normal · Sáb: 4h normal, após 50% · Dom/Feriado: 100% · Noturno 20% (22h–05h)</>
+            : <>Seg–Sex: 8h normal · Sáb: 08h–12h normal, após 50% · Dom/Feriado: 100%<br/>Noturno 20% (22h–05h) · Diária viagem: +1 dia/noite fora de SP &gt;100 km (CLT campo)</>
+          }
         </div>
         {resultado.linhas.length===0 ? (
-          <div style={{color:"#7A7A7A",fontStyle:"italic",fontSize:11}}>Nenhum colaborador com salário cadastrado ou sem ponto na obra.</div>
+          <div style={{color:"#7A7A7A",fontStyle:"italic",fontSize:11}}>
+            {execucao?.inicio&&execucao?.fim
+              ? "Nenhum colaborador alocado com salário cadastrado."
+              : "Nenhum colaborador com salário cadastrado ou sem ponto na obra."}
+          </div>
         ):(
           <>
             <button onClick={()=>setAberto(a=>!a)} style={{background:"none",border:"none",color:"var(--afine-yellow-dk)",cursor:"pointer",fontSize:11,padding:0,fontWeight:600}}>
@@ -320,14 +362,14 @@ function CardImposto({ orcamento, impostoPercent, onChange }) {
 
 // ── Componente principal ──────────────────────────────────────────────────
 // Aceita obraId (legado Obras.js) ou demandaId+demandaTipo (genérico)
-export default function CustosMaoDeObra({ obraId, demandaId, demandaTipo="obra", equipeIds, funcionarios, orcamento, impostoPercent, onImpostoChange, onCustoMaoDeObraChange }) {
+export default function CustosMaoDeObra({ obraId, demandaId, demandaTipo="obra", equipeIds, funcionarios, orcamento, impostoPercent, onImpostoChange, onCustoMaoDeObraChange, execucao }) {
   const id = demandaId || obraId;
   const tipo = demandaId ? demandaTipo : "obra";
   return (
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
       <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>Composição de custos</div>
       <CardImposto orcamento={orcamento} impostoPercent={impostoPercent} onChange={onImpostoChange}/>
-      <CardMaoDeObra demandaId={id} demandaTipo={tipo} equipeIds={equipeIds} funcionarios={funcionarios} onCustoChange={onCustoMaoDeObraChange}/>
+      <CardMaoDeObra demandaId={id} demandaTipo={tipo} equipeIds={equipeIds} funcionarios={funcionarios} onCustoChange={onCustoMaoDeObraChange} execucao={execucao}/>
       <CardTerceiro demandaId={id}/>
       <div style={{height:1,background:"var(--border)",margin:"4px 0"}}/>
       <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>Todos os lançamentos</div>
