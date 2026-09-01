@@ -101,16 +101,16 @@ function calcViagem(pontos) {
 }
 
 // ── Card Mão de Obra ─────────────────────────────────────────────────────
-function CardMaoDeObra({ obraId, equipeIds, funcionarios, onCustoChange }) {
+function CardMaoDeObra({ demandaId, demandaTipo="obra", equipeIds, funcionarios, onCustoChange }) {
   const [pontos,  setPontos]  = useState([]);
   const [loading, setLoading] = useState(true);
   const [aberto,  setAberto]  = useState(false);
 
   useEffect(()=>{
-    if(!obraId) return;
-    const q=query(collection(db,"pontos"),where("vinculoId","==",obraId),where("vinculoTipo","==","obra"));
+    if(!demandaId) return;
+    const q=query(collection(db,"pontos"),where("vinculoId","==",demandaId),where("vinculoTipo","==",demandaTipo));
     return onSnapshot(q,snap=>{setPontos(snap.docs.map(d=>({id:d.id,...d.data()}))); setLoading(false);});
-  },[obraId]);
+  },[demandaId,demandaTipo]);
 
   const resultado = useMemo(()=>{
     const equipe=(funcionarios||[]).filter(f=>(equipeIds||[]).includes(f.id)&&Number(f.salario)>0);
@@ -230,13 +230,13 @@ function CardMaoDeObra({ obraId, equipeIds, funcionarios, onCustoChange }) {
 }
 
 // ── Card Terceiro ─────────────────────────────────────────────────────────
-function CardTerceiro({ obraId }) {
+function CardTerceiro({ demandaId }) {
   const [custos, setCustos] = useState([]);
   useEffect(()=>{
-    if(!obraId) return;
-    const q=query(collection(db,"custos_demanda"),where("demandaId","==",obraId),where("tipo","==","Terceiro"));
+    if(!demandaId) return;
+    const q=query(collection(db,"custos_demanda"),where("demandaId","==",demandaId),where("tipo","==","Terceiro"));
     return onSnapshot(q,snap=>setCustos(snap.docs.map(d=>({id:d.id,...d.data()}))));
-  },[obraId]);
+  },[demandaId]);
   const ativos=custos.filter(c=>c.status!=="cancelado");
   const total=ativos.reduce((s,c)=>s+(Number(c.valor)||0),0);
   return (
@@ -319,13 +319,16 @@ function CardImposto({ orcamento, impostoPercent, onChange }) {
 }
 
 // ── Componente principal ──────────────────────────────────────────────────
-export default function CustosMaoDeObra({ obraId, equipeIds, funcionarios, orcamento, impostoPercent, onImpostoChange, onCustoMaoDeObraChange }) {
+// Aceita obraId (legado Obras.js) ou demandaId+demandaTipo (genérico)
+export default function CustosMaoDeObra({ obraId, demandaId, demandaTipo="obra", equipeIds, funcionarios, orcamento, impostoPercent, onImpostoChange, onCustoMaoDeObraChange }) {
+  const id = demandaId || obraId;
+  const tipo = demandaId ? demandaTipo : "obra";
   return (
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
       <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>Composição de custos</div>
       <CardImposto orcamento={orcamento} impostoPercent={impostoPercent} onChange={onImpostoChange}/>
-      <CardMaoDeObra obraId={obraId} equipeIds={equipeIds} funcionarios={funcionarios} onCustoChange={onCustoMaoDeObraChange}/>
-      <CardTerceiro obraId={obraId}/>
+      <CardMaoDeObra demandaId={id} demandaTipo={tipo} equipeIds={equipeIds} funcionarios={funcionarios} onCustoChange={onCustoMaoDeObraChange}/>
+      <CardTerceiro demandaId={id}/>
       <div style={{height:1,background:"var(--border)",margin:"4px 0"}}/>
       <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>Todos os lançamentos</div>
     </div>

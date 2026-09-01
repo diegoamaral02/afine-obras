@@ -10,6 +10,7 @@ import PhotoUploader from "../components/PhotoUploader";
 import OSDigital from "../components/OSDigital";
 import AssinaturaDigital from "../components/AssinaturaDigital";
 import CustosDemanda from "../components/CustosDemanda";
+import CustosMaoDeObra from "../components/CustosMaoDeObra";
 import { exportarOSParaPDF, exportarTermoChavesParaPDF } from "../utils/exportPDF";
 import TermoChaves from "../components/TermoChaves";
 import HistoricoAlteracoes from "../components/HistoricoAlteracoes";
@@ -134,7 +135,10 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
     materiais:    manut?.materiais    || [],
     semMaterial:       manut?.semMaterial       || false,
     motivoSemMaterial: manut?.motivoSemMaterial || "",
+    valorServico: manut?.valorServico || "",
   });
+  const [impostoPercent, setImpostoPercent] = useState(manut?.impostoPercent || "");
+  const [custoMaoDeObra, setCustoMaoDeObra] = useState(0);
   const [checklist,   setChecklist]   = useState(manut?.checklist || {});
   const [fotos,       setFotos]       = useState(manut?.fotos || []);
   const [osDigital,   setOsDigital]   = useState(manut?.osDigital || null);
@@ -238,6 +242,7 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
     const payload={
       ...form, dataConclusao, checklist, fotos, osDigital:osDigital||null,
       obraId:obraId||null, updatedAt:agora,
+      impostoPercent: impostoPercent||"",
       // Rastreio: quem criou / atualizou
       ultimoAtor: nomeUser, ultimoAtorId: uid,
     };
@@ -518,6 +523,13 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
             </div>
             {form.garantia==="SIM"&&<div className="form-group"><label>Vencimento garantia</label><input type="date" value={form.vencGarantia} onChange={e=>set("vencGarantia",e.target.value)}/></div>}
           </div>
+          <div className="form-grid">
+            <div className="form-group">
+              <label>Valor do serviço (R$)</label>
+              <input type="number" min="0" step="0.01" placeholder="0,00"
+                value={form.valorServico} onChange={e=>set("valorServico",e.target.value)}/>
+            </div>
+          </div>
           <div className="form-group"><label>Observações</label><textarea value={form.obs} onChange={e=>set("obs",e.target.value)} rows={2}/></div>
         </div>
       )}
@@ -555,12 +567,26 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
         </div>
       )}
       {passo===P_CUSTOS && manut?.id && (
-        <CustosDemanda
-          demandaTipo="manutencao"
-          demandaId={manut.id}
-          demandaNome={manut.titulo||form.titulo}
-          orcamento={form.valorServico||0}
-        />
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          <CustosMaoDeObra
+            demandaId={manut.id}
+            demandaTipo="manutencao"
+            equipeIds={form.alocadoIds||[]}
+            funcionarios={funcionarios}
+            orcamento={form.valorServico||0}
+            impostoPercent={impostoPercent}
+            onImpostoChange={v=>setImpostoPercent(v)}
+            onCustoMaoDeObraChange={setCustoMaoDeObra}
+          />
+          <CustosDemanda
+            demandaTipo="manutencao"
+            demandaId={manut.id}
+            demandaNome={manut.titulo||form.titulo}
+            orcamento={form.valorServico||0}
+            impostoPercent={impostoPercent}
+            custoMaoDeObra={custoMaoDeObra}
+          />
+        </div>
       )}
 
       {/* ── PASSO MATERIAIS ─────────────────────────── */}
