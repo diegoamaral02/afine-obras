@@ -1,6 +1,6 @@
 // src/pages/DRE.js — v2: "Resultados" com 6 sub-abas completas e indicadores corretos
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, onSnapshot, query, limit } from "firebase/firestore";
+import { collection, onSnapshot, getDocs, query, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
@@ -297,7 +297,7 @@ function BuscaDemandaDRE({ demandas, itemFiltro, onChange }) {
   );
 }
 
-function AbaResultadoProjeto({ lancs, obras, compras, despesas, manuts=[] }) {
+function AbaResultadoProjeto({ lancs, obras, compras, despesas, manuts=[], transferencias=[] }) {
   const [itemFiltro, setItemFiltro] = useState("");
   const [filtros, setFiltros] = useState({ periodo:{de:"",ate:""}, clienteNome:"", status:[], tipo:"" });
 
@@ -362,6 +362,19 @@ function AbaResultadoProjeto({ lancs, obras, compras, despesas, manuts=[] }) {
     const margLiq   = margBruta - custosAdmin;
     return { receita, custoMatMO, custoLanc, custoCompras, custoDespesas, custosAdmin, margBruta, margLiq, comprometido, aReceber, aPagar, margBrutaPct:pctN(margBruta,receita), margLiqPct:pctN(margLiq,receita) };
   },[lancs,compras,despesas,itemFiltro,demandaSelecionada,demandasFiltradas]);
+
+  // Resumo de transferências de material para a demanda/filtro atual
+  const transf = useMemo(()=>{
+    if (!itemFiltro) {
+      const ids = demandasFiltradas.map(x=>x._id);
+      const recebidas = transferencias.filter(t=>ids.includes(t.obraDestinoId));
+      const enviadas  = transferencias.filter(t=>ids.includes(t.obraOrigemId) && !ids.includes(t.obraDestinoId));
+      return { recebidas: recebidas.length, enviadas: enviadas.length, qtdRec: recebidas.reduce((s,t)=>s+(Number(t.qtd)||0),0), qtdEnv: enviadas.reduce((s,t)=>s+(Number(t.qtd)||0),0) };
+    }
+    const recebidas = transferencias.filter(t=>t.obraDestinoId===itemFiltro);
+    const enviadas  = transferencias.filter(t=>t.obraOrigemId===itemFiltro && t.obraDestinoId!==itemFiltro);
+    return { recebidas: recebidas.length, enviadas: enviadas.length, qtdRec: recebidas.reduce((s,t)=>s+(Number(t.qtd)||0),0), qtdEnv: enviadas.reduce((s,t)=>s+(Number(t.qtd)||0),0) };
+  },[transferencias, itemFiltro, demandasFiltradas]);
 
   const lucro = (d?.margLiq||0) >= 0;
 
@@ -454,6 +467,16 @@ function AbaResultadoProjeto({ lancs, obras, compras, despesas, manuts=[] }) {
             </div>
           ))}
         </div>
+
+        {/* Transferências de material — informativo (sem valor monetário, apenas qtd) */}
+        {(transf.recebidas > 0 || transf.enviadas > 0) && (
+          <div style={{marginTop:16,padding:"10px 14px",background:"#F5F8FF",border:"1px solid #C8D8F0",borderRadius:8,fontSize:12,color:"#4A4A7A"}}>
+            <span style={{fontWeight:600}}>📦 Transferências de material:</span>
+            {transf.recebidas > 0 && <span style={{marginLeft:12}}>⬇ Recebidas: <strong>{transf.qtdRec} un.</strong> em {transf.recebidas} mov.</span>}
+            {transf.enviadas  > 0 && <span style={{marginLeft:12}}>⬆ Enviadas: <strong>{transf.qtdEnv} un.</strong> em {transf.enviadas} mov.</span>}
+            <span style={{marginLeft:12,color:"#9A9AB0"}}>— custo original registrado na obra de origem</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -773,28 +796,34 @@ function AbaCliente({ lancs, obras, compras, despesas }) {
 
 // ── Página Principal ──────────────────────────────────────────────────────────
 export default function DRE() {
-  const [obras,   setObras]   = useState([]);
-  const [lancs,   setLancs]   = useState([]);
-  const [mats,    setMats]    = useState([]);
-  const [movs,    setMovs]    = useState([]);
-  const [compras, setCompras] = useState([]);
-  const [manuts,  setManuts]  = useState([]);
-  const [despesas,setDespesas]= useState([]);
-  const [loading, setLoading] = useState(true);
-  const [aba,     setAba]     = useState("mensal");
+  const [obras,          setObras]          = useState([]);
+  const [lancs,          setLancs]          = useState([]);
+  const [mats,           setMats]           = useState([]);
+  const [movs,           setMovs]           = useState([]);
+  const [compras,        setCompras]        = useState([]);
+  const [manuts,         setManuts]         = useState([]);
+  const [despesas,       setDespesas]       = useState([]);
+  const [transferencias, setTransferencias] = useState([]);
+  const [loading,        setLoading]        = useState(true);
+  const [aba,            setAba]            = useState("mensal");
 
   const [avisoLimite, setAvisoLimite] = useState([]);
   useEffect(()=>{
     const avisos=[];
     const check=(col,lim,snap)=>{if(snap.docs.length>=lim&&!avisos.includes(col)){avisos.push(col);setAvisoLimite([...avisos]);}};
-    const u1=onSnapshot(query(collection(db,"obras"),limit(200)),    snap=>{check("obras",200,snap);setObras(snap.docs.map(d=>({id:d.id,...d.data()})));setLoading(false);});
+    // financeiro, compras e despesas: real-time — dados financeiros ativos
     const u2=onSnapshot(query(collection(db,"financeiro"),limit(500)),snap=>{check("financeiro",500,snap);setLancs(snap.docs.map(d=>({id:d.id,...d.data()})));});
-    const u3=onSnapshot(query(collection(db,"materiais_estoque"),limit(500)),           snap=>setMats(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u4=onSnapshot(query(collection(db,"movimentacoes"),limit(1000)),               snap=>setMovs(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u5=onSnapshot(query(collection(db,"compras"),limit(300)),   snap=>{check("compras",300,snap);setCompras(snap.docs.map(d=>({id:d.id,...d.data()})));});
-    const u6=onSnapshot(query(collection(db,"manutencoes"),limit(500)),                 snap=>setManuts(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u7=onSnapshot(query(collection(db,"despesas"),limit(500)),                    snap=>setDespesas(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    return()=>{u1();u2();u3();u4();u5();u6();u7();};
+    const u7=onSnapshot(query(collection(db,"despesas"),limit(500)),  snap=>setDespesas(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    // demais: leitura única — dados de referência e histórico que não mudam durante a sessão
+    getDocs(query(collection(db,"obras"),limit(200))).then(snap=>{
+      check("obras",200,snap); setObras(snap.docs.map(d=>({id:d.id,...d.data()}))); setLoading(false);
+    });
+    getDocs(query(collection(db,"materiais_estoque"),limit(500))).then(snap=>setMats(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    getDocs(query(collection(db,"movimentacoes"),limit(1000))).then(snap=>setMovs(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    getDocs(query(collection(db,"manutencoes"),limit(500))).then(snap=>setManuts(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    getDocs(collection(db,"transferencias_material")).then(snap=>setTransferencias(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    return()=>{u2();u5();u7();};
   },[]);
 
   const ABAS = [
@@ -838,7 +867,7 @@ export default function DRE() {
       {!loading&&(
         <>
           {aba==="mensal"     &&<AbaVisaoMensal       lancs={lancs} compras={compras} despesas={despesas}/>}
-          {aba==="resultado"  &&<AbaResultadoProjeto lancs={lancs} obras={obras} compras={compras} despesas={despesas} manuts={manuts}/>}
+          {aba==="resultado"  &&<AbaResultadoProjeto lancs={lancs} obras={obras} compras={compras} despesas={despesas} manuts={manuts} transferencias={transferencias}/>}
           {aba==="comparativo"&&<AbaComparativo      lancs={lancs} obras={obras} compras={compras} despesas={despesas}/>}
           {aba==="clientes"   &&<AbaCliente          lancs={lancs} obras={obras} compras={compras} despesas={despesas}/>}
           {aba==="indicadores"&&<AbaIndicadores      lancs={lancs} obras={obras} compras={compras} manuts={manuts}/>}

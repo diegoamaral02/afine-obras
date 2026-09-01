@@ -173,7 +173,7 @@ export default function Dashboard({ obraAtual }) {
             {to:"/manutencao",icon:"🔧",label:"Manutenção"},
             {to:"/compras",icon:"🛒",label:"Compras"},
             {to:"/financeiro",icon:"💰",label:"Financeiro"},
-            {to:"/diario",icon:"📓",label:"RDO do dia"},
+            {to:"/obras",icon:"📓",label:"RDO do dia"},
             {to:"/materiais",icon:"📦",label:"Estoque"},
             {to:"/fornecedores",icon:"🏢",label:"Fornecedores"},
             {to:"/funcionarios",icon:"👤",label:"Equipe"},

@@ -1,6 +1,6 @@
 // src/pages/Financeiro.js — v3: rico em informações para equipe financeira
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { collection, onSnapshot, addDoc, doc, query, orderBy, limit, where } from "firebase/firestore";
+import { collection, onSnapshot, getDocs, addDoc, doc, query, orderBy, limit, where } from "firebase/firestore";
 import { db } from "../firebase";
 import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -890,12 +890,14 @@ export default function Financeiro() {
   const [modal,   setModal]   = useState(null);
 
   useEffect(()=>{
+    // financeiro e compras: real-time (dados ativos editados/monitorados nesta página)
     const u1=onSnapshot(query(collection(db,"financeiro"),orderBy("vencimento","asc"),limit(500)),
       snap=>{setLancs(snap.docs.map(x=>({id:x.id,...x.data()})));setLoading(false);});
-    const u2=onSnapshot(collection(db,"obras"),snap=>setObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u3=onSnapshot(collection(db,"compras"),snap=>setCompras(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u4=onSnapshot(collection(db,"despesas"),snap=>setDespesas(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    return()=>{u1();u2();u3();u4();};
+    // obras e despesas: leitura única — dados de referência que não mudam durante a sessão
+    getDocs(collection(db,"obras")).then(snap=>setObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    getDocs(collection(db,"despesas")).then(snap=>setDespesas(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    return()=>{u1();u3();};
   },[]);
 
   const hj = hoje();

@@ -1,6 +1,6 @@
 // src/contexts/AgendaContext.js — v2: filtrado por perfil + memoizado
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
-import { collection, onSnapshot, doc, query, where, limit, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, getDocs, doc, query, where, limit, orderBy } from "firebase/firestore";
 import { db } from "../firebase";
 import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 import { useAuth } from "./AuthContext";
@@ -51,11 +51,11 @@ export function AgendaProvider({ children }) {
     // páginas (Obras.js, Calendario.js).
     const u2 = onSnapshot(collection(db,"obras"), snap => setObras(snap.docs.map(d=>({id:d.id,...d.data()}))), ()=>{});
 
-    // Manutenções: todos autenticados podem ver (campo vê as que está alocado)
-    const u3 = onSnapshot(
-      query(collection(db,"manutencoes"), limit(100)),
-      snap => setManutencoes(snap.docs.map(d=>({id:d.id,...d.data()}))), ()=>{}
-    );
+    // Manutenções: leitura única — o contexto usa para enriquecer agendamentos,
+    // não para monitorar mudanças em tempo real (Manutencao.js já faz isso)
+    getDocs(query(collection(db,"manutencoes"), limit(100)))
+      .then(snap => setManutencoes(snap.docs.map(d=>({id:d.id,...d.data()}))))
+      .catch(()=>{});
 
     // Funcionários: apenas perfis de gestão precisam da lista completa
     let u4 = ()=>{};
@@ -65,7 +65,7 @@ export function AgendaProvider({ children }) {
       , ()=>{});
     }
 
-    return ()=>{u1();u2();u3();u4();};
+    return ()=>{u1();u2();u4();};
   }, [currentUser, isGestor]);
 
   // Memoizados para não recalcular a cada render

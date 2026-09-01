@@ -147,6 +147,18 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   const [matQtd,  setMatQtd]  = useState("");
   const [matUn,   setMatUn]   = useState("un");
 
+  // Checklist de vistoria: tenta carregar do template "vistoria-obra", usa fallback hardcoded
+  const [checklistItens, setChecklistItens] = useState(CHECKLIST_ITENS);
+  useEffect(()=>{
+    import("firebase/firestore").then(({ getDoc, doc: fsDoc })=>{
+      getDoc(fsDoc(db,"checklist_templates","vistoria-obra")).then(snap=>{
+        if (snap.exists() && snap.data().itens?.length) {
+          setChecklistItens(snap.data().itens.map(it=>(typeof it==="string"?it:it.texto)));
+        }
+      }).catch(()=>{});
+    });
+  },[]);
+
   // ── Unificação real de estoque ──────────────────────────────────────────
   // Lança a saída no estoque central (materiais_estoque) no momento exato do
   // uso, caso exista um item com esse nome+unidade. Se não existir (material
@@ -724,10 +736,10 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
           <PhotoUploader fotos={fotos} onChange={setFotos} minFotos={MIN_FOTOS_OBRA}/>
           <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>
-            Checklist de vistoria ({Object.values(checklist).filter(Boolean).length}/{CHECKLIST_ITENS.length})
+            Checklist de vistoria ({Object.values(checklist).filter(Boolean).length}/{checklistItens.length})
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:3,maxHeight:240,overflowY:"auto"}}>
-            {CHECKLIST_ITENS.map(item=>(
+            {checklistItens.map(item=>(
               <label key={item} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,cursor:"pointer",padding:"5px 8px",borderRadius:5,
                 background:checklist[item]?"var(--verde-lt)":"var(--cinza-lt)",
                 border:`1px solid ${checklist[item]?"rgba(45,106,31,.2)":"var(--border)"}`,transition:".15s"}}>

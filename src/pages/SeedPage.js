@@ -1,7 +1,9 @@
 // src/pages/SeedPage.js — Seed completo de dados de teste
 import React, { useState } from "react";
 import { collection, addDoc, getDocs, deleteDoc, doc, query, where } from "firebase/firestore";
+import { Navigate } from "react-router-dom";
 import { db } from "../firebase";
+import { useAuth } from "../contexts/AuthContext";
 
 const agora = () => new Date().toISOString();
 const d = (offset) => { const x = new Date(); x.setDate(x.getDate() + offset); return x.toISOString().split("T")[0]; };
@@ -255,6 +257,7 @@ const SECOES = [
 ];
 
 export default function SeedPage() {
+  const { userProfile } = useAuth();
   const [status,   setStatus]   = useState({});
   const [logs,     setLogs]     = useState([]);
   const [rodando,  setRodando]  = useState(false);
@@ -262,6 +265,8 @@ export default function SeedPage() {
   const [selecionadas, setSelecionadas] = useState(() => {
     const s = {}; SECOES.forEach(x => { s[x.id] = true; }); return s;
   });
+
+  if (!userProfile?.adm) return <Navigate to="/" replace />;
 
   const log  = (msg, tipo="info") => setLogs(p => [...p, { msg, tipo, ts:new Date().toLocaleTimeString("pt-BR") }]);
   const setS = (id, v) => setStatus(p => ({ ...p, [id]:v }));
