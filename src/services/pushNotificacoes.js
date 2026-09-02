@@ -7,7 +7,7 @@ import { messaging, db } from "../firebase";
 // !! SUBSTITUIR pela chave VAPID gerada em:
 // Firebase Console → Project Settings → Cloud Messaging →
 // Web configuration → Generate key pair
-const VAPID_KEY = "COLE_AQUI_A_CHAVE_VAPID";
+const VAPID_KEY = "BK8biI6P-cWbgOhSozJ5nOrfKFh5Rn-PNMaRnwKhCgVNl6fkcS1TjJe8bUINrilwC62UOHzwEvJmRuvjrIRbmyc";
 
 /** Solicita permissão e registra o token FCM do dispositivo */
 export async function registrarTokenPush(uid) {
