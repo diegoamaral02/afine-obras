@@ -1,33 +1,42 @@
 // src/services/pushNotificacoes.js
 // Gerencia token FCM: solicita permissão, obtém token e salva no Firestore.
-import { getToken, onMessage } from "firebase/messaging";
+// Usa dynamic import para evitar crash em browsers que não suportam FCM
+// (modo privado do Firefox/Safari, browsers antigos, etc.).
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { messaging, db } from "../firebase";
+import { db, app } from "../firebase";
 
-// !! SUBSTITUIR pela chave VAPID gerada em:
-// Firebase Console → Project Settings → Cloud Messaging →
-// Web configuration → Generate key pair
 const VAPID_KEY = "BK8biI6P-cWbgOhSozJ5nOrfKFh5Rn-PNMaRnwKhCgVNl6fkcS1TjJe8bUINrilwC62UOHzwEvJmRuvjrIRbmyc";
+
+/** Retorna a instância de messaging se o ambiente suportar, ou null */
+async function getMessagingInstance() {
+  try {
+    const { isSupported, getMessaging } = await import("firebase/messaging");
+    if (!(await isSupported())) return null;
+    return getMessaging(app);
+  } catch {
+    return null;
+  }
+}
 
 /** Solicita permissão e registra o token FCM do dispositivo */
 export async function registrarTokenPush(uid) {
-  if (!uid) return null;
-  if (!("Notification" in window)) return null;
-
+  if (!uid || !("Notification" in window)) return null;
   try {
     const perm = await Notification.requestPermission();
     if (perm !== "granted") return null;
 
+    const { getToken } = await import("firebase/messaging");
+    const messaging = await getMessagingInstance();
+    if (!messaging) return null;
+
     const token = await getToken(messaging, { vapidKey: VAPID_KEY });
     if (!token) return null;
 
-    // Salva token associado ao usuário no Firestore
     await setDoc(
       doc(db, "usuarios", uid, "fcmTokens", token.slice(-20)),
       { token, device: navigator.userAgent.slice(0, 100), updatedAt: serverTimestamp() },
       { merge: true }
     );
-
     return token;
   } catch (err) {
     console.warn("Push: erro ao registrar token:", err.message);
@@ -36,12 +45,15 @@ export async function registrarTokenPush(uid) {
 }
 
 /** Escuta mensagens quando o app está em foreground — retorna função de cleanup */
-export function ouvirMensagensForeground(onReceber) {
+export async function ouvirMensagensForeground(onReceber) {
+  const messaging = await getMessagingInstance();
+  if (!messaging) return () => {};
+
+  const { onMessage } = await import("firebase/messaging");
   return onMessage(messaging, payload => {
     const title = payload.notification?.title || "Afine Obras";
     const body  = payload.notification?.body  || "";
 
-    // Mostra notificação do browser mesmo com o app aberto
     if (Notification.permission === "granted") {
       new Notification(title, {
         body,
@@ -50,8 +62,6 @@ export function ouvirMensagensForeground(onReceber) {
         tag: payload.data?.tipo || "afine",
       });
     }
-
-    // Callback opcional para o app reagir (ex: toast in-app)
     onReceber?.({ title, body, data: payload.data });
   });
 }

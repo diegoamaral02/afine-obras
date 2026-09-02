@@ -5,8 +5,9 @@ import { registrarTokenPush, ouvirMensagensForeground } from "../services/pushNo
 export function usePushNotificacoes(uid, onMensagem) {
   useEffect(() => {
     if (!uid) return;
+    let cleanup = () => {};
     registrarTokenPush(uid);
-    const unsub = ouvirMensagensForeground(onMensagem);
-    return () => unsub?.();
+    ouvirMensagensForeground(onMensagem).then(unsub => { cleanup = unsub; });
+    return () => cleanup();
   }, [uid]); // eslint-disable-line
 }
