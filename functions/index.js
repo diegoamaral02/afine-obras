@@ -1,4 +1,4 @@
-// functions/index.js
+// functions/index.js — Node 22 runtime
 // Dispara push notification via FCM quando uma nova notificação é criada no Firestore.
 // Deploy: firebase deploy --only functions  (na pasta raiz do projeto)
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
