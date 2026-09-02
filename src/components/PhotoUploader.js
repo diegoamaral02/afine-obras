@@ -1,5 +1,7 @@
-// src/components/PhotoUploader.js — câmera + galeria + GPS
+// src/components/PhotoUploader.js — câmera + galeria + GPS + Firebase Storage
 import React, { useRef, useState } from "react";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { storage } from "../firebase";
 
 const DEFAULT_MIN = 15;
 
@@ -11,7 +13,7 @@ function comprimirImagem(file) {
       const img = new Image();
       img.onerror = reject;
       img.onload = () => {
-        const MAX = 800;
+        const MAX = 1200;
         let { width, height } = img;
         if (width > MAX || height > MAX) {
           if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
@@ -20,7 +22,7 @@ function comprimirImagem(file) {
         const canvas = document.createElement("canvas");
         canvas.width = width; canvas.height = height;
         canvas.getContext("2d").drawImage(img, 0, 0, width, height);
-        resolve({ base64: canvas.toDataURL("image/jpeg", 0.70), nome: file.name });
+        canvas.toBlob(blob => resolve({ blob, nome: file.name }), "image/jpeg", 0.80);
       };
       img.src = e.target.result;
     };
@@ -39,7 +41,20 @@ function capturarGPS() {
   });
 }
 
-export default function PhotoUploader({ fotos, onChange, minFotos }) {
+/** Faz upload de um Blob para Firebase Storage e retorna a URL pública */
+async function uploadParaStorage(blob, nome, storagePath) {
+  const uid = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const ext  = nome.split(".").pop().toLowerCase() || "jpg";
+  const path = `${storagePath}/${uid}.${ext}`;
+  const sr   = storageRef(storage, path);
+  const snap = await uploadBytes(sr, blob, { contentType: "image/jpeg" });
+  return await getDownloadURL(snap.ref);
+}
+
+// storagePath: prefixo do caminho no Storage (ex: "fotos/manutencoes").
+// Quando fornecido, fotos são enviadas ao Storage e salvas como { url, ... }.
+// Sem storagePath: mantém comportamento base64 original.
+export default function PhotoUploader({ fotos, onChange, minFotos, storagePath }) {
   const MIN = minFotos !== undefined ? minFotos : DEFAULT_MIN;
   const cameraRef  = useRef();
   const galeriaRef = useRef();
@@ -54,12 +69,21 @@ export default function PhotoUploader({ fotos, onChange, minFotos }) {
       const gps = await capturarGPS();
       const novas = await Promise.all(
         files.map(async f => {
-          const { base64, nome } = await comprimirImagem(f);
-          return { base64, nome, caption: "", addedAt: new Date().toISOString(), gps };
+          const { blob, nome } = await comprimirImagem(f);
+          if (storagePath) {
+            const url = await uploadParaStorage(blob, nome, storagePath);
+            return { url, nome, caption: "", addedAt: new Date().toISOString(), gps };
+          }
+          // fallback: base64 (sem Storage)
+          return new Promise(res => {
+            const reader = new FileReader();
+            reader.onload = ev => res({ base64: ev.target.result, nome, caption: "", addedAt: new Date().toISOString(), gps });
+            reader.readAsDataURL(blob);
+          });
         })
       );
       onChange([...fotos, ...novas]);
-    } catch (err) { alert("Erro: " + err.message); }
+    } catch (err) { alert("Erro ao enviar foto: " + err.message); }
     setLoading(false);
     e.target.value = "";
   }
@@ -75,8 +99,8 @@ export default function PhotoUploader({ fotos, onChange, minFotos }) {
     window.open(`https://www.google.com/maps?q=${gps.lat},${gps.lng}`, "_blank");
   }
 
-  const count = fotos.length;
-  const ok    = MIN === 0 || count >= MIN;
+  const count  = fotos.length;
+  const ok     = MIN === 0 || count >= MIN;
   const faltam = Math.max(0, MIN - count);
 
   return (
@@ -102,10 +126,10 @@ export default function PhotoUploader({ fotos, onChange, minFotos }) {
       <div className="photo-grid">
         {fotos.map((foto, idx) => (
           <div key={idx} className="photo-thumb">
-            <img src={foto.base64} alt={foto.caption || "foto"} />
+            {/* compatível com fotos antigas (base64) e novas (url do Storage) */}
+            <img src={foto.url || foto.base64} alt={foto.caption || "foto"} />
             <button className="photo-del" onClick={() => remover(idx)}>×</button>
 
-            {/* Badge GPS */}
             {foto.gps && (
               <button onClick={() => abrirMapa(foto.gps)}
                 style={{ position:"absolute", top:4, left:4, background:"rgba(0,0,0,.65)", border:"none", borderRadius:4, padding:"2px 5px", fontSize:9, color:"#F5C800", cursor:"pointer" }}
@@ -133,10 +157,10 @@ export default function PhotoUploader({ fotos, onChange, minFotos }) {
         <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
           <button className="photo-add" onClick={() => cameraRef.current.click()} disabled={loading}
             style={{ flex:1, borderColor:"var(--afine-yellow-dk)", color:"var(--afine-yellow-dk)" }}>
-            {loading ? <span style={{ fontSize:11 }}>...</span> : <><span style={{ fontSize:18 }}>📷</span><span style={{ fontSize:10 }}>Câmera</span></>}
+            {loading ? <span style={{ fontSize:11 }}>Enviando...</span> : <><span style={{ fontSize:18 }}>📷</span><span style={{ fontSize:10 }}>Câmera</span></>}
           </button>
           <button className="photo-add" onClick={() => galeriaRef.current.click()} disabled={loading} style={{ flex:1 }}>
-            <span style={{ fontSize:18 }}>🖼️</span><span style={{ fontSize:10 }}>Galeria</span>
+            {loading ? <span style={{ fontSize:11 }}>...</span> : <><span style={{ fontSize:18 }}>🖼️</span><span style={{ fontSize:10 }}>Galeria</span></>}
           </button>
         </div>
       </div>

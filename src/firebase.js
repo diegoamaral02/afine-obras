@@ -6,9 +6,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth }       from "firebase/auth";
 import { getFirestore }  from "firebase/firestore";
-
-// Sem Firebase Storage — fotos e OS são salvas como base64 no Firestore.
-// Plano GRATUITO (Spark) — sem cartão de crédito necessário.
+import { getStorage }    from "firebase/storage";
 
 const firebaseConfig = {
   apiKey:            "AIzaSyBzhRx4tCtVzxhSfSp7_A3aKBazAoIDySI",
@@ -19,7 +17,8 @@ const firebaseConfig = {
   appId:             "1:445289736678:web:10fdb656ca1ae81cb6ce27",
 };
 
-const app     = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db   = getFirestore(app);
+const app      = initializeApp(firebaseConfig);
+export const auth    = getAuth(app);
+export const db      = getFirestore(app);
+export const storage = getStorage(app);
 export default app;
