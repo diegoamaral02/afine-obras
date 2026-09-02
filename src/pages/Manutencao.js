@@ -13,6 +13,7 @@ import CustosDemanda from "../components/CustosDemanda";
 import CustosMaoDeObra from "../components/CustosMaoDeObra";
 import { exportarOSParaPDF, exportarTermoChavesParaPDF } from "../utils/exportPDF";
 import TermoChaves from "../components/TermoChaves";
+import { enviarNotificacao, NOTIF } from "../hooks/useNotificacoes";
 import HistoricoAlteracoes from "../components/HistoricoAlteracoes";
 import { useToast } from "../hooks/useToast";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
@@ -267,6 +268,16 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
       );
       if (resultado.ok) {
         addToast(manut?.id ? "✓ Manutenção atualizada!" : "✓ Manutenção criada!");
+        // Notifica alocados quando é uma nova manutenção
+        if (!manut?.id) {
+          (form.alocadoIds||[]).forEach(alocId => {
+            if (alocId !== uid) enviarNotificacao(alocId, NOTIF.MANUT_URGENTE(form.titulo||"Nova manutenção"));
+          });
+        }
+        // Notifica responsável quando status muda para CONCLUÍDA
+        if (manut?.id && form.status==="CONCLUÍDA" && form.responsavelId && form.responsavelId !== uid) {
+          enviarNotificacao(form.responsavelId, { titulo:"✅ Manutenção concluída", corpo:`${form.titulo||"Atendimento"} foi finalizado`, tipo:"success", link:"/manutencao" });
+        }
         onClose();
       } else if (resultado.enfileirado) {
         addToast("📡 Sem conexão — salvo no dispositivo. Será enviado automaticamente quando a internet voltar.", "warning");

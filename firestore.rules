@@ -43,6 +43,11 @@ service cloud.firestore {
         allow read:  if isGestor();
         allow write: if isGestor();
       }
+      // Tokens FCM por dispositivo — cada usuário escreve só o próprio
+      match /fcmTokens/{tokenId} {
+        allow read:  if isAuth() && uid() == id;
+        allow write: if isAuth() && uid() == id;
+      }
     }
 
     // ── Obras ────────────────────────────────────────────────────
@@ -330,7 +335,8 @@ service cloud.firestore {
     }
 
     // ── Notificações (por usuário) ────────────────────────────────
-    match /notificacoes/{uid_destino}/{id} {
+    // enviarNotificacao() escreve em notificacoes/{uid}/items/{docId}
+    match /notificacoes/{uid_destino}/items/{id} {
       allow read:   if isAuth() && uid() == uid_destino;
       allow write:  if isAuth();
     }
