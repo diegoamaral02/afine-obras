@@ -673,7 +673,7 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
       {/* ── PASSO FOTOS — FOTOS & CHECKLIST ─────────────────── */}
       {passo===P_FOTOS && (
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
-          <PhotoUploader fotos={fotos} onChange={setFotos} minFotos={MIN_FOTOS} storagePath="fotos/manutencoes"/>
+          <PhotoUploader fotos={fotos} onChange={setFotos} minFotos={MIN_FOTOS}/>
 
           {/* Badge de template carregado */}
           {templateInfo && (

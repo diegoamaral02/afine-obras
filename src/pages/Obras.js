@@ -196,23 +196,12 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   const MIN_FOTOS_ITEM_DESCARACT = 5;
   function adicionarFotosItem(item, files) {
     if (!files || !files.length) return;
-    Array.from(files).forEach(async file => {
-      try {
-        const uid  = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-        const ext  = file.name.split(".").pop().toLowerCase() || "jpg";
-        const path = `fotos/obras/${uid}.${ext}`;
-        const sr   = storageRef(storage, path);
-        const snap = await uploadBytes(sr, file, { contentType: file.type || "image/jpeg" });
-        const url  = await getDownloadURL(snap.ref);
-        setChecklistDescaract(p=>({...p,[item]:{...p[item],fotos:[...(p[item]?.fotos||[]),url]}}));
-      } catch {
-        // fallback base64 se Storage falhar
-        const reader = new FileReader();
-        reader.onload = () => {
-          setChecklistDescaract(p=>({...p,[item]:{...p[item],fotos:[...(p[item]?.fotos||[]),reader.result]}}));
-        };
-        reader.readAsDataURL(file);
-      }
+    Array.from(files).forEach(file=>{
+      const reader = new FileReader();
+      reader.onload = () => {
+        setChecklistDescaract(p=>({...p, [item]:{...p[item], fotos:[...(p[item]?.fotos||[]), reader.result]}}));
+      };
+      reader.readAsDataURL(file);
     });
   }
   function removerFotoItem(item, idx) {
@@ -746,7 +735,7 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
 
       {aba==="fotos_checklist" && (
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
-          <PhotoUploader fotos={fotos} onChange={setFotos} minFotos={MIN_FOTOS_OBRA} storagePath="fotos/obras"/>
+          <PhotoUploader fotos={fotos} onChange={setFotos} minFotos={MIN_FOTOS_OBRA}/>
           <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em"}}>
             Checklist de vistoria ({Object.values(checklist).filter(Boolean).length}/{checklistItens.length})
           </div>
