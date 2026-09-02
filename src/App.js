@@ -6,6 +6,7 @@ import { db } from "./firebase";
 import { useAuth } from "./contexts/AuthContext";
 import { AgendaProvider, useAgenda } from "./contexts/AgendaContext";
 import { useNotificacoes } from "./hooks/useNotificacoes";
+import { usePushNotificacoes } from "./hooks/usePushNotificacoes";
 import { useFilaOffline } from "./hooks/useFilaOffline";
 import { initials } from "./utils/helpers";
 import { LOGO_BASE64 } from "./utils/assets";
@@ -270,6 +271,7 @@ function AppShell() {
   const [showNotifs,   setShowNotifs]   = useState(false);
   const { agendamentosDodia } = useAgenda();
   const { notifs, naoLidas, marcarLida, marcarTodasLidas } = useNotificacoes(currentUser?.uid);
+  usePushNotificacoes(currentUser?.uid);
   const filaOffline = useFilaOffline();
 
   const hoje = new Date().toISOString().split("T")[0];
