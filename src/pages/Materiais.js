@@ -8,6 +8,11 @@ import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 import { isCampo, isGestorOuAdm, isNivelIntermediario } from "../constants/departamentos";
 import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
+import { enviarNotificacao } from "../hooks/useNotificacoes";
+import { exportarExcel } from "../utils/exportExcel";
+
+// Formatador de moeda — definido fora dos componentes para reuso
+const fmt = v => `R$ ${Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}`;
 
 // Modal de movimentação (entrada ou saída)
 function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }) {
@@ -19,6 +24,7 @@ function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }
     obs: "",
     data: new Date().toISOString().split("T")[0],
     colaboradorNome: "",
+    custoUnitario: "",
   });
   const [saving, setSaving] = useState(false);
   const [usuarios, setUsuarios] = useState([]);
@@ -48,11 +54,13 @@ function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }
       alert(`Saldo insuficiente. Disponível: ${item.saldo} ${item.un}`); return;
     }
     setSaving(true);
+    const custoUnitarioMov = Number(form.custoUnitario) || 0;
     const mov = {
       materialId: item.id,
       materialNome: item.nome,
       tipo,
       quantidade: Number(form.quantidade),
+      custoUnitario: custoUnitarioMov || null,
       demandaTipo: form.demandaTipo,
       demandaId: form.demandaId,
       demandaNome: demandas.find(d=>d.id===form.demandaId)?.nome || demandas.find(d=>d.id===form.demandaId)?.titulo || "",
@@ -69,7 +77,43 @@ function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }
         : item.saldo - Number(form.quantidade);
       const totalEntradas = tipo === "entrada" ? item.totalEntradas + Number(form.quantidade) : item.totalEntradas;
       const totalSaidas   = tipo === "saida"   ? item.totalSaidas   + Number(form.quantidade) : item.totalSaidas;
-      await updateComAuditoria("materiais_estoque", item.id, { saldo: novoSaldo, totalEntradas, totalSaidas }, currentUser?.uid, userProfile?.nome);
+
+      // Custo médio ponderado na entrada
+      const updateData = { saldo: novoSaldo, totalEntradas, totalSaidas };
+      if (tipo === "entrada" && custoUnitarioMov > 0) {
+        const saldoAtual = item.saldo;
+        const custoAtual = item.custoMedio || item.custoUnitario || 0;
+        const qtdEntrada = Number(form.quantidade);
+        const novoSaldoCalc = saldoAtual + qtdEntrada;
+        const custoMedio = novoSaldoCalc > 0
+          ? (saldoAtual * custoAtual + qtdEntrada * custoUnitarioMov) / novoSaldoCalc
+          : custoUnitarioMov;
+        updateData.custoMedio = Math.round(custoMedio * 100) / 100;
+      }
+
+      await updateComAuditoria("materiais_estoque", item.id, updateData, currentUser?.uid, userProfile?.nome);
+
+      // Alerta de reposição automática após saída abaixo do mínimo
+      if (tipo === "saida" && item.estoqueMin > 0 && novoSaldo <= item.estoqueMin) {
+        try {
+          const snapUsers = await getDocs(collection(db, "usuarios"));
+          const destinatarios = snapUsers.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .filter(u => u.id !== currentUser?.uid && (
+              u.adm === true ||
+              ["gestao","compras","financeiro"].includes(u.departamento || u.perfil)
+            ));
+          for (const u of destinatarios) {
+            await enviarNotificacao(u.id, {
+              titulo: "⚠️ Estoque baixo",
+              corpo: `${item.nome}: saldo ${novoSaldo} ${item.un} atingiu o mínimo (${item.estoqueMin})`,
+              tipo: "warning",
+              link: "/materiais",
+            });
+          }
+        } catch(e) { /* silencioso */ }
+      }
+
       addToast(tipo === "entrada" ? "Entrada registrada!" : "Saída registrada!");
       onClose();
     } catch(err) { addToast("Erro: " + err.message, "error"); }
@@ -104,6 +148,15 @@ function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }
             <input type="date" value={form.data} onChange={e=>set("data",e.target.value)}/>
           </div>
         </div>
+
+        {/* Custo unitário — só na entrada */}
+        {tipo === "entrada" && (
+          <div className="form-group">
+            <label>Custo unitário (R$) <span style={{fontSize:11,color:"#aaa",fontWeight:400}}>(para custo médio)</span></label>
+            <input type="number" step="0.01" min="0" value={form.custoUnitario}
+              onChange={e=>set("custoUnitario",e.target.value)} placeholder="0,00"/>
+          </div>
+        )}
 
         <div className="form-grid">
           <div className="form-group"><label>Vincular a</label>
@@ -467,11 +520,15 @@ function NovoMaterialModal({ onClose, addToast, material }) {
   const editando = !!material;
   const { currentUser, userProfile } = useAuth();
   const [form, setForm] = useState({
-    nome:       material?.nome       || "",
-    categoria:  material?.categoria  || "",
-    un:         material?.un         || "un",
-    estoqueMin: material?.estoqueMin ?? 0,
-    saldo:      material?.saldo      ?? 0,
+    nome:         material?.nome         || "",
+    categoria:    material?.categoria    || "",
+    un:           material?.un           || "un",
+    estoqueMin:   material?.estoqueMin   ?? 0,
+    saldo:        material?.saldo        ?? 0,
+    fornecedor:   material?.fornecedor   || "",
+    custoUnitario:material?.custoUnitario|| "",
+    localizacao:  material?.localizacao  || "",
+    validade:     material?.validade     || "",
   });
   const [saving, setSaving] = useState(false);
   const [imagemBase64, setImagemBase64] = useState(material?.imagemReferencia || null);
@@ -508,6 +565,12 @@ function NovoMaterialModal({ onClose, addToast, material }) {
   async function save() {
     if (!form.nome) { addToast("Informe o nome do material.","error"); return; }
     setSaving(true);
+    const extraFields = {
+      fornecedor:    form.fornecedor    || "",
+      custoUnitario: Number(form.custoUnitario) || 0,
+      localizacao:   form.localizacao   || "",
+      validade:      form.validade      || "",
+    };
     try {
       if (editando) {
         await updateComAuditoria("materiais_estoque", material.id, {
@@ -516,6 +579,7 @@ function NovoMaterialModal({ onClose, addToast, material }) {
           un:         form.un,
           estoqueMin: Number(form.estoqueMin)||0,
           imagemReferencia: imagemBase64 || null,
+          ...extraFields,
         }, currentUser?.uid, userProfile?.nome);
         addToast("Material atualizado!");
       } else {
@@ -523,6 +587,7 @@ function NovoMaterialModal({ onClose, addToast, material }) {
           ...form, estoqueMin:Number(form.estoqueMin)||0, saldo:Number(form.saldo)||0,
           totalEntradas:Number(form.saldo)||0, totalSaidas:0,
           imagemReferencia: imagemBase64 || null,
+          custoUnitario: Number(form.custoUnitario) || 0,
         }, currentUser?.uid, userProfile?.nome);
         addToast("Material cadastrado!");
       }
@@ -550,6 +615,24 @@ function NovoMaterialModal({ onClose, addToast, material }) {
           {!editando && <div className="form-group"><label>Saldo inicial</label><input type="number" min="0" value={form.saldo} onChange={e=>set("saldo",e.target.value)}/></div>}
           {editando && <div className="form-group"><label>Saldo atual</label><input type="number" value={form.saldo} disabled title="Ajuste o saldo via entradas/saídas" style={{background:"var(--cinza-lt)",color:"#7A7A7A",cursor:"not-allowed"}}/></div>}
           <div className="form-group"><label>Estoque mínimo (alerta)</label><input type="number" min="0" value={form.estoqueMin} onChange={e=>set("estoqueMin",e.target.value)}/></div>
+        </div>
+
+        {/* Campos novos */}
+        <div className="form-grid">
+          <div className="form-group"><label>Fornecedor padrão</label>
+            <input value={form.fornecedor} onChange={e=>set("fornecedor",e.target.value)} placeholder="Ex: Leroy Merlin"/>
+          </div>
+          <div className="form-group"><label>Custo unitário (R$)</label>
+            <input type="number" step="0.01" min="0" value={form.custoUnitario} onChange={e=>set("custoUnitario",e.target.value)} placeholder="0,00"/>
+          </div>
+        </div>
+        <div className="form-grid">
+          <div className="form-group"><label>Localização física</label>
+            <input value={form.localizacao} onChange={e=>set("localizacao",e.target.value)} placeholder="Ex: Almoxarifado A, Prateleira 3"/>
+          </div>
+          <div className="form-group"><label>Validade <span style={{fontSize:11,color:"#aaa",fontWeight:400}}>(opcional)</span></label>
+            <input type="date" value={form.validade} onChange={e=>set("validade",e.target.value)}/>
+          </div>
         </div>
 
         {/* Imagem de referência */}
@@ -588,6 +671,86 @@ function NovoMaterialModal({ onClose, addToast, material }) {
   );
 }
 
+// Modal de extrato por item
+function ExtratoModal({ item, movs, onClose }) {
+  const hoje = new Date().toISOString().split("T")[0];
+  const trintaDiasAtras = new Date(Date.now() - 30*24*60*60*1000).toISOString().split("T")[0];
+  const [dataInicio, setDataInicio] = useState(trintaDiasAtras);
+  const [dataFim, setDataFim] = useState(hoje);
+
+  const movsItem = movs.filter(m => {
+    if (m.materialId !== item.id && m.materialNome !== item.nome) return false;
+    if (dataInicio && m.data < dataInicio) return false;
+    if (dataFim && m.data > dataFim) return false;
+    return true;
+  }).sort((a,b) => (b.data||"").localeCompare(a.data||""));
+
+  function exportar() {
+    const dados = movsItem.map(m => ({
+      data: fmtDate(m.data),
+      tipo: m.tipo === "entrada" ? "Entrada" : "Saída",
+      quantidade: m.tipo === "entrada" ? `+${m.quantidade}` : `-${m.quantidade}`,
+      custoUnitario: m.custoUnitario ? fmt(m.custoUnitario) : "–",
+      demanda: m.demandaNome || m.demandaTipo || "–",
+      usuario: m.usuario || "–",
+      obs: m.obs || "–",
+    }));
+    exportarExcel(dados, `Extrato_${item.nome}`, [
+      { header:"Data",        key:"data" },
+      { header:"Tipo",        key:"tipo" },
+      { header:"Qtd.",        key:"quantidade" },
+      { header:"Custo unit.", key:"custoUnitario" },
+      { header:"Demanda",     key:"demanda" },
+      { header:"Usuário",     key:"usuario" },
+      { header:"Obs.",        key:"obs" },
+    ]);
+  }
+
+  return (
+    <Modal title={`📋 Extrato — ${item.nome}`} onClose={onClose}
+      footer={
+        <>
+          <button className="btn" onClick={onClose}>Fechar</button>
+          <button className="btn btn-primary" onClick={exportar} disabled={movsItem.length===0}>Exportar Excel</button>
+        </>
+      }>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <div className="form-grid">
+          <div className="form-group"><label>Data início</label>
+            <input type="date" value={dataInicio} onChange={e=>setDataInicio(e.target.value)}/>
+          </div>
+          <div className="form-group"><label>Data fim</label>
+            <input type="date" value={dataFim} onChange={e=>setDataFim(e.target.value)}/>
+          </div>
+        </div>
+        {movsItem.length === 0
+          ? <div className="empty-state"><div className="empty-icon">📋</div><p>Nenhuma movimentação no período</p></div>
+          : (
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Data</th><th>Tipo</th><th>Qtd.</th><th>Custo unit.</th><th>Demanda</th><th>Usuário</th><th>Obs.</th></tr></thead>
+                <tbody>
+                  {movsItem.map(m=>(
+                    <tr key={m.id}>
+                      <td style={{fontSize:12}}>{fmtDate(m.data)}</td>
+                      <td>{m.tipo==="entrada"?<span className="badge badge-green">📥 Entrada</span>:<span className="badge badge-red">📤 Saída</span>}</td>
+                      <td style={{fontWeight:700,color:m.tipo==="entrada"?"var(--verde)":"var(--vermelho)"}}>{m.tipo==="entrada"?"+":"-"}{m.quantidade}</td>
+                      <td style={{fontSize:12}}>{m.custoUnitario ? fmt(m.custoUnitario) : "–"}</td>
+                      <td style={{fontSize:12}}>{m.demandaNome||m.demandaTipo||"–"}</td>
+                      <td style={{fontSize:12}}>{m.usuario}</td>
+                      <td style={{fontSize:11,color:"var(--cinza-med)"}}>{m.obs||"–"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        }
+      </div>
+    </Modal>
+  );
+}
+
 export default function MateriaisGlobal() {
   const { userProfile, currentUser } = useAuth();
   const { toasts, addToast } = useToast();
@@ -607,6 +770,12 @@ export default function MateriaisGlobal() {
   const [modalNovo,  setModalNovo]  = useState(false);
   const [modalEdit,  setModalEdit]  = useState(null); // material a editar
   const [modalTransf, setModalTransf] = useState(null); // {origem, material}
+  const [modalExtrato, setModalExtrato] = useState(null); // item
+
+  // Inventário
+  const [contagens, setContagens] = useState({}); // { [materialId]: string }
+  const [salvandoInventario, setSalvandoInventario] = useState(false);
+  const inventarioData = useMemo(() => new Date().toLocaleString("pt-BR"), []);
 
   const canEdit = !isCampo(userProfile);
   // Editar e excluir: adm master (adm===true), gestão, financeiro, comercial e compras
@@ -710,6 +879,69 @@ export default function MateriaisGlobal() {
   const zerados   = materiais.filter(m=>m.saldo<=0).length;
   const totalItens= materiais.length;
 
+  // KPI: Valor total do estoque
+  const valorTotalEstoque = useMemo(() => {
+    return materiais.reduce((acc, m) => {
+      const custo = m.custoMedio || m.custoUnitario || 0;
+      return acc + (m.saldo * custo);
+    }, 0);
+  }, [materiais]);
+
+  // KPI: Giro do mês (saídas do mês / saldo médio)
+  const giroMes = useMemo(() => {
+    const agora = new Date();
+    const anoMes = `${agora.getFullYear()}-${String(agora.getMonth()+1).padStart(2,"0")}`;
+    const saidasMes = movs
+      .filter(m => m.tipo === "saida" && (m.data||"").startsWith(anoMes))
+      .reduce((acc, m) => acc + (m.quantidade || 0), 0);
+    const saldoMedio = materiais.length > 0
+      ? materiais.reduce((acc, m) => acc + m.saldo, 0) / materiais.length
+      : 0;
+    return saldoMedio > 0 ? (saidasMes / saldoMedio).toFixed(1) : "–";
+  }, [movs, materiais]);
+
+  // Confirmar inventário
+  async function confirmarInventario() {
+    const ajustes = materiais.filter(m => {
+      const c = contagens[m.id];
+      return c !== undefined && c !== "" && Number(c) !== m.saldo;
+    });
+    if (ajustes.length === 0) { addToast("Nenhum ajuste necessário."); return; }
+    if (!window.confirm(`Confirmar ajuste de ${ajustes.length} item(ns)?`)) return;
+    setSalvandoInventario(true);
+    const dataHoje = new Date().toISOString().split("T")[0];
+    try {
+      for (const m of ajustes) {
+        const contagem = Number(contagens[m.id]);
+        const diff = contagem - m.saldo;
+        const tipoMov = diff > 0 ? "entrada" : "saida";
+        const qtdAjuste = Math.abs(diff);
+        await addComAuditoria("movimentacoes", {
+          materialId: m.id,
+          materialNome: m.nome,
+          tipo: tipoMov,
+          quantidade: qtdAjuste,
+          demandaTipo: "estoque",
+          demandaId: "",
+          demandaNome: "",
+          colaboradorNome: "",
+          obs: "Ajuste de inventário",
+          data: dataHoje,
+          usuario: userProfile?.nome || "–",
+          createdAt: new Date().toISOString(),
+        }, currentUser?.uid, userProfile?.nome);
+        await updateComAuditoria("materiais_estoque", m.id, {
+          saldo: contagem,
+          totalEntradas: tipoMov === "entrada" ? (m.totalEntradas||0) + qtdAjuste : (m.totalEntradas||0),
+          totalSaidas:   tipoMov === "saida"   ? (m.totalSaidas||0)   + qtdAjuste : (m.totalSaidas||0),
+        }, currentUser?.uid, userProfile?.nome);
+      }
+      setContagens({});
+      addToast(`Inventário confirmado! ${ajustes.length} item(ns) ajustado(s).`);
+    } catch(err) { addToast("Erro: "+err.message, "error"); }
+    setSalvandoInventario(false);
+  }
+
   return (
     <div>
       <div className="toast-container">{toasts.map(t=><div key={t.id} className={`toast toast-${t.type}`}>{t.msg}</div>)}</div>
@@ -727,6 +959,8 @@ export default function MateriaisGlobal() {
         <div className="metric"><div className="metric-label">Abaixo do mínimo</div><div className="metric-value amber">{abaixoMin}</div></div>
         <div className="metric"><div className="metric-label">Zerados</div><div className="metric-value red">{zerados}</div></div>
         <div className="metric"><div className="metric-label">Movimentações</div><div className="metric-value">{movs.length}</div></div>
+        <div className="metric"><div className="metric-label">Valor total estoque</div><div className="metric-value" style={{fontSize:14}}>{fmt(valorTotalEstoque)}</div></div>
+        <div className="metric"><div className="metric-label">Giro do mês</div><div className="metric-value">{giroMes === "–" ? "–" : `${giroMes}×`}</div></div>
       </div>
 
       {abaixoMin > 0 && (
@@ -740,6 +974,7 @@ export default function MateriaisGlobal() {
         <button className={`tab ${aba==="movs"?"active":""}`} onClick={()=>setAba("movs")}>Movimentações</button>
         <button className={`tab ${aba==="porDemanda"?"active":""}`} onClick={()=>setAba("porDemanda")}>Por demanda</button>
         <button className={`tab ${aba==="comprasObras"?"active":""}`} onClick={()=>setAba("comprasObras")}>📦 Comprado em Obras</button>
+        {canManage && <button className={`tab ${aba==="inventario"?"active":""}`} onClick={()=>setAba("inventario")}>🗂️ Inventário</button>}
       </div>
 
       {/* ABA ESTOQUE */}
@@ -758,12 +993,23 @@ export default function MateriaisGlobal() {
           {!loading && filtered.length>0 && (
             <div className="table-wrap">
               <table>
-                <thead><tr><th>Material</th><th>Categoria</th><th>Un.</th><th>Saldo</th><th>Mínimo</th><th>Total entradas</th><th>Total saídas</th><th>Sobra em obras</th><th>Status</th>{canEdit&&<th></th>}</tr></thead>
+                <thead><tr>
+                  <th>Material</th><th>Categoria</th><th>Un.</th><th>Saldo</th><th>Mínimo</th>
+                  <th>Total entradas</th><th>Total saídas</th><th>Sobra em obras</th>
+                  <th>Custo médio</th><th>Valor total</th><th>Localização</th><th>Validade</th>
+                  <th>Status</th>{canEdit&&<th></th>}
+                </tr></thead>
                 <tbody>
                   {filtered.map(m=>{
                     const critico = m.estoqueMin>0 && m.saldo<=m.estoqueMin;
                     const zerado  = m.saldo<=0;
                     const sobraObras = saldoEmObrasPara(m.nome);
+                    const custoExib = m.custoMedio || m.custoUnitario;
+                    const valorTotal = m.saldo * (custoExib || 0);
+                    const hoje = new Date().toISOString().split("T")[0];
+                    const em30dias = new Date(Date.now()+30*24*60*60*1000).toISOString().split("T")[0];
+                    const validadeVencida = m.validade && m.validade < hoje;
+                    const validadeProxima = m.validade && m.validade >= hoje && m.validade <= em30dias;
                     return (
                       <tr key={m.id}>
                         <td>
@@ -791,6 +1037,20 @@ export default function MateriaisGlobal() {
                             </button>
                           ) : <span style={{color:"#B8B6AE"}}>–</span>}
                         </td>
+                        <td style={{fontSize:12}}>{custoExib ? fmt(custoExib) : "–"}</td>
+                        <td style={{fontSize:12}}>{valorTotal > 0 ? fmt(valorTotal) : "–"}</td>
+                        <td style={{fontSize:11,color:"var(--cinza-med)"}}>{m.localizacao||"–"}</td>
+                        <td style={{fontSize:12}}>
+                          {m.validade ? (
+                            <span style={{
+                              padding:"2px 7px",borderRadius:10,fontSize:11,fontWeight:600,
+                              background: validadeVencida ? "var(--vermelho-lt)" : validadeProxima ? "#fff3e0" : "var(--cinza-lt)",
+                              color: validadeVencida ? "var(--vermelho)" : validadeProxima ? "#e65100" : "#555",
+                            }}>
+                              {validadeVencida ? "⚠️ " : validadeProxima ? "⚠ " : ""}{fmtDate(m.validade)}
+                            </span>
+                          ) : "–"}
+                        </td>
                         <td>
                           {zerado ? <span className="badge badge-red">Zerado</span>
                            : critico ? <span className="badge badge-amber">Crítico</span>
@@ -800,6 +1060,7 @@ export default function MateriaisGlobal() {
                           <td style={{display:"flex",gap:4,flexWrap:"wrap"}}>
                             <button className="btn btn-sm" style={{background:"var(--verde-lt)",color:"var(--verde)",border:"none"}} onClick={()=>setModalMov({item:m,tipo:"entrada"})} title="Registrar entrada">📥</button>
                             <button className="btn btn-sm" style={{background:"var(--vermelho-lt)",color:"var(--vermelho)",border:"none"}} onClick={()=>setModalMov({item:m,tipo:"saida"})} title="Registrar saída">📤</button>
+                            <button className="btn btn-sm" style={{background:"#f0f4ff",color:"#4F46E5",border:"none"}} onClick={()=>setModalExtrato(m)} title="Ver extrato">📋</button>
                             {canManage && <>
                               <button className="btn btn-sm" style={{background:"#EEF2FF",color:"#4F46E5",border:"none"}} onClick={()=>setModalEdit(m)} title="Editar material">✏️</button>
                               <button className="btn btn-sm" style={{background:"var(--vermelho-lt)",color:"var(--vermelho)",border:"none"}} onClick={()=>excluirMaterial(m)} title="Excluir material">🗑️</button>
@@ -824,7 +1085,7 @@ export default function MateriaisGlobal() {
           {movs.length>0 && (
             <div className="table-wrap">
               <table>
-                <thead><tr><th>Data</th><th>Tipo</th><th>Material</th><th>Qtd.</th><th>Demanda</th><th>Usuário</th><th>Obs.</th></tr></thead>
+                <thead><tr><th>Data</th><th>Tipo</th><th>Material</th><th>Qtd.</th><th>Custo unit.</th><th>Demanda</th><th>Usuário</th><th>Obs.</th></tr></thead>
                 <tbody>
                   {movs.map(m=>(
                     <tr key={m.id}>
@@ -832,6 +1093,7 @@ export default function MateriaisGlobal() {
                       <td>{m.tipo==="entrada"?<span className="badge badge-green">📥 Entrada</span>:<span className="badge badge-red">📤 Saída</span>}</td>
                       <td style={{fontWeight:500}}>{m.materialNome}</td>
                       <td style={{fontWeight:700,color:m.tipo==="entrada"?"var(--verde)":"var(--vermelho)"}}>{m.tipo==="entrada"?"+":"-"}{m.quantidade}</td>
+                      <td style={{fontSize:12}}>{m.custoUnitario ? fmt(m.custoUnitario) : "–"}</td>
                       <td style={{fontSize:12}}>{m.demandaNome||m.demandaTipo||"–"}</td>
                       <td style={{fontSize:12}}>{m.usuario}</td>
                       <td style={{fontSize:11,color:"var(--cinza-med)"}}>{m.obs||"–"}</td>
@@ -1030,6 +1292,58 @@ export default function MateriaisGlobal() {
         </>
       )}
 
+      {/* ABA INVENTÁRIO */}
+      {aba==="inventario" && canManage && (
+        <>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
+            <div>
+              <div style={{fontWeight:700,fontSize:14}}>Inventário periódico</div>
+              <div style={{fontSize:12,color:"var(--cinza-med)"}}>Iniciado em: {inventarioData}</div>
+            </div>
+            <button className="btn btn-primary" onClick={confirmarInventario} disabled={salvandoInventario}>
+              {salvandoInventario ? "Salvando..." : "✓ Confirmar inventário"}
+            </button>
+          </div>
+          {materiais.length === 0
+            ? <div className="empty-state"><div className="empty-icon">🗂️</div><p>Nenhum material cadastrado</p></div>
+            : (
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Material</th><th>Localização</th><th>Saldo sistema</th><th>Contagem física</th><th>Diferença</th></tr></thead>
+                  <tbody>
+                    {[...materiais].sort((a,b)=>a.nome.localeCompare(b.nome)).map(m=>{
+                      const cStr = contagens[m.id];
+                      const c = cStr !== undefined && cStr !== "" ? Number(cStr) : null;
+                      const diff = c !== null ? c - m.saldo : null;
+                      return (
+                        <tr key={m.id}>
+                          <td style={{fontWeight:500}}>{m.nome}</td>
+                          <td style={{fontSize:12,color:"var(--cinza-med)"}}>{m.localizacao||"–"}</td>
+                          <td style={{fontWeight:700,color:m.saldo<=0?"var(--vermelho)":"var(--verde)"}}>{m.saldo} {m.un}</td>
+                          <td>
+                            <input
+                              type="number" min="0" placeholder="—"
+                              value={cStr !== undefined ? cStr : ""}
+                              onChange={e=>setContagens(p=>({...p,[m.id]:e.target.value}))}
+                              style={{width:90,textAlign:"center",
+                                borderColor: diff !== null && diff !== 0 ? (diff>0?"var(--verde)":"var(--vermelho)") : undefined}}
+                            />
+                          </td>
+                          <td style={{fontWeight:600,
+                            color: diff === null ? "#aaa" : diff > 0 ? "var(--verde)" : diff < 0 ? "var(--vermelho)" : "#7A7A7A"}}>
+                            {diff === null ? "–" : diff > 0 ? `+${diff}` : diff === 0 ? "OK" : diff}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )
+          }
+        </>
+      )}
+
       {modalTransf && (
         <TransferenciaModal origem={modalTransf.origem} material={modalTransf.material}
           obras={obras} manutencoes={manut}
@@ -1039,6 +1353,7 @@ export default function MateriaisGlobal() {
       {modalMov  && <MovimentacaoModal item={modalMov.item} tipo={modalMov.tipo} obras={obras} manutencoes={manut} onClose={()=>setModalMov(null)} addToast={addToast}/>}
       {modalNovo && <NovoMaterialModal onClose={()=>setModalNovo(false)} addToast={addToast}/>}
       {modalEdit && <NovoMaterialModal material={modalEdit} onClose={()=>setModalEdit(null)} addToast={addToast}/>}
+      {modalExtrato && <ExtratoModal item={modalExtrato} movs={movs} onClose={()=>setModalExtrato(null)}/>}
     </div>
   );
 }
