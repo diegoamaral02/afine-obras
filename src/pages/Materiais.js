@@ -691,10 +691,10 @@ function NovoMaterialModal({ onClose, addToast, material }) {
         </div>
 
         {/* Rendimento — apenas para litros */}
-        {form.un === "L" && (
+        {form.un === "litro" && (
           <div className="form-grid">
             <div className="form-group">
-              <label>Rendimento <span style={{fontSize:11,color:"#aaa",fontWeight:400}}>(m²/L — cobertura por litro)</span></label>
+              <label>Rendimento <span style={{fontSize:11,color:"#aaa",fontWeight:400}}>(m²/litro — cobertura por litro)</span></label>
               <input type="number" min="0" step="0.001" value={form.rendimento}
                 onChange={e=>set("rendimento",e.target.value)}
                 placeholder="Ex: 10 (1L cobre 10m²)"/>
