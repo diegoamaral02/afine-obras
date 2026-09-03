@@ -690,20 +690,22 @@ function NovoMaterialModal({ onClose, addToast, material }) {
           </div>
         </div>
 
-        {/* Rendimento (tinta, rejunte, impermeabilizante, etc.) */}
-        <div className="form-grid">
-          <div className="form-group">
-            <label>Rendimento <span style={{fontSize:11,color:"#aaa",fontWeight:400}}>(m²/{form.un || "un"} — tinta, rejunte...)</span></label>
-            <input type="number" min="0" step="0.001" value={form.rendimento}
-              onChange={e=>set("rendimento",e.target.value)}
-              placeholder="Ex: 10 (1L cobre 10m²)"/>
+        {/* Rendimento — apenas para litros */}
+        {form.un === "L" && (
+          <div className="form-grid">
+            <div className="form-group">
+              <label>Rendimento <span style={{fontSize:11,color:"#aaa",fontWeight:400}}>(m²/L — cobertura por litro)</span></label>
+              <input type="number" min="0" step="0.001" value={form.rendimento}
+                onChange={e=>set("rendimento",e.target.value)}
+                placeholder="Ex: 10 (1L cobre 10m²)"/>
+            </div>
+            <div className="form-group">
+              <label>Demãos padrão <span style={{fontSize:11,color:"#aaa",fontWeight:400}}>(padrão 2)</span></label>
+              <input type="number" min="1" max="10" step="1" value={form.demaosPadrao}
+                onChange={e=>set("demaosPadrao",e.target.value)}/>
+            </div>
           </div>
-          <div className="form-group">
-            <label>Demãos padrão <span style={{fontSize:11,color:"#aaa",fontWeight:400}}>(padrão 2)</span></label>
-            <input type="number" min="1" max="10" step="1" value={form.demaosPadrao}
-              onChange={e=>set("demaosPadrao",e.target.value)}/>
-          </div>
-        </div>
+        )}
 
         {/* Imagem de referência */}
         <div className="form-group">
