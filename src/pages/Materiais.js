@@ -465,7 +465,36 @@ function NovoMaterialModal({ onClose, addToast }) {
   const { currentUser, userProfile } = useAuth();
   const [form, setForm] = useState({ nome:"", categoria:"", un:"un", estoqueMin:0, saldo:0 });
   const [saving, setSaving] = useState(false);
+  const [imagemBase64, setImagemBase64] = useState(null);
+  const [carregandoImg, setCarregandoImg] = useState(false);
+  const imgInputRef = React.useRef();
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
+
+  function handleImagem(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setCarregandoImg(true);
+    const reader = new FileReader();
+    const img = new Image();
+    reader.onload = ev => {
+      img.onload = () => {
+        const MAX = 800;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+          else { width = Math.round(width * MAX / height); height = MAX; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+        setImagemBase64(canvas.toDataURL("image/jpeg", 0.80));
+        setCarregandoImg(false);
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
 
   async function save() {
     if (!form.nome) { addToast("Informe o nome do material.","error"); return; }
@@ -474,6 +503,7 @@ function NovoMaterialModal({ onClose, addToast }) {
       await addComAuditoria("materiais_estoque", {
         ...form, estoqueMin:Number(form.estoqueMin)||0, saldo:Number(form.saldo)||0,
         totalEntradas:Number(form.saldo)||0, totalSaidas:0,
+        ...(imagemBase64 ? { imagemReferencia: imagemBase64 } : {}),
       }, currentUser?.uid, userProfile?.nome);
       addToast("Material cadastrado!");
       onClose();
@@ -499,6 +529,38 @@ function NovoMaterialModal({ onClose, addToast }) {
           </div>
           <div className="form-group"><label>Saldo inicial</label><input type="number" min="0" value={form.saldo} onChange={e=>set("saldo",e.target.value)}/></div>
           <div className="form-group"><label>Estoque mínimo (alerta)</label><input type="number" min="0" value={form.estoqueMin} onChange={e=>set("estoqueMin",e.target.value)}/></div>
+        </div>
+
+        {/* Imagem de referência */}
+        <div className="form-group">
+          <label>Imagem de referência <span style={{fontSize:11,color:"#aaa",fontWeight:400}}>(opcional)</span></label>
+          {imagemBase64 ? (
+            <div style={{display:"flex",alignItems:"flex-start",gap:10,marginTop:4}}>
+              <img src={imagemBase64} alt="referência"
+                style={{width:90,height:90,objectFit:"cover",borderRadius:8,border:"1px solid var(--border)",flexShrink:0}}/>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                <button type="button" onClick={()=>imgInputRef.current.click()}
+                  style={{padding:"5px 12px",border:"1px solid var(--border)",borderRadius:6,background:"#fff",fontSize:12,cursor:"pointer"}}>
+                  Trocar imagem
+                </button>
+                <button type="button" onClick={()=>setImagemBase64(null)}
+                  style={{padding:"5px 12px",border:"1px solid var(--vermelho)",borderRadius:6,background:"#fff",color:"var(--vermelho)",fontSize:12,cursor:"pointer"}}>
+                  Remover
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button type="button" onClick={()=>imgInputRef.current.click()} disabled={carregandoImg}
+              style={{
+                marginTop:4,width:"100%",padding:"18px 0",border:"2px dashed var(--border)",
+                borderRadius:8,background:"var(--cinza-lt)",cursor:"pointer",
+                fontSize:13,color:"#7A7A7A",display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+              }}>
+              {carregandoImg ? "Processando..." : <><span style={{fontSize:20}}>📷</span> Selecionar imagem</>}
+            </button>
+          )}
+          <input ref={imgInputRef} type="file" accept="image/*" onChange={handleImagem} style={{display:"none"}}/>
+          <span style={{fontSize:11,color:"#aaa",marginTop:4,display:"block"}}>Foto do produto, embalagem ou equipamento para referência visual.</span>
         </div>
       </div>
     </Modal>
@@ -671,7 +733,17 @@ export default function MateriaisGlobal() {
                     const sobraObras = saldoEmObrasPara(m.nome);
                     return (
                       <tr key={m.id}>
-                        <td><strong>{m.nome}</strong></td>
+                        <td>
+                          <div style={{display:"flex",alignItems:"center",gap:8}}>
+                            {m.imagemReferencia && (
+                              <img src={m.imagemReferencia} alt={m.nome}
+                                style={{width:36,height:36,objectFit:"cover",borderRadius:6,border:"1px solid var(--border)",flexShrink:0,cursor:"pointer"}}
+                                onClick={()=>window.open(m.imagemReferencia,"_blank")}
+                                title="Ver imagem de referência"/>
+                            )}
+                            <strong>{m.nome}</strong>
+                          </div>
+                        </td>
                         <td style={{fontSize:12}}>{m.categoria||"–"}</td>
                         <td style={{fontSize:12}}>{m.un}</td>
                         <td style={{fontWeight:700,color:zerado?"var(--vermelho)":critico?"var(--laranja)":"var(--verde)",fontSize:14}}>{m.saldo}</td>
