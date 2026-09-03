@@ -45,9 +45,9 @@ export async function enviarNotificacao(uidDestino, { titulo, corpo, tipo="info"
 
 // Tipos de notificação para o sistema AFINE
 export const NOTIF = {
-  MANUT_URGENTE:   (titulo) => ({ titulo:"⚠️ Manutenção urgente",     corpo:`${titulo} aguarda atendimento`, tipo:"danger" }),
-  COMPRA_APROVADA: (titulo) => ({ titulo:"✅ Compra aprovada",          corpo:`${titulo} foi aprovada`,        tipo:"success" }),
-  VENCIMENTO:      (valor)  => ({ titulo:"💰 Vencimento próximo",       corpo:`Lançamento de R$ ${valor}`,     tipo:"warning" }),
-  SEM_OT:          (titulo) => ({ titulo:"📋 S/OT pendente",            corpo:`${titulo} sem número de OT`,    tipo:"warning" }),
-  OBRA_ATRASADA:   (nome)   => ({ titulo:"🏗️ Obra com desvio",         corpo:`${nome} está atrasada`,         tipo:"danger" }),
+  MANUT_URGENTE:   (titulo) => ({ titulo:"⚠️ Manutenção urgente",     corpo:`${titulo} aguarda atendimento`, tipo:"danger",   link:"/manutencao" }),
+  COMPRA_APROVADA: (titulo) => ({ titulo:"✅ Compra aprovada",          corpo:`${titulo} foi aprovada`,        tipo:"success",  link:"/compras" }),
+  VENCIMENTO:      (valor)  => ({ titulo:"💰 Vencimento próximo",       corpo:`Lançamento de R$ ${valor}`,     tipo:"warning",  link:"/financeiro" }),
+  SEM_OT:          (titulo) => ({ titulo:"📋 S/OT pendente",            corpo:`${titulo} sem número de OT`,    tipo:"warning",  link:"/manutencao" }),
+  OBRA_ATRASADA:   (nome)   => ({ titulo:"🏗️ Obra com desvio",         corpo:`${nome} está atrasada`,         tipo:"danger",   link:"/obras" }),
 };
