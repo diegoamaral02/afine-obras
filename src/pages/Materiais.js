@@ -6,8 +6,8 @@ import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
-import { isCampo } from "../constants/departamentos";
-import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
+import { isCampo, isGestorOuAdm, isNivelIntermediario } from "../constants/departamentos";
+import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 
 // Modal de movimentação (entrada ou saída)
 function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }) {
@@ -460,12 +460,21 @@ function TransferenciaModal({ origem, material, obras, manutencoes, onClose, add
   );
 }
 
-// Modal de cadastro de novo material
-function NovoMaterialModal({ onClose, addToast }) {
+// Modal de cadastro / edição de material
+// Quando `material` é passado, opera em modo edição — saldo não é editável
+// (para ajuste de saldo usam-se as movimentações de entrada/saída)
+function NovoMaterialModal({ onClose, addToast, material }) {
+  const editando = !!material;
   const { currentUser, userProfile } = useAuth();
-  const [form, setForm] = useState({ nome:"", categoria:"", un:"un", estoqueMin:0, saldo:0 });
+  const [form, setForm] = useState({
+    nome:       material?.nome       || "",
+    categoria:  material?.categoria  || "",
+    un:         material?.un         || "un",
+    estoqueMin: material?.estoqueMin ?? 0,
+    saldo:      material?.saldo      ?? 0,
+  });
   const [saving, setSaving] = useState(false);
-  const [imagemBase64, setImagemBase64] = useState(null);
+  const [imagemBase64, setImagemBase64] = useState(material?.imagemReferencia || null);
   const [carregandoImg, setCarregandoImg] = useState(false);
   const imgInputRef = React.useRef();
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
@@ -500,19 +509,30 @@ function NovoMaterialModal({ onClose, addToast }) {
     if (!form.nome) { addToast("Informe o nome do material.","error"); return; }
     setSaving(true);
     try {
-      await addComAuditoria("materiais_estoque", {
-        ...form, estoqueMin:Number(form.estoqueMin)||0, saldo:Number(form.saldo)||0,
-        totalEntradas:Number(form.saldo)||0, totalSaidas:0,
-        ...(imagemBase64 ? { imagemReferencia: imagemBase64 } : {}),
-      }, currentUser?.uid, userProfile?.nome);
-      addToast("Material cadastrado!");
+      if (editando) {
+        await updateComAuditoria("materiais_estoque", material.id, {
+          nome:       form.nome,
+          categoria:  form.categoria,
+          un:         form.un,
+          estoqueMin: Number(form.estoqueMin)||0,
+          imagemReferencia: imagemBase64 || null,
+        }, currentUser?.uid, userProfile?.nome);
+        addToast("Material atualizado!");
+      } else {
+        await addComAuditoria("materiais_estoque", {
+          ...form, estoqueMin:Number(form.estoqueMin)||0, saldo:Number(form.saldo)||0,
+          totalEntradas:Number(form.saldo)||0, totalSaidas:0,
+          imagemReferencia: imagemBase64 || null,
+        }, currentUser?.uid, userProfile?.nome);
+        addToast("Material cadastrado!");
+      }
       onClose();
     } catch(err) { addToast("Erro: "+err.message,"error"); }
     setSaving(false);
   }
 
   return (
-    <Modal title="Cadastrar material" onClose={onClose}
+    <Modal title={editando ? "✏️ Editar material" : "Cadastrar material"} onClose={onClose}
       footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving?"Salvando...":"Salvar"}</button></>}>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         <div className="form-group"><label className="required">Nome do material</label><input value={form.nome} onChange={e=>set("nome",e.target.value)} placeholder="Ex: Cabo UTP Cat.6"/></div>
@@ -527,7 +547,8 @@ function NovoMaterialModal({ onClose, addToast }) {
               {["un","m","m²","kg","saco","cx","rolo","litro","par"].map(u=><option key={u}>{u}</option>)}
             </select>
           </div>
-          <div className="form-group"><label>Saldo inicial</label><input type="number" min="0" value={form.saldo} onChange={e=>set("saldo",e.target.value)}/></div>
+          {!editando && <div className="form-group"><label>Saldo inicial</label><input type="number" min="0" value={form.saldo} onChange={e=>set("saldo",e.target.value)}/></div>}
+          {editando && <div className="form-group"><label>Saldo atual</label><input type="number" value={form.saldo} disabled title="Ajuste o saldo via entradas/saídas" style={{background:"var(--cinza-lt)",color:"#7A7A7A",cursor:"not-allowed"}}/></div>}
           <div className="form-group"><label>Estoque mínimo (alerta)</label><input type="number" min="0" value={form.estoqueMin} onChange={e=>set("estoqueMin",e.target.value)}/></div>
         </div>
 
@@ -584,9 +605,23 @@ export default function MateriaisGlobal() {
   const [obraExpandida, setObraExpandida] = useState(null);
   const [modalMov,   setModalMov]   = useState(null); // {item, tipo}
   const [modalNovo,  setModalNovo]  = useState(false);
+  const [modalEdit,  setModalEdit]  = useState(null); // material a editar
   const [modalTransf, setModalTransf] = useState(null); // {origem, material}
 
   const canEdit = !isCampo(userProfile);
+  // Editar e excluir: apenas adm, gestão, financeiro, comercial e compras
+  const canManage = isGestorOuAdm(userProfile) || (() => {
+    const dep = userProfile?.departamento || userProfile?.perfil || "";
+    return ["financeiro","comercial","compras"].includes(dep);
+  })();
+
+  async function excluirMaterial(m) {
+    if (!window.confirm(`Excluir "${m.nome}" do estoque?\n\nAtenção: o histórico de movimentações não será apagado.`)) return;
+    try {
+      await deleteComAuditoria("materiais_estoque", m.id, currentUser?.uid, userProfile?.nome, m);
+      addToast(`"${m.nome}" excluído.`);
+    } catch(err) { addToast("Erro ao excluir: "+err.message,"error"); }
+  }
 
   useEffect(() => {
     const u1 = onSnapshot(collection(db,"materiais_estoque"), snap => {
@@ -764,9 +799,13 @@ export default function MateriaisGlobal() {
                            : <span className="badge badge-green">OK</span>}
                         </td>
                         {canEdit && (
-                          <td style={{display:"flex",gap:4}}>
-                            <button className="btn btn-sm" style={{background:"var(--verde-lt)",color:"var(--verde)",border:"none"}} onClick={()=>setModalMov({item:m,tipo:"entrada"})}>📥</button>
-                            <button className="btn btn-sm" style={{background:"var(--vermelho-lt)",color:"var(--vermelho)",border:"none"}} onClick={()=>setModalMov({item:m,tipo:"saida"})}>📤</button>
+                          <td style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                            <button className="btn btn-sm" style={{background:"var(--verde-lt)",color:"var(--verde)",border:"none"}} onClick={()=>setModalMov({item:m,tipo:"entrada"})} title="Registrar entrada">📥</button>
+                            <button className="btn btn-sm" style={{background:"var(--vermelho-lt)",color:"var(--vermelho)",border:"none"}} onClick={()=>setModalMov({item:m,tipo:"saida"})} title="Registrar saída">📤</button>
+                            {canManage && <>
+                              <button className="btn btn-sm" style={{background:"#EEF2FF",color:"#4F46E5",border:"none"}} onClick={()=>setModalEdit(m)} title="Editar material">✏️</button>
+                              <button className="btn btn-sm" style={{background:"var(--vermelho-lt)",color:"var(--vermelho)",border:"none"}} onClick={()=>excluirMaterial(m)} title="Excluir material">🗑️</button>
+                            </>}
                           </td>
                         )}
                       </tr>
@@ -999,8 +1038,9 @@ export default function MateriaisGlobal() {
           onClose={()=>setModalTransf(null)} addToast={addToast}/>
       )}
 
-      {modalMov && <MovimentacaoModal item={modalMov.item} tipo={modalMov.tipo} obras={obras} manutencoes={manut} onClose={()=>setModalMov(null)} addToast={addToast}/>}
+      {modalMov  && <MovimentacaoModal item={modalMov.item} tipo={modalMov.tipo} obras={obras} manutencoes={manut} onClose={()=>setModalMov(null)} addToast={addToast}/>}
       {modalNovo && <NovoMaterialModal onClose={()=>setModalNovo(false)} addToast={addToast}/>}
+      {modalEdit && <NovoMaterialModal material={modalEdit} onClose={()=>setModalEdit(null)} addToast={addToast}/>}
     </div>
   );
 }
