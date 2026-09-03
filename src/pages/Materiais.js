@@ -589,7 +589,7 @@ function NovoMaterialModal({ onClose, addToast, material }) {
 }
 
 export default function MateriaisGlobal() {
-  const { userProfile } = useAuth();
+  const { userProfile, currentUser } = useAuth();
   const { toasts, addToast } = useToast();
   const [materiais,  setMateriais]  = useState([]);
   const [movs,       setMovs]       = useState([]);
