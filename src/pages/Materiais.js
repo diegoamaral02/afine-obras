@@ -609,11 +609,9 @@ export default function MateriaisGlobal() {
   const [modalTransf, setModalTransf] = useState(null); // {origem, material}
 
   const canEdit = !isCampo(userProfile);
-  // Editar e excluir: apenas adm, gestão, financeiro, comercial e compras
-  const canManage = isGestorOuAdm(userProfile) || (() => {
-    const dep = userProfile?.departamento || userProfile?.perfil || "";
-    return ["financeiro","comercial","compras"].includes(dep);
-  })();
+  // Editar e excluir: adm master (adm===true), gestão, financeiro, comercial e compras
+  // adm===true garante acesso total independente do departamento configurado
+  const canManage = userProfile?.adm === true || isGestorOuAdm(userProfile) || isNivelIntermediario(userProfile);
 
   async function excluirMaterial(m) {
     if (!window.confirm(`Excluir "${m.nome}" do estoque?\n\nAtenção: o histórico de movimentações não será apagado.`)) return;
