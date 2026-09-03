@@ -32,7 +32,20 @@ function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }
   const [dropColab, setDropColab] = useState(false);
   const [buscaDemanda, setBuscaDemanda] = useState("");
   const [dropDemanda, setDropDemanda] = useState(false);
+  // Calculadora de rendimento (tinta, rejunte, impermeabilizante, etc.)
+  const [modoArea, setModoArea] = useState(false);
+  const [area, setArea] = useState("");
+  const [demãos, setDemãos] = useState(item.demaosPadrao || 2);
   function set(f, v) { setForm(p => ({...p, [f]: v})); }
+
+  const temRendimento = !!(item.rendimento && Number(item.rendimento) > 0);
+
+  // Recalcula quantidade automaticamente ao mudar área ou demãos
+  React.useEffect(() => {
+    if (!modoArea || !area || !temRendimento) return;
+    const qtd = (Number(area) * Number(demãos)) / Number(item.rendimento);
+    set("quantidade", Math.ceil(qtd * 1000) / 1000); // arredonda para cima com 3 casas
+  }, [area, demãos, modoArea]); // eslint-disable-line
 
   // Carrega lista de colaboradores (leitura única)
   useEffect(() => {
@@ -129,11 +142,49 @@ function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }
           <div style={{fontSize:12,fontWeight:400,marginTop:2}}>Saldo atual: <strong>{item.saldo} {item.un}</strong></div>
         </div>
 
+        {/* Calculadora de rendimento — apenas na saída de materiais com rendimento cadastrado */}
+        {tipo === "saida" && temRendimento && (
+          <div style={{background:"#FFFBEA",border:"1px solid #F5C800",borderRadius:8,padding:10}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+              <span style={{fontSize:12,fontWeight:700,color:"#7A4F00"}}>
+                🎨 Calculadora por rendimento
+              </span>
+              <label style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:12}}>
+                <input type="checkbox" checked={modoArea} onChange={e=>{ setModoArea(e.target.checked); if(!e.target.checked) set("quantidade",""); }}/>
+                Calcular pela área
+              </label>
+            </div>
+            {modoArea && (
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                <div className="form-group" style={{margin:0}}>
+                  <label style={{fontSize:11}}>Área (m²)</label>
+                  <input type="number" min="0.01" step="0.01" value={area} onChange={e=>setArea(e.target.value)} placeholder="Ex: 25"/>
+                </div>
+                <div className="form-group" style={{margin:0}}>
+                  <label style={{fontSize:11}}>Demãos</label>
+                  <input type="number" min="1" max="10" value={demãos} onChange={e=>setDemãos(e.target.value)}/>
+                </div>
+                <div className="form-group" style={{margin:0}}>
+                  <label style={{fontSize:11}}>Rendimento ({item.un}/m²)</label>
+                  <input type="number" value={item.rendimento} disabled style={{background:"var(--cinza-lt)",color:"#7A7A7A"}}/>
+                </div>
+              </div>
+            )}
+            {modoArea && area && temRendimento && (
+              <div style={{marginTop:8,fontSize:12,color:"#7A4F00"}}>
+                Necessário: <strong>{form.quantidade} {item.un}</strong>
+                {" "}({area} m² × {demãos} demão(s) ÷ {item.rendimento} {item.un}/m²)
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="form-grid">
           <div className="form-group">
             <label className="required">Quantidade ({item.un})</label>
-            <input type="number" min="1" value={form.quantidade}
-              onChange={e=>set("quantidade",e.target.value)} placeholder="0"
+            <input type="number" min="0.001" step="0.001" value={form.quantidade}
+              onChange={e=>{ if(modoArea) setModoArea(false); set("quantidade",e.target.value); }}
+              placeholder="0"
               style={{ borderColor: tipo==="saida" && form.quantidade && Number(form.quantidade) > item.saldo ? "var(--vermelho)" : tipo==="saida" && form.quantidade && Number(form.quantidade) > 0 ? "var(--verde)" : undefined }}
             />
             {tipo==="saida" && form.quantidade && Number(form.quantidade) > item.saldo && (
@@ -529,6 +580,8 @@ function NovoMaterialModal({ onClose, addToast, material }) {
     custoUnitario:material?.custoUnitario|| "",
     localizacao:  material?.localizacao  || "",
     validade:     material?.validade     || "",
+    rendimento:   material?.rendimento   || "",
+    demaosPadrao: material?.demaosPadrao || 2,
   });
   const [saving, setSaving] = useState(false);
   const [imagemBase64, setImagemBase64] = useState(material?.imagemReferencia || null);
@@ -570,6 +623,8 @@ function NovoMaterialModal({ onClose, addToast, material }) {
       custoUnitario: Number(form.custoUnitario) || 0,
       localizacao:   form.localizacao   || "",
       validade:      form.validade      || "",
+      rendimento:    Number(form.rendimento) || 0,
+      demaosPadrao:  Number(form.demaosPadrao) || 2,
     };
     try {
       if (editando) {
@@ -632,6 +687,21 @@ function NovoMaterialModal({ onClose, addToast, material }) {
           </div>
           <div className="form-group"><label>Validade <span style={{fontSize:11,color:"#aaa",fontWeight:400}}>(opcional)</span></label>
             <input type="date" value={form.validade} onChange={e=>set("validade",e.target.value)}/>
+          </div>
+        </div>
+
+        {/* Rendimento (tinta, rejunte, impermeabilizante, etc.) */}
+        <div className="form-grid">
+          <div className="form-group">
+            <label>Rendimento <span style={{fontSize:11,color:"#aaa",fontWeight:400}}>(m²/{form.un || "un"} — tinta, rejunte...)</span></label>
+            <input type="number" min="0" step="0.001" value={form.rendimento}
+              onChange={e=>set("rendimento",e.target.value)}
+              placeholder="Ex: 10 (1L cobre 10m²)"/>
+          </div>
+          <div className="form-group">
+            <label>Demãos padrão <span style={{fontSize:11,color:"#aaa",fontWeight:400}}>(padrão 2)</span></label>
+            <input type="number" min="1" max="10" step="1" value={form.demaosPadrao}
+              onChange={e=>set("demaosPadrao",e.target.value)}/>
           </div>
         </div>
 
