@@ -1,7 +1,7 @@
 // src/pages/Manutencao.js — v2: sub-abas, alocação de campo, rastreio de criador, demandas filtradas
 import { buscarCEP } from "../utils/cep";
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, onSnapshot, query, where, doc, getDoc } from "firebase/firestore";
+import { collection, onSnapshot, query, where, doc, getDoc, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { statusBadge, fmtDate, initials } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -277,6 +277,13 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
         // Notifica responsável quando status muda para CONCLUÍDA
         if (manut?.id && form.status==="CONCLUÍDA" && form.responsavelId && form.responsavelId !== uid) {
           enviarNotificacao(form.responsavelId, { titulo:"✅ Manutenção concluída", corpo:`${form.titulo||"Atendimento"} foi finalizado`, tipo:"success", link:"/manutencao" });
+        }
+        // Notifica fiscal quando manutenção Itaú salva como S/OT
+        const isItauNotif = form.cliente?.toLowerCase().includes("itau")||form.cliente?.toLowerCase().includes("itaú");
+        if (form.semOT && isItauNotif) {
+          getDocs(query(collection(db,"usuarios"),where("departamento","==","fiscal")))
+            .then(snap => snap.docs.forEach(d => enviarNotificacao(d.id, NOTIF.SEM_OT(form.titulo||"Manutenção")).catch(()=>{})))
+            .catch(()=>{});
         }
         onClose();
       } else if (resultado.enfileirado) {

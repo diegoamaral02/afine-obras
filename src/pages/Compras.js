@@ -9,6 +9,7 @@ import { useToast } from "../hooks/useToast";
 import { getAcesso, isCampo } from "../constants/departamentos";
 import FiltroAvancado, { dentroPeriodo } from "../components/FiltroAvancado";
 import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
+import { enviarNotificacao, NOTIF } from "../hooks/useNotificacoes";
 import ModalCatalogoItens from "../components/ModalCatalogoItens";
 import { parseNFe } from "../utils/nfe";
 
@@ -486,10 +487,15 @@ function CompraModal({ compra, obras, manutencoes, fornecedores, onClose, addToa
       if (compra?.id) {
         await updateComAuditoria("compras", compra.id, data, currentUser?.uid, nomeUser);
         if (confirmandoRecebimentoConforme) await lancarEntradaEstoque();
+        // Notificar solicitante quando compra for aprovada
+        if (novoStatus === "APROVADA" && compra.solicitanteId && compra.solicitanteId !== currentUser?.uid) {
+          await enviarNotificacao(compra.solicitanteId, NOTIF.COMPRA_APROVADA(titulo)).catch(()=>{});
+        }
         addToast(novoStatus && novoStatus!==etapaAtual ? `✓ Movido para: ${novoStatus}` : "Salvo!");
       } else {
         data.atorSolicitacao = nomeUser;
         data.solicitadoEm    = agora();
+        data.solicitanteId   = currentUser?.uid || null;
         await addComAuditoria("compras", data, currentUser?.uid, nomeUser);
         addToast("✓ Solicitação criada!");
       }

@@ -1,10 +1,11 @@
 // src/pages/Financeiro.js — v3: rico em informações para equipe financeira
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { collection, onSnapshot, getDocs, addDoc, doc, query, orderBy, limit, where } from "firebase/firestore";
+import { collection, onSnapshot, getDocs, addDoc, doc, query, orderBy, limit, where, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
 import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
+import { enviarNotificacao, NOTIF } from "../hooks/useNotificacoes";
 import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 import { exportarExcel, BtnExcel } from "../utils/exportExcel";
@@ -66,7 +67,19 @@ function LancamentoModal({ lanc, obras, onClose, addToast }) {
     const payload={...form,valor:Number(form.valor),valorPago:Number(form.valorPago)||0,updatedAt:agora,autorNome:userProfile?.nome||"–"};
     try {
       if(lanc?.id){await updateComAuditoria("financeiro",lanc.id,payload,currentUser?.uid,userProfile?.nome);addToast("✓ Atualizado!");}
-      else{await addComAuditoria("financeiro",payload,currentUser?.uid,userProfile?.nome);addToast("✓ Lançamento criado!");}
+      else{
+        await addComAuditoria("financeiro",payload,currentUser?.uid,userProfile?.nome);
+        addToast("✓ Lançamento criado!");
+        // Notificar dept financeiro se vencimento em ≤ 3 dias
+        if(payload.tipo==="PAGAR" && payload.vencimento) {
+          const hoje3 = new Date(); hoje3.setDate(hoje3.getDate()+3);
+          const limite = hoje3.toISOString().split("T")[0];
+          if(payload.vencimento <= limite) {
+            const snap = await getDocs(query(collection(db,"usuarios"),where("departamento","==","financeiro")));
+            await Promise.all(snap.docs.map(d => enviarNotificacao(d.id, NOTIF.VENCIMENTO(payload.valor)).catch(()=>{})));
+          }
+        }
+      }
       onClose();
     }catch(err){addToast("Erro: "+err.message,"error");}
     setSaving(false);

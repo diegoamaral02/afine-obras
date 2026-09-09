@@ -7,6 +7,7 @@ import { statusBadge, fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
 import { isCampo, isGestorOuAdm, isExterno } from "../constants/departamentos";
 import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
+import { enviarNotificacao, NOTIF } from "../hooks/useNotificacoes";
 import { salvarComFallbackOffline } from "../utils/offlineQueue";
 import { exportarObraParaPDF, exportarOSParaPDF, exportarTermoRecebimentoParaPDF, exportarTermoChavesBradescoParaPDF, exportarTermoChavesParaPDF } from "../utils/exportPDF";
 import { registrarExecutorOffline } from "../hooks/useFilaOffline";
@@ -371,6 +372,13 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
 
     if (resultado.ok) {
       addToast(obra?.id ? "Obra atualizada!" : "Obra criada!");
+      // Notificar gestão se obra estiver atrasada
+      const hoje = new Date().toISOString().split("T")[0];
+      const atrasada = payload.termino && payload.termino < hoje && !["CONCLUÍDA","PARALISADA","CANCELADA"].includes(payload.status);
+      if (atrasada) {
+        const gestores = funcionarios.filter(f => isGestorOuAdm(f) && f.id);
+        await Promise.all(gestores.map(g => enviarNotificacao(g.id, NOTIF.OBRA_ATRASADA(payload.nome || "Obra")).catch(()=>{})));
+      }
       onClose();
     } else if (resultado.enfileirado) {
       addToast("📡 Sem conexão — salvo no dispositivo. Será enviado automaticamente quando a internet voltar.", "warning");
