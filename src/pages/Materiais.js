@@ -597,7 +597,7 @@ function NovoMaterialModal({ onClose, addToast, material }) {
     const img = new Image();
     reader.onload = ev => {
       img.onload = () => {
-        const MAX = 800;
+        const MAX = 600;
         let { width, height } = img;
         if (width > MAX || height > MAX) {
           if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
@@ -606,7 +606,7 @@ function NovoMaterialModal({ onClose, addToast, material }) {
         const canvas = document.createElement("canvas");
         canvas.width = width; canvas.height = height;
         canvas.getContext("2d").drawImage(img, 0, 0, width, height);
-        setImagemBase64(canvas.toDataURL("image/jpeg", 0.80));
+        setImagemBase64(canvas.toDataURL("image/jpeg", 0.70));
         setCarregandoImg(false);
       };
       img.src = ev.target.result;

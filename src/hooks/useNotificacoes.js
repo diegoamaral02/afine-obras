@@ -34,9 +34,16 @@ export function useNotificacoes(uid) {
   return { notifs, naoLidas, marcarLida, marcarTodasLidas };
 }
 
-// Envia notificação para um usuário
+// Deduplicação: evita repetir a mesma notificação (mesmo uid+tipo) em 24h
+const _enviadas = new Map(); // `${uid}:${tipo}` → timestamp
+
 export async function enviarNotificacao(uidDestino, { titulo, corpo, tipo="info", link="" }) {
   if (!uidDestino) return;
+  const chave = `${uidDestino}:${tipo}`;
+  const agora = Date.now();
+  const ultima = _enviadas.get(chave) || 0;
+  if (agora - ultima < 24 * 60 * 60 * 1000) return;
+  _enviadas.set(chave, agora);
   await addDoc(collection(db,"notificacoes",uidDestino,"items"), {
     titulo, corpo, tipo, link,
     lida: false, criadaEm: new Date().toISOString(),

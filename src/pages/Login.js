@@ -1,7 +1,10 @@
 // src/pages/Login.js — logo embutida (nunca quebra)
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { LOGO_BASE64 } from "../utils/assets";
+
+const MAX_TENTATIVAS = 5;
+const BLOQUEIO_SEGUNDOS = 30;
 
 export default function Login() {
   const { login, resetPassword } = useAuth();
@@ -12,11 +15,39 @@ export default function Login() {
   const [showPass, setShowPass] = useState(false);
   const [forgot,   setForgot]   = useState(false);
   const [resetSent,setResetSent]= useState(false);
+  const [tentativas, setTentativas] = useState(0);
+  const [bloqueadoAte, setBloqueadoAte] = useState(null);
+  const [countdown, setCountdown] = useState(0);
+  const timerRef = useRef(null);
+
+  function iniciarBloqueio() {
+    const ate = Date.now() + BLOQUEIO_SEGUNDOS * 1000;
+    setBloqueadoAte(ate);
+    setCountdown(BLOQUEIO_SEGUNDOS);
+    timerRef.current = setInterval(() => {
+      const restante = Math.ceil((ate - Date.now()) / 1000);
+      if (restante <= 0) { clearInterval(timerRef.current); setBloqueadoAte(null); setTentativas(0); setCountdown(0); }
+      else setCountdown(restante);
+    }, 1000);
+  }
 
   async function handleSubmit(e) {
-    e.preventDefault(); setError(""); setLoading(true);
-    try { await login(email, password); }
-    catch { setError("E-mail ou senha inválidos. Verifique e tente novamente."); }
+    e.preventDefault();
+    if (bloqueadoAte && Date.now() < bloqueadoAte) return;
+    setError(""); setLoading(true);
+    try {
+      await login(email, password);
+      setTentativas(0);
+    } catch {
+      const novas = tentativas + 1;
+      setTentativas(novas);
+      if (novas >= MAX_TENTATIVAS) {
+        iniciarBloqueio();
+        setError(`Muitas tentativas incorretas. Aguarde ${BLOQUEIO_SEGUNDOS} segundos.`);
+      } else {
+        setError(`E-mail ou senha inválidos. Tentativa ${novas}/${MAX_TENTATIVAS}.`);
+      }
+    }
     setLoading(false);
   }
 
@@ -66,8 +97,13 @@ export default function Login() {
                 </button>
               </div>
             </div>
-            <button type="submit" className="btn btn-primary" style={{marginTop:4,justifyContent:"center",padding:"12px",fontSize:14}} disabled={loading}>
-              {loading?"Entrando...":"Entrar"}
+            {countdown > 0 && (
+              <div style={{textAlign:"center",fontSize:12,color:"var(--vermelho)",fontWeight:600,padding:"8px",background:"var(--vermelho-lt)",borderRadius:6}}>
+                🔒 Login bloqueado — aguarde {countdown}s
+              </div>
+            )}
+            <button type="submit" className="btn btn-primary" style={{marginTop:4,justifyContent:"center",padding:"12px",fontSize:14}} disabled={loading || countdown > 0}>
+              {loading?"Entrando...":countdown>0?`Aguarde ${countdown}s`:"Entrar"}
             </button>
             <button type="button" onClick={()=>{setForgot(true);setError("");}} style={{background:"none",border:"none",color:"#7A7A7A",fontSize:12,cursor:"pointer",textAlign:"center",marginTop:4}}>
               Esqueci minha senha

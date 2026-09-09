@@ -38,6 +38,7 @@ import AuditLog       from "./pages/AuditLog";
 import BITendencias   from "./pages/BITendencias";
 import Garantias      from "./pages/Garantias";
 import { Equipe, Ocorrencias } from "./pages/Equipe";
+import NotFound from "./pages/NotFound";
 
 import "./index.css";
 
@@ -273,6 +274,14 @@ function AppShell() {
   const { notifs, naoLidas, marcarLida, marcarTodasLidas } = useNotificacoes(currentUser?.uid);
   usePushNotificacoes(currentUser?.uid);
   const filaOffline = useFilaOffline();
+  const [isOnline, setIsOnline] = React.useState(navigator.onLine);
+  React.useEffect(() => {
+    const on = () => setIsOnline(true);
+    const off = () => setIsOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
+  }, []);
 
   const hoje = new Date().toISOString().split("T")[0];
   const agsHoje = agendamentosDodia(hoje).length;
@@ -308,9 +317,15 @@ function AppShell() {
             </div>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:"auto"}}>
+            {/* Indicador de conexão */}
+            {!isOnline && (
+              <div style={{display:"flex",alignItems:"center",gap:5,background:"var(--vermelho-lt)",border:"1px solid var(--vermelho)",borderRadius:8,padding:"4px 10px",fontSize:11,fontWeight:700,color:"var(--vermelho)"}}>
+                📵 Sem conexão
+              </div>
+            )}
             {filaOffline.pendentes>0 && (
               <div style={{display:"flex",alignItems:"center",gap:4}}>
-                <button onClick={filaOffline.tentarSincronizar} disabled={filaOffline.sincronizando}
+                <button onClick={filaOffline.tentarSincronizar} disabled={filaOffline.sincronizando || !isOnline}
                   title="Há dados salvos no dispositivo aguardando conexão para sincronizar. Clique para tentar agora."
                   style={{display:"flex",alignItems:"center",gap:6,background:"#FDF2D9",border:"1px solid rgba(184,145,10,.3)",
                     borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:700,color:"#7A5400",cursor:"pointer"}}>
@@ -371,7 +386,7 @@ function AppShell() {
             <Route path="/bi"               element={<BITendencias/>}/>
             <Route path="/audit-log"        element={<AuditLog/>}/>
             <Route path="/seed"               element={<SeedPage/>}/>
-            <Route path="*"                   element={<Navigate to="/" replace/>}/>
+            <Route path="*"                   element={<NotFound/>}/>
           </Routes>
         </div>
       </div>
