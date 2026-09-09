@@ -1,5 +1,6 @@
 // src/pages/Calendario.js — Hub de agendamento visual
 import React, { useState, useMemo, useEffect } from "react";
+import { useConfirm } from "../hooks/useConfirm";
 import { useAgenda } from "../contexts/AgendaContext";
 import { useAuth } from "../contexts/AuthContext";
 import { isCampo, agendaPrivadaPorPadrao, temFiltroSoMinhaAgenda } from "../constants/departamentos";
@@ -204,6 +205,7 @@ const COR_UNICO   = "#7B4F00"; // marrom — quando início e término caem no m
 // dia de início, término, ou um dia intermediário do intervalo do evento)
 function EventoCard({ ag, funcionarios, diaISO, onEditar, onExcluir, canEdit }) {
   const [open, setOpen] = useState(false);
+  const { confirm, confirmModal } = useConfirm();
   const cor = corDemanda(ag.demandaId);
   const isInicio = diaISO === ag.dataInicio;
   const isFim    = diaISO === ag.dataFim;
@@ -214,6 +216,7 @@ function EventoCard({ ag, funcionarios, diaISO, onEditar, onExcluir, canEdit }) 
     (ag.funcionarios||[]).includes(f.uid)
   );
   return (
+    <>{confirmModal}
     <div
       onClick={e=>{e.stopPropagation();setOpen(!open);}}
       title={diaUnico?"Início e término":isInicio?"Dia de início":isFim?"Dia de término":""}
@@ -250,12 +253,13 @@ function EventoCard({ ag, funcionarios, diaISO, onEditar, onExcluir, canEdit }) 
           {canEdit && ag.origem==="manual" && (
             <div style={{display:"flex",gap:6,marginTop:8,borderTop:"1px solid rgba(255,255,255,.15)",paddingTop:8}}>
               <button onClick={e=>{e.stopPropagation();setOpen(false);onEditar(ag);}} className="btn btn-sm" style={{flex:1,fontSize:11,background:"rgba(255,255,255,.1)",color:"#fff",border:"none"}}>✏️ Editar</button>
-              <button onClick={e=>{e.stopPropagation();if(window.confirm("Excluir este agendamento?"))onExcluir(ag.id);}} className="btn btn-sm" style={{flex:1,fontSize:11,background:"rgba(184,50,50,.4)",color:"#fff",border:"none"}}>🗑️ Excluir</button>
+              <button onClick={async e=>{e.stopPropagation();if(await confirm({titulo:"Excluir agendamento",mensagem:"Excluir este agendamento? Esta ação não pode ser desfeita.",confirmLabel:"Excluir"}))onExcluir(ag.id);}} className="btn btn-sm" style={{flex:1,fontSize:11,background:"rgba(184,50,50,.4)",color:"#fff",border:"none"}}>🗑️ Excluir</button>
             </div>
           )}
         </div>
       )}
     </div>
+    </>
   );
 }
 

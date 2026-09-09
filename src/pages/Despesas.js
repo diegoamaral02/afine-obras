@@ -1,6 +1,7 @@
 // src/pages/Despesas.js — Controle de gastos / reembolsos por funcionário
 // (migrado da antiga aba "Controle de Gasto" da planilha)
 import React, { useEffect, useState, useMemo, useRef } from "react";
+import { useConfirm } from "../hooks/useConfirm";
 import { collection, onSnapshot, doc, query, orderBy, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
@@ -427,6 +428,7 @@ export default function Despesas() {
   const [loading,       setLoading]      = useState(true);
   const [search,        setSearch]       = useState("");
   const [filtros,       setFiltros]      = useState({ periodo:{de:"",ate:""}, funcionarioNome:"", metodoPagamento:"", obraId:"", categoria:"", statusReembolso:"", revisado:"" });
+  const { confirm, confirmModal } = useConfirm();
   const [qtdMostrar,    setQtdMostrar]   = useState(100);
   const [modal,         setModal]        = useState(null);
   const [preview,       setPreview]      = useState(null);
@@ -478,7 +480,7 @@ export default function Despesas() {
   }),[filtradas]);
 
   async function excluir(d) {
-    if (!window.confirm(`Excluir a despesa "${d.descricao}" (${fmt(d.valor)})?`)) return;
+    if (!await confirm({ titulo:"Excluir despesa", mensagem:`Excluir "${d.descricao}" (${fmt(d.valor)})?`, confirmLabel:"Excluir" })) return;
     try { await deleteComAuditoria("despesas", d.id, currentUser?.uid, nomeUser, d); addToast("✓ Excluída"); }
     catch(err) { addToast("Erro: "+err.message,"error"); }
   }
@@ -508,6 +510,7 @@ export default function Despesas() {
 
   return (
     <div>
+      {confirmModal}
       <div className="toast-container">{toasts.map(t=><div key={t.id} className={`toast toast-${t.type}`}>{t.msg}</div>)}</div>
 
       <div className="panel-header">

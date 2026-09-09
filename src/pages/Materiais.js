@@ -1,5 +1,6 @@
 // src/pages/Materiais.js — controle global de estoque + por demanda
 import React, { useEffect, useState, useMemo } from "react";
+import { useConfirm } from "../hooks/useConfirm";
 import { collection, onSnapshot, query, where, getDocs, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import { fmtDate } from "../utils/helpers";
@@ -853,9 +854,10 @@ export default function MateriaisGlobal() {
   // Editar e excluir: adm master (adm===true), gestão, financeiro, comercial e compras
   // adm===true garante acesso total independente do departamento configurado
   const canManage = userProfile?.adm === true || isGestorOuAdm(userProfile) || isNivelIntermediario(userProfile);
+  const { confirm, confirmModal } = useConfirm();
 
   async function excluirMaterial(m) {
-    if (!window.confirm(`Excluir "${m.nome}" do estoque?\n\nAtenção: o histórico de movimentações não será apagado.`)) return;
+    if (!await confirm({ titulo:"Excluir material", mensagem:`Excluir "${m.nome}" do estoque? O histórico de movimentações não será apagado.`, confirmLabel:"Excluir" })) return;
     try {
       await deleteComAuditoria("materiais_estoque", m.id, currentUser?.uid, userProfile?.nome, m);
       addToast(`"${m.nome}" excluído.`);
@@ -979,7 +981,7 @@ export default function MateriaisGlobal() {
       return c !== undefined && c !== "" && Number(c) !== m.saldo;
     });
     if (ajustes.length === 0) { addToast("Nenhum ajuste necessário."); return; }
-    if (!window.confirm(`Confirmar ajuste de ${ajustes.length} item(ns)?`)) return;
+    if (!await confirm({ titulo:"Confirmar inventário", mensagem:`Confirmar ajuste de ${ajustes.length} item(ns)?`, confirmLabel:"Confirmar", tipo:"warning" })) return;
     setSalvandoInventario(true);
     const dataHoje = new Date().toISOString().split("T")[0];
     try {
@@ -1016,6 +1018,7 @@ export default function MateriaisGlobal() {
 
   return (
     <div>
+      {confirmModal}
       <div className="toast-container">{toasts.map(t=><div key={t.id} className={`toast toast-${t.type}`}>{t.msg}</div>)}</div>
 
       <div className="panel-header">

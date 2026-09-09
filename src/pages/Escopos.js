@@ -1,5 +1,6 @@
 // src/pages/Escopos.js
 import React, { useEffect, useState } from "react";
+import { useConfirm } from "../hooks/useConfirm";
 import {
   collection, onSnapshot, query, where,
 } from "firebase/firestore";
@@ -207,13 +208,14 @@ export default function Escopos({ obraAtual }) {
   const [search,  setSearch]  = useState("");
   const [filtro,  setFiltro]  = useState("todos");
   const [modal,   setModal]   = useState(null); // null | { escopo }
+  const { confirm, confirmModal } = useConfirm();
 
   const depEf = userProfile?.adm ? "gestao" : (userProfile?.departamento || userProfile?.perfil || "campo");
   const isGestor = userProfile?.adm || ["gestao","gestor"].includes(depEf);
   const canAdd   = isGestor || ["encarregado","financeiro","comercial","fiscal","compras"].includes(depEf);
 
   async function handleDelete(escopo) {
-    if (!window.confirm(`Excluir escopo "${escopo.cod} – ${escopo.descricao}"? Esta ação não pode ser desfeita.`)) return;
+    if (!await confirm({ titulo:"Excluir escopo", mensagem:`Excluir escopo "${escopo.cod} – ${escopo.descricao}"? Esta ação não pode ser desfeita.`, confirmLabel:"Excluir" })) return;
     try {
       await deleteComAuditoria("escopos", escopo.id, currentUser?.uid, userProfile?.nome, escopo);
       addToast("Escopo excluído.");
@@ -248,6 +250,7 @@ export default function Escopos({ obraAtual }) {
 
   return (
     <div>
+      {confirmModal}
       {/* Toast container */}
       <div className="toast-container">
         {toasts.map(t => (

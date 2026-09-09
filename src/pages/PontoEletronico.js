@@ -1,5 +1,6 @@
 // src/pages/PontoEletronico.js — Ponto Eletrônico de Campo
 import React, { useEffect, useState, useRef, useCallback } from "react";
+import { useConfirm } from "../hooks/useConfirm";
 import {
   collection, onSnapshot, query,
   where, orderBy, getDocs
@@ -488,6 +489,7 @@ function ModalCorrecaoPonto({ linha, obras, manutencoes, currentUser, userProfil
   const [novoVincId,   setNovoVincId]   = useState(primeiroDoc?.vinculoId   || "escritorio");
 
   const [salvando,    setSalvando]    = useState(false);
+  const { confirm, confirmModal } = useConfirm();
   const [adicionando, setAdicionando] = useState(false);
   const [erro,        setErro]        = useState("");
 
@@ -530,7 +532,7 @@ function ModalCorrecaoPonto({ linha, obras, manutencoes, currentUser, userProfil
   }
 
   async function excluirDoc(p) {
-    if (!window.confirm("Excluir este registro de ponto?")) return;
+    if (!await confirm({ titulo:"Excluir registro", mensagem:"Excluir este registro de ponto? Esta ação não pode ser desfeita.", confirmLabel:"Excluir" })) return;
     setSalvando(true);
     try {
       await deleteComAuditoria("pontos", p.id, currentUser.uid, userProfile?.nome || currentUser.email, p);
@@ -575,6 +577,8 @@ function ModalCorrecaoPonto({ linha, obras, manutencoes, currentUser, userProfil
     : [];
 
   return (
+    <>
+    {confirmModal}
     <div style={{
       position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 9000,
       display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
@@ -674,6 +678,7 @@ function ModalCorrecaoPonto({ linha, obras, manutencoes, currentUser, userProfil
         </div>
       </div>
     </div>
+    </>
   );
 }
 

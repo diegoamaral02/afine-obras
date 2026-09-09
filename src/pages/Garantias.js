@@ -1,5 +1,6 @@
 // src/pages/Garantias.js — Gestão de Garantias
 import React, { useEffect, useState, useMemo } from "react";
+import { useConfirm } from "../hooks/useConfirm";
 import {
   collection, onSnapshot, writeBatch, doc,
 } from "firebase/firestore";
@@ -339,6 +340,7 @@ export default function Garantias() {
   const [filtro,      setFiltro]      = useState("todas");
   const [modal,       setModal]       = useState(null); // null | { garantia }
   const [excluindo,   setExcluindo]   = useState(null);
+  const { confirm, confirmModal } = useConfirm();
 
   const podeSalvar  = canWrite(userProfile);
   const podeExcluir = canDelete(userProfile);
@@ -422,7 +424,7 @@ export default function Garantias() {
   }, [garantias, filtro, search, hj, em30]);
 
   async function handleExcluir(g) {
-    if (!window.confirm(`Excluir a garantia "${g.origemNome}"? Esta ação não pode ser desfeita.`)) return;
+    if (!await confirm({ titulo:"Excluir garantia", mensagem:`Excluir a garantia "${g.origemNome}"? Esta ação não pode ser desfeita.`, confirmLabel:"Excluir" })) return;
     setExcluindo(g.id);
     try {
       const uid  = currentUser?.uid  || "desconhecido";
@@ -437,6 +439,7 @@ export default function Garantias() {
 
   return (
     <div>
+      {confirmModal}
       <div className="toast-container">
         {toasts.map(t => <div key={t.id} className={`toast toast-${t.type}`}>{t.msg}</div>)}
       </div>

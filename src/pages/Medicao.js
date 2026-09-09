@@ -1,5 +1,6 @@
 // src/pages/Medicao.js — Boletim de Medição + FVS integrados
 import React, { useEffect, useState } from "react";
+import { useConfirm } from "../hooks/useConfirm";
 import { collection, onSnapshot, query, where, addDoc, doc } from "firebase/firestore";
 import { db } from "../firebase";
 import { fmtDate } from "../utils/helpers";
@@ -28,6 +29,7 @@ function FVSModal({ fvs, obraId, escopoNome, onClose, addToast }) {
   const [obs, setObs]             = useState(fvs?.obs || "");
   const [resultado, setResultado] = useState(fvs?.resultado || "APROVADO");
   const [saving, setSaving]       = useState(false);
+  const { confirm, confirmModal } = useConfirm();
   const lista = FVS_CHECKLISTS[tipo] || FVS_CHECKLISTS["Geral"];
 
   // Reset checks when tipo changes
@@ -39,7 +41,7 @@ function FVSModal({ fvs, obraId, escopoNome, onClose, addToast }) {
 
   async function save() {
     if (totalOk < lista.length && resultado === "APROVADO") {
-      if (!window.confirm(`Nem todos os itens foram marcados (${totalOk}/${lista.length}). Confirma como APROVADO mesmo assim?`)) return;
+      if (!await confirm({ titulo:"Aprovar com pendências?", mensagem:`Nem todos os itens foram marcados (${totalOk}/${lista.length}). Confirma como APROVADO mesmo assim?`, confirmLabel:"Confirmar", tipo:"warning" })) return;
     }
     setSaving(true);
     const agora = new Date().toISOString();
@@ -59,6 +61,7 @@ function FVSModal({ fvs, obraId, escopoNome, onClose, addToast }) {
   }
 
   return (
+    <>{confirmModal}
     <Modal title="Ficha de Verificação de Serviço (FVS)" onClose={onClose}
       footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" onClick={save} disabled={saving}>{saving?"Salvando...":"Salvar FVS"}</button></>}>
       <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
@@ -114,6 +117,7 @@ function FVSModal({ fvs, obraId, escopoNome, onClose, addToast }) {
         </div>
       </div>
     </Modal>
+    </>
   );
 }
 

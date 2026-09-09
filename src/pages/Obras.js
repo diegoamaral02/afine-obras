@@ -1,5 +1,6 @@
 // src/pages/Obras.js — completo com endereço, busca CEP, fotos, medições, subcontratados
 import React, { useEffect, useState, useMemo } from "react";
+import { useConfirm } from "../hooks/useConfirm";
 import { collection, onSnapshot, doc, query, where, getDocs } from "firebase/firestore";
 import { db, storage } from "../firebase";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -88,6 +89,7 @@ const CHECKLIST_ITENS = [
 
 function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   const { userProfile, currentUser } = useAuth();
+  const { confirm, confirmModal } = useConfirm();
   const isCampoUser = isCampo(userProfile);
   const nomeUser = userProfile?.nome || currentUser?.email || "–";
   const [aba, setAba] = useState(() => {
@@ -401,6 +403,7 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   const LABELS = { dados:"Dados", "endereço":"Endereço", financeiro:"Financeiro", cronograma:"📅 Cronograma", custos:"💰 Custos", materiais:"Materiais", fotos_checklist:"Fotos & Checklist", os_digital:"OS Digital", descaracterizacao:"📋 Descaracterização", termo_chaves:"🔑 Termo de Chaves", historico:"🕑 Histórico" };
 
   return (
+    <>{confirmModal}
     <Modal title={obra?.id?"Editar obra":"Nova obra"} onClose={onClose}
       footer={<><button className="btn" onClick={onClose}>Cancelar</button><button className="btn btn-primary" onClick={()=>save()} disabled={saving}>{saving?"Salvando...":"Salvar"}</button></>}>
 
@@ -929,7 +932,7 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
                   try {
                     const etapas = await importarCronogramaExcel(file);
                     if (form.etapas.length > 0) {
-                      if (!window.confirm(`Substituir as ${form.etapas.length} etapa(s) existentes pelas ${etapas.length} importadas?`)) return;
+                      if (!await confirm({ titulo:"Substituir cronograma?", mensagem:`Substituir as ${form.etapas.length} etapa(s) existentes pelas ${etapas.length} importadas?`, confirmLabel:"Substituir", tipo:"warning" })) return;
                     }
                     set("etapas", etapas);
                     addToast(`✅ ${etapas.length} etapa(s) importadas do Excel!`);
@@ -1215,6 +1218,7 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
         </div>
       )}
     </Modal>
+    </>
   );
 }
 
