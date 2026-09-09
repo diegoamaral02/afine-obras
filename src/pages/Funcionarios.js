@@ -1,6 +1,6 @@
 // src/pages/Funcionarios.js — com departamentos, permissões e gestão completa
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, doc, setDoc, updateDoc, addDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, setDoc, updateDoc, addDoc, writeBatch } from "firebase/firestore";
 import { db, auth } from "../firebase";
 import { statusBadge, fmtDate, initials } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -200,8 +200,13 @@ function FuncionarioModal({ func, obras, onClose, addToast }) {
       }
       const payload = { ...form, uid, pendente:uid?.startsWith("pending_")||false, updatedAt:new Date().toISOString(), createdAt:func?.createdAt||new Date().toISOString() };
       if (isNovo) {
-        await setDoc(doc(db,"usuarios",uid), payload);
-        await addDoc(collection(db,"audit_log"), { colecao:"usuarios", docId:uid, acao:"create", payload, userUid:authUser?.uid, userName:authProfile?.nome, timestamp:new Date().toISOString() });
+        const ts = new Date().toISOString();
+        const auditEntry = { colecao:"usuarios", docId:uid, acao:"create", payload, userUid:authUser?.uid, userName:authProfile?.nome, timestamp:ts };
+        const batch = writeBatch(db);
+        batch.set(doc(db,"usuarios",uid), payload);
+        batch.set(doc(collection(db,"usuarios",uid,"historico")), auditEntry);
+        batch.set(doc(collection(db,"audit_log")), auditEntry);
+        await batch.commit();
       } else {
         await updateComAuditoria("usuarios", uid, payload, authUser?.uid, authProfile?.nome);
       }

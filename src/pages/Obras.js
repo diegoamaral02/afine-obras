@@ -1264,7 +1264,7 @@ export default function Obras({ onObraSelect }) {
   const [obraAberta, setObraAberta] = useState(null);
   const [confirmarExclusao, setConfirmarExclusao] = useState(null); // {id, nome}
   const [abaDrawer, setAbaDrawer]   = useState("ocorrencias");
-  const isGestor = isGestorOuAdm(userProfile) || userProfile?.departamento === "fiscal";
+  const isGestor = isGestorOuAdm(userProfile);
   const [aba, setAba] = useState("lista");
 
   useEffect(() => {

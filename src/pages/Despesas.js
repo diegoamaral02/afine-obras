@@ -1,7 +1,7 @@
 // src/pages/Despesas.js — Controle de gastos / reembolsos por funcionário
 // (migrado da antiga aba "Controle de Gasto" da planilha)
 import React, { useEffect, useState, useMemo, useRef } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, limit } from "firebase/firestore";
+import { collection, onSnapshot, doc, query, orderBy, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
 import { podeEditar, isCampo } from "../constants/departamentos";

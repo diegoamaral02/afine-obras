@@ -1,7 +1,7 @@
 // src/pages/Manutencao.js — v2: sub-abas, alocação de campo, rastreio de criador, demandas filtradas
 import { buscarCEP } from "../utils/cep";
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, onSnapshot, query, where, addDoc, updateDoc, deleteDoc, doc, getDoc } from "firebase/firestore";
+import { collection, onSnapshot, query, where, doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { statusBadge, fmtDate, initials } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -1020,7 +1020,7 @@ export default function Manutencao({ obraAtual }) {
 
   const uid     = currentUser?.uid;
   const isCampo  = isCampoHelper(userProfile);
-  const isGestor = !isCampo;
+  const isGestor = isGestorOuAdm(userProfile);
   const hoje    = new Date().toISOString().split("T")[0];
 
   useEffect(()=>{

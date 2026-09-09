@@ -19,7 +19,8 @@ function podeAprovar(userProfile, demandaTipo) {
   const dep = userProfile?.departamento || userProfile?.perfil || "campo";
   const adm = userProfile?.adm === true;
   if (adm) return true;
-  if (demandaTipo === "obra") return false; // só ADM aprova obras
+  // Obras: ADM Master ou Gestão podem aprovar
+  if (demandaTipo === "obra") return ["gestao","gestor","adm"].includes(dep);
   // Manutenção: todos menos campo
   return !["campo"].includes(dep);
 }
