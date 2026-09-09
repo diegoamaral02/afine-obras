@@ -515,6 +515,12 @@ textarea { resize: vertical; min-height: 80px; }
   --laranja-lt:  rgba(184,145,10,.15);
 }
 [data-theme="dark"] body { background: var(--n-100); color: var(--afine-black); }
+[data-theme="dark"] .sidebar { background: #111114; }
+[data-theme="dark"] .nav-section { color: rgba(255,255,255,.28); }
+[data-theme="dark"] .nav-item { color: rgba(255,255,255,.65); }
+[data-theme="dark"] .nav-item:hover { background: rgba(255,255,255,.07); color: #fff; }
+[data-theme="dark"] .nav-item.active { background: rgba(245,196,0,.12); color: #fff; border-left-color: var(--afine-yellow); }
+[data-theme="dark"] .sidebar-footer { border-top-color: rgba(255,255,255,.07); }
 [data-theme="dark"] .topbar { background: #18181C; border-color: rgba(255,255,255,.08); }
 [data-theme="dark"] .card, [data-theme="dark"] .metric, [data-theme="dark"] .kpi-card,
 [data-theme="dark"] .rdo-card, [data-theme="dark"] .table-wrap, [data-theme="dark"] .modal,
