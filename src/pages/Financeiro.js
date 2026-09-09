@@ -1,6 +1,6 @@
 // src/pages/Financeiro.js — v3: rico em informações para equipe financeira
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { collection, onSnapshot, getDocs, addDoc, doc, query, orderBy, limit, where, getDoc } from "firebase/firestore";
+import { collection, onSnapshot, getDocs, addDoc, doc, query, orderBy, limit, where } from "firebase/firestore";
 import { db } from "../firebase";
 import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";

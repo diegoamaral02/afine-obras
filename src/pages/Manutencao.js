@@ -279,8 +279,7 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
           enviarNotificacao(form.responsavelId, { titulo:"✅ Manutenção concluída", corpo:`${form.titulo||"Atendimento"} foi finalizado`, tipo:"success", link:"/manutencao" });
         }
         // Notifica fiscal quando manutenção Itaú salva como S/OT
-        const isItauNotif = form.cliente?.toLowerCase().includes("itau")||form.cliente?.toLowerCase().includes("itaú");
-        if (form.semOT && isItauNotif) {
+        if (form.semOT) {
           getDocs(query(collection(db,"usuarios"),where("departamento","==","fiscal")))
             .then(snap => snap.docs.forEach(d => enviarNotificacao(d.id, NOTIF.SEM_OT(form.titulo||"Manutenção")).catch(()=>{})))
             .catch(()=>{});
