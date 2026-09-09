@@ -2,6 +2,7 @@
 // (migrado da antiga aba "Controle de Gasto" da planilha)
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useConfirm } from "../hooks/useConfirm";
+import { usePagination } from "../hooks/usePagination";
 import { collection, onSnapshot, doc, query, orderBy, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
@@ -429,7 +430,7 @@ export default function Despesas() {
   const [search,        setSearch]       = useState("");
   const [filtros,       setFiltros]      = useState({ periodo:{de:"",ate:""}, funcionarioNome:"", metodoPagamento:"", obraId:"", categoria:"", statusReembolso:"", revisado:"" });
   const { confirm, confirmModal } = useConfirm();
-  const [qtdMostrar,    setQtdMostrar]   = useState(100);
+  // qtdMostrar substituído por paginação
   const [modal,         setModal]        = useState(null);
   const [preview,       setPreview]      = useState(null);
 
@@ -478,6 +479,7 @@ export default function Despesas() {
     qtdPendentes: filtradas.filter(d=>d.reembolso&&!d.reembolsado).length,
     naoRevisadas: filtradas.filter(d=>!d.revisado).length,
   }),[filtradas]);
+  const { itens: despesasPagina, PaginacaoUI } = usePagination(filtradas, 25);
 
   async function excluir(d) {
     if (!await confirm({ titulo:"Excluir despesa", mensagem:`Excluir "${d.descricao}" (${fmt(d.valor)})?`, confirmLabel:"Excluir" })) return;
@@ -581,7 +583,7 @@ export default function Despesas() {
               </tr>
             </thead>
             <tbody>
-              {filtradas.slice(0,qtdMostrar).map(d=>{
+              {despesasPagina.map(d=>{
                 const stReemb = statusReembolsoDe(d);
                 return (
                 <tr key={d.id}>
@@ -628,13 +630,9 @@ export default function Despesas() {
               );})}
             </tbody>
           </table>
-          {filtradas.length>qtdMostrar && (
-            <div style={{textAlign:"center",marginTop:12}}>
-              <button className="btn" onClick={()=>setQtdMostrar(q=>q+200)}>Carregar mais ({filtradas.length-qtdMostrar} restante(s))</button>
-            </div>
-          )}
         </>
       )}
+      <PaginacaoUI/>
 
       {modal && (
         <DespesaModal despesa={modal.despesa} funcionarios={funcionarios} obras={obras} manutencoes={manutencoes} onClose={()=>setModal(null)} addToast={addToast}/>

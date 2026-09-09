@@ -1,5 +1,5 @@
 // src/pages/Dashboard.js — Dashboard executivo com KPIs, pipeline, gráficos
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "../firebase";
 import { statusBadge, fmtDate } from "../utils/helpers";
@@ -22,11 +22,13 @@ function MiniBar({ label, value, max, color }) {
 
 export default function Dashboard({ obraAtual }) {
   const { userProfile } = useAuth();
-  const [obras,   setObras]   = useState([]);
-  const [manuts,  setManuts]  = useState([]);
-  const [lancs,   setLancs]   = useState([]);
-  const [compras, setCompras] = useState([]);
+  const [obras,      setObras]      = useState([]);
+  const [manuts,     setManuts]     = useState([]);
+  const [lancs,      setLancs]      = useState([]);
+  const [compras,    setCompras]    = useState([]);
   const [comprasComprometidas, setComprasComprometidas] = useState([]);
+  const [comprasObra, setComprasObra] = useState([]);
+  const [mantsObra,   setMantsObra]   = useState([]);
 
   useEffect(()=>{
     const u1=onSnapshot(collection(db,"obras"),snap=>setObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
@@ -38,6 +40,14 @@ export default function Dashboard({ obraAtual }) {
     const u5=onSnapshot(query(collection(db,"compras"),where("status","in",["APROVADA","ORDEM DE COMPRA","RECEBIDO","AGUARD. NF"])),snap=>setComprasComprometidas(snap.docs.map(d=>({id:d.id,...d.data()}))));
     return()=>{u1();u2();u3();u4();u5();};
   },[]);
+
+  // KPIs específicos da obra selecionada
+  useEffect(() => {
+    if (!obraAtual) { setComprasObra([]); setMantsObra([]); return; }
+    const u1 = onSnapshot(query(collection(db,"compras"),where("demandaId","==",obraAtual)), snap=>setComprasObra(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u2 = onSnapshot(query(collection(db,"manutencoes"),where("obraId","==",obraAtual)), snap=>setMantsObra(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    return () => { u1(); u2(); };
+  }, [obraAtual]);
 
 
   const hoje = new Date().toISOString().split("T")[0];
@@ -67,6 +77,14 @@ export default function Dashboard({ obraAtual }) {
 
   const fmt=(v)=>`R$ ${Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:0})}`;
 
+  // Dados da obra selecionada
+  const obraObj = obras.find(o => o.id === obraAtual);
+  const obraLancs = lancs.filter(l => l.obraId === obraAtual);
+  const obraGasto = obraLancs.filter(l=>l.tipo==="PAGAR"&&l.status==="PAGO").reduce((s,l)=>s+(l.valor||0),0);
+  const obraOrcamento = Number(obraObj?.valorOrcamento||0);
+  const obraComprasPend = comprasObra.filter(c=>["SOLICITAÇÃO","COTAÇÃO"].includes(c.status)).length;
+  const obraMantsAbertas = mantsObra.filter(m=>["ABERTA","EM ANDAMENTO"].includes(m.status)).length;
+
   return (
     <div>
       {/* Welcome */}
@@ -77,6 +95,42 @@ export default function Dashboard({ obraAtual }) {
           <p style={{fontSize:12,color:"#7A7A7A",marginTop:2}}>AFINE A.F. Nery Arquitetura &amp; Construção · {new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"})}</p>
         </div>
       </div>
+
+      {/* KPIs da obra selecionada */}
+      {obraAtual && obraObj && (
+        <div style={{marginBottom:20,background:"var(--afine-white)",border:"1px solid var(--border)",borderLeft:"4px solid var(--afine-yellow)",borderRadius:12,padding:"16px 20px"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
+            <div>
+              <div style={{fontSize:11,color:"var(--cinza-med)",textTransform:"uppercase",letterSpacing:".07em",fontWeight:700}}>Obra ativa</div>
+              <div style={{fontWeight:700,fontSize:16}}>{obraObj.nome}</div>
+              <div style={{fontSize:12,color:"var(--cinza-med)"}}>{obraObj.cliente} · Término: {obraObj.termino||"—"}</div>
+            </div>
+            <span className={`badge ${obraObj.status==="EM ANDAMENTO"?"badge-green":obraObj.status==="CONCLUÍDA"?"badge-blue":"badge-gray"}`}>{obraObj.status}</span>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10}}>
+            <div style={{textAlign:"center",background:"var(--cinza-lt)",borderRadius:8,padding:"10px 8px"}}>
+              <div style={{fontSize:10,color:"var(--cinza-med)",fontWeight:700,textTransform:"uppercase"}}>Progresso</div>
+              <div style={{fontSize:22,fontWeight:700,color:"var(--afine-yellow-dk)"}}>{obraObj.progresso||0}%</div>
+            </div>
+            <div style={{textAlign:"center",background:"var(--cinza-lt)",borderRadius:8,padding:"10px 8px"}}>
+              <div style={{fontSize:10,color:"var(--cinza-med)",fontWeight:700,textTransform:"uppercase"}}>Orçamento</div>
+              <div style={{fontSize:14,fontWeight:700}}>{fmt(obraOrcamento)}</div>
+            </div>
+            <div style={{textAlign:"center",background:"var(--cinza-lt)",borderRadius:8,padding:"10px 8px"}}>
+              <div style={{fontSize:10,color:"var(--cinza-med)",fontWeight:700,textTransform:"uppercase"}}>Gasto</div>
+              <div style={{fontSize:14,fontWeight:700,color:obraGasto>obraOrcamento&&obraOrcamento>0?"var(--vermelho)":"var(--verde)"}}>{fmt(obraGasto)}</div>
+            </div>
+            <div style={{textAlign:"center",background:"var(--cinza-lt)",borderRadius:8,padding:"10px 8px"}}>
+              <div style={{fontSize:10,color:"var(--cinza-med)",fontWeight:700,textTransform:"uppercase"}}>Compras pend.</div>
+              <div style={{fontSize:22,fontWeight:700,color:obraComprasPend>0?"var(--afine-yellow-dk)":"var(--verde)"}}>{obraComprasPend}</div>
+            </div>
+            <div style={{textAlign:"center",background:"var(--cinza-lt)",borderRadius:8,padding:"10px 8px"}}>
+              <div style={{fontSize:10,color:"var(--cinza-med)",fontWeight:700,textTransform:"uppercase"}}>Manutenções</div>
+              <div style={{fontSize:22,fontWeight:700,color:obraMantsAbertas>0?"var(--vermelho)":"var(--verde)"}}>{obraMantsAbertas}</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* KPIs principais */}
       <div className="metrics-grid" style={{marginBottom:16}}>

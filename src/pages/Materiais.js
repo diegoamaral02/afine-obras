@@ -1,7 +1,8 @@
 // src/pages/Materiais.js — controle global de estoque + por demanda
 import React, { useEffect, useState, useMemo } from "react";
 import { useConfirm } from "../hooks/useConfirm";
-import { collection, onSnapshot, query, where, getDocs, limit } from "firebase/firestore";
+import { usePagination } from "../hooks/usePagination";
+import { collection, onSnapshot, query, where, getDocs, limit, addDoc, orderBy } from "firebase/firestore";
 import { db } from "../firebase";
 import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -587,8 +588,15 @@ function NovoMaterialModal({ onClose, addToast, material }) {
   const [saving, setSaving] = useState(false);
   const [imagemBase64, setImagemBase64] = useState(material?.imagemReferencia || null);
   const [carregandoImg, setCarregandoImg] = useState(false);
+  const [historicoPreco, setHistoricoPreco] = useState([]);
   const imgInputRef = React.useRef();
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
+
+  useEffect(() => {
+    if (!editando || !material?.id) return;
+    getDocs(query(collection(db, "materiais_estoque", material.id, "historico_preco"), orderBy("data","desc"), limit(10)))
+      .then(snap => setHistoricoPreco(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+  }, [editando, material?.id]); // eslint-disable-line
 
   function handleImagem(e) {
     const file = e.target.files[0];
@@ -629,6 +637,16 @@ function NovoMaterialModal({ onClose, addToast, material }) {
     };
     try {
       if (editando) {
+        const custoAnterior = Number(material.custoUnitario) || 0;
+        const custoNovo = Number(form.custoUnitario) || 0;
+        if (custoNovo !== custoAnterior) {
+          await addDoc(collection(db, "materiais_estoque", material.id, "historico_preco"), {
+            precoAnterior: custoAnterior,
+            precoNovo: custoNovo,
+            data: new Date().toISOString(),
+            atualizadoPor: userProfile?.nome || currentUser?.email || "—",
+          });
+        }
         await updateComAuditoria("materiais_estoque", material.id, {
           nome:       form.nome,
           categoria:  form.categoria,
@@ -682,6 +700,25 @@ function NovoMaterialModal({ onClose, addToast, material }) {
             <input type="number" step="0.01" min="0" value={form.custoUnitario} onChange={e=>set("custoUnitario",e.target.value)} placeholder="0,00"/>
           </div>
         </div>
+
+        {/* Histórico de preços — exibido apenas ao editar */}
+        {editando && historicoPreco.length > 0 && (
+          <div style={{background:"var(--n-100,#f8f9fa)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px"}}>
+            <div style={{fontWeight:600,fontSize:12,color:"var(--cinza-med)",marginBottom:8,letterSpacing:.5,textTransform:"uppercase"}}>Histórico de preços</div>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              {historicoPreco.map(h => (
+                <div key={h.id} style={{display:"flex",alignItems:"center",gap:8,fontSize:12}}>
+                  <span style={{color:"var(--cinza-med)",minWidth:90}}>{h.data ? new Date(h.data).toLocaleDateString("pt-BR") : "—"}</span>
+                  <span style={{color:"var(--vermelho)",textDecoration:"line-through"}}>R$ {Number(h.precoAnterior||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}</span>
+                  <span style={{color:"var(--cinza-med)"}}>→</span>
+                  <span style={{color:"var(--verde)",fontWeight:600}}>R$ {Number(h.precoNovo||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}</span>
+                  {h.atualizadoPor && <span style={{color:"var(--cinza-med)",marginLeft:"auto",fontSize:11}}>{h.atualizadoPor}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="form-grid">
           <div className="form-group"><label>Localização física</label>
             <input value={form.localizacao} onChange={e=>set("localizacao",e.target.value)} placeholder="Ex: Almoxarifado A, Prateleira 3"/>
@@ -947,6 +984,7 @@ export default function MateriaisGlobal() {
     const mC = filtroCateg==="todas" || m.categoria===filtroCateg;
     return mQ && mC;
   });
+  const { itens: matPagina, PaginacaoUI: MatPaginacaoUI } = usePagination(filtered, 25);
 
   // KPIs
   const abaixoMin = materiais.filter(m=>m.estoqueMin>0 && m.saldo<=m.estoqueMin).length;
@@ -1066,6 +1104,7 @@ export default function MateriaisGlobal() {
           {loading && <div className="spinner"/>}
           {!loading && filtered.length===0 && <div className="empty-state"><div className="empty-icon">📦</div><p>Nenhum material cadastrado</p></div>}
           {!loading && filtered.length>0 && (
+            <>
             <div className="table-wrap">
               <table>
                 <thead><tr>
@@ -1075,7 +1114,7 @@ export default function MateriaisGlobal() {
                   <th>Status</th>{canEdit&&<th></th>}
                 </tr></thead>
                 <tbody>
-                  {filtered.map(m=>{
+                  {matPagina.map(m=>{
                     const critico = m.estoqueMin>0 && m.saldo<=m.estoqueMin;
                     const zerado  = m.saldo<=0;
                     const sobraObras = saldoEmObrasPara(m.nome);
@@ -1148,6 +1187,8 @@ export default function MateriaisGlobal() {
                 </tbody>
               </table>
             </div>
+            <MatPaginacaoUI/>
+            </>
           )}
         </>
       )}

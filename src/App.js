@@ -11,6 +11,7 @@ import { useFilaOffline } from "./hooks/useFilaOffline";
 import { initials } from "./utils/helpers";
 import { LOGO_BASE64 } from "./utils/assets";
 import { getAcesso, podeVer, isCampo, resolverPerfilMenu } from "./constants/departamentos";
+import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 
 import Login           from "./pages/Login";
 import PainelGerencial from "./pages/PainelGerencial";
@@ -274,6 +275,7 @@ function AppShell() {
   const { notifs, naoLidas, marcarLida, marcarTodasLidas } = useNotificacoes(currentUser?.uid);
   usePushNotificacoes(currentUser?.uid);
   const filaOffline = useFilaOffline();
+  const { darkMode, toggleTheme } = useTheme();
   const [isOnline, setIsOnline] = React.useState(navigator.onLine);
   React.useEffect(() => {
     const on = () => setIsOnline(true);
@@ -339,6 +341,12 @@ function AppShell() {
                 </button>
               </div>
             )}
+            <button onClick={toggleTheme} title={darkMode?"Modo claro":"Modo escuro"}
+              style={{background:"none",border:"none",cursor:"pointer",fontSize:18,padding:"5px",lineHeight:1,borderRadius:8,transition:"background .15s"}}
+              onMouseEnter={e=>e.currentTarget.style.background="var(--n-200)"}
+              onMouseLeave={e=>e.currentTarget.style.background="none"}>
+              {darkMode?"☀️":"🌙"}
+            </button>
             <button onClick={()=>setShowNotifs(!showNotifs)}
               style={{position:"relative",background:"none",border:"none",cursor:"pointer",fontSize:20,padding:"4px",lineHeight:1}}>
               🔔
@@ -399,18 +407,20 @@ function AppShell() {
 function AppRoot() {
   const { currentUser } = useAuth();
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={currentUser?<Navigate to="/" replace/>:<Login/>}/>
-        <Route path="/*" element={
-          <Protected>
-            <AgendaProvider>
-              <AppShell/>
-            </AgendaProvider>
-          </Protected>
-        }/>
-      </Routes>
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={currentUser?<Navigate to="/" replace/>:<Login/>}/>
+          <Route path="/*" element={
+            <Protected>
+              <AgendaProvider>
+                <AppShell/>
+              </AgendaProvider>
+            </Protected>
+          }/>
+        </Routes>
+      </BrowserRouter>
+    </ThemeProvider>
   );
 }
 export default AppRoot;

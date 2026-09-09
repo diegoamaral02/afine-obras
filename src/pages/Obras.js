@@ -317,6 +317,45 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   }
 
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
+
+  async function gerarRelatorio() {
+    const nomeArquivo = `Relatorio_${(form.nome||"obra").replace(/\s+/g,"_")}`;
+    const escoposSnap = await getDocs(query(collection(db,"escopos"), where("obraId","==",obra.id)));
+    const escopos = escoposSnap.docs.map(d=>({id:d.id,...d.data()}));
+
+    const sep = (titulo) => [`"${titulo}"`,"",...Array(8).fill(`""`)].join(";");
+    const vazio = Array(10).fill(`""`).join(";");
+
+    const linhas = [
+      sep("RELATÓRIO CONSOLIDADO DA OBRA"),
+      `"Obra:";"${form.nome||""}";"Status:";"${form.status||""}";"Início:";"${form.inicio||""}";"Término:";"${form.termino||""}"`,
+      `"Cliente:";"${form.cliente||""}";"Responsável:";"${form.responsavelNome||""}";"Orçamento:";"R$ ${Number(form.valorOrcamento||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}"`,
+      vazio,
+
+      sep("ESCOPOS"),
+      `"Descrição";"Status";"Valor (R$)";"Previsão conclusão"`,
+      ...escopos.map(e=>`"${e.descricao||e.nome||""}";"${e.status||""}";"${Number(e.valor||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}";"${e.prazo||""}"`),
+      vazio,
+
+      sep("DESPESAS / LANÇAMENTOS"),
+      `"Data";"Descrição";"Categoria";"Valor (R$)";"Responsável"`,
+      ...despesasObra.map(d=>`"${d.data||d.criadaEm?.split?.("T")[0]||""}";"${d.descricao||d.nome||""}";"${d.categoria||""}";"${Number(d.valor||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}";"${d.responsavel||""}"`),
+      vazio,
+
+      sep("COMPRAS"),
+      `"Data";"Fornecedor";"Itens";"Status";"Valor total (R$)"`,
+      ...comprasObra.map(c=>`"${c.data||c.criadaEm?.split?.("T")[0]||""}";"${c.fornecedor||""}";"${(c.itens||[]).map(i=>`${i.qtd} ${i.un} ${i.nome}`).join(", ")}";"${c.status||""}";"${Number(c.valorTotal||0).toLocaleString("pt-BR",{minimumFractionDigits:2})}"`),
+    ];
+
+    const csv = "﻿" + linhas.join("\r\n");
+    const blob = new Blob([csv], { type:"text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `${nomeArquivo}.csv`;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+    addToast("Relatório gerado com sucesso!");
+  }
   function handleFunc(field, idField, e) {
     const id=e.target.value;
     const f=(funcionarios||[]).find(x=>x.id===id||x.uid===id);
@@ -415,10 +454,15 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
           </button>
         ))}
         {obra?.id && (
-          <button className="btn btn-sm" style={{marginLeft:"auto"}}
-            onClick={()=>exportarObraParaPDF({...obra,...form,fotos,checklist,osDigital}, Object.fromEntries(funcionarios.map(f=>[f.id,f])))}>
-            📄 PDF
-          </button>
+          <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+            <button className="btn btn-sm" onClick={gerarRelatorio} title="Relatório consolidado em Excel (CSV)">
+              📊 Relatório
+            </button>
+            <button className="btn btn-sm"
+              onClick={()=>exportarObraParaPDF({...obra,...form,fotos,checklist,osDigital}, Object.fromEntries(funcionarios.map(f=>[f.id,f])))}>
+              📄 PDF
+            </button>
+          </div>
         )}
       </div>
 

@@ -1,6 +1,7 @@
 // src/pages/Garantias.js — Gestão de Garantias
 import React, { useEffect, useState, useMemo } from "react";
 import { useConfirm } from "../hooks/useConfirm";
+import { usePagination } from "../hooks/usePagination";
 import {
   collection, onSnapshot, writeBatch, doc,
 } from "firebase/firestore";
@@ -422,6 +423,7 @@ export default function Garantias() {
       return 0;
     });
   }, [garantias, filtro, search, hj, em30]);
+  const { itens: garantiasPagina, PaginacaoUI } = usePagination(visíveis, 20);
 
   async function handleExcluir(g) {
     if (!await confirm({ titulo:"Excluir garantia", mensagem:`Excluir a garantia "${g.origemNome}"? Esta ação não pode ser desfeita.`, confirmLabel:"Excluir" })) return;
@@ -526,7 +528,7 @@ export default function Garantias() {
               </tr>
             </thead>
             <tbody>
-              {visíveis.map(g => {
+              {garantiasPagina.map(g => {
                 const dias = diasRestantes(g.dataFim);
                 const pct  = (g.status === "ATIVA" || g.status === "VENCIDA")
                   ? pctVida(g.dataInicio, g.dataFim)
@@ -625,6 +627,7 @@ export default function Garantias() {
           </table>
         </div>
       )}
+      <PaginacaoUI/>
 
       {/* modal */}
       {modal !== null && (
