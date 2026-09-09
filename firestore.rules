@@ -58,7 +58,7 @@ service cloud.firestore {
       allow delete: if isGestor();
       // Subcoleção de histórico (auditoria)
       match /historico/{hid} {
-        allow read:  if isAuth();
+        allow read:  if isEncarregado();
         allow write: if isAuth();
       }
     }
@@ -204,9 +204,9 @@ service cloud.firestore {
       }
     }
 
-    // ── Clientes (COMERCIAL) ─────────────────────────────────────
+    // ── Clientes (COMERCIAL — apenas encarregado/gestor) ─────────
     match /clientes/{id} {
-      allow read:  if isAuth();
+      allow read:  if isEncarregado();
       allow write: if isEncarregado();
       match /historico/{hid} {
         allow read:  if isEncarregado();
@@ -227,7 +227,7 @@ service cloud.firestore {
     // ── Agendamentos ──────────────────────────────────────────────
     match /agendamentos/{id} {
       allow read:  if isAuth();
-      allow write: if isAuth();
+      allow write: if isEncarregado();
       match /historico/{hid} {
         allow read:  if isAuth();
         allow write: if isAuth();
