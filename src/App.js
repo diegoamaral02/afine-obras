@@ -39,6 +39,7 @@ import AuditLog       from "./pages/AuditLog";
 import BITendencias   from "./pages/BITendencias";
 import Garantias      from "./pages/Garantias";
 import { Equipe, Ocorrencias } from "./pages/Equipe";
+import OcorrenciasCanteiro from "./pages/OcorrenciasCanteiro";
 import NotFound from "./pages/NotFound";
 
 import "./index.css";
@@ -55,9 +56,10 @@ const MENU = [
     { to:"/painel",     icon:"📊", label:"Painel Gerencial", roles:["gestor","encarregado"] },
   ]},
   { id:"operacao", label:"Operação", roles:["gestor","encarregado","campo"], items:[
-    { to:"/obras",         icon:"🏗️", label:"Obras",          roles:["gestor","encarregado","campo"] },
-    { to:"/manutencao",    icon:"🔧", label:"Manutenção",     roles:["gestor","encarregado","campo"] },
-    { to:"/gerenciamento", icon:"📋", label:"Gerenciamento",  roles:["gestor","encarregado","campo"] },
+    { to:"/obras",         icon:"🏗️", label:"Obras",               roles:["gestor","encarregado","campo"] },
+    { to:"/manutencao",    icon:"🔧", label:"Manutenção",           roles:["gestor","encarregado","campo"] },
+    { to:"/ocorrencias",   icon:"⚡", label:"Ocorrências",          roles:["gestor","encarregado","campo"] },
+    { to:"/gerenciamento", icon:"📋", label:"Gerenciamento",        roles:["gestor","encarregado","campo"] },
   ]},
   { id:"suprimentos", label:"Suprimentos", roles:["gestor","encarregado","campo"], items:[
     { to:"/compras",   icon:"🛒", label:"Compras",   roles:["gestor","encarregado","campo"] },
@@ -377,6 +379,7 @@ function AppShell() {
             <Route path="/comercial/clientes" element={<Comercial subpagina="clientes"/>}/>
             <Route path="/obras"              element={<Obras           onObraSelect={setObraAtual}/>}/>
             <Route path="/manutencao"         element={<Manutencao      obraAtual={obraAtual?.id}/>}/>
+            <Route path="/ocorrencias"        element={<OcorrenciasCanteiro/>}/>
             <Route path="/gerenciamento"      element={<Gerenciamento/>}/>
             <Route path="/equipe"             element={isCampoUser ? <Navigate to="/manutencao" replace/> : <Equipe obraAtual={obraAtual?.id}/>}/>
             <Route path="/funcionarios"       element={<Funcionarios/>}/>
