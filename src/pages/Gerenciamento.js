@@ -540,7 +540,7 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
   const [saving, setSaving] = useState(false);
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
 
-  const analistasDoTipo = useAnalistasPorTipo(form.tipoDemanda);
+  const analistasDoTipo = useAnalistasPorTipo(form.tipoDemanda, form.clienteId);
   const clienteSel = clientes.find(c=>c.id===form.clienteId);
   const agencias = clienteSel?.agencias || [];
 

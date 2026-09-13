@@ -78,7 +78,7 @@ const MENU = [
     { to:"/bi",                   icon:"📊", label:"BI & Tendências",  roles:["gestor","encarregado"] },
     { to:"/sla",                  icon:"⏰", label:"SLA",              roles:["gestor","encarregado"] },
     { to:"/checklist-templates",  icon:"📋", label:"Checklists",       roles:["gestor","encarregado"] },
-    { to:"/analistas",            icon:"📇", label:"Analistas",        roles:["gestor","encarregado"] },
+    { to:"/analistas",            icon:"📇", label:"Analistas & Contatos - Gerenciamento", roles:["gestor","encarregado"] },
     { to:"/garantias",            icon:"🛡️", label:"Garantias",        roles:["gestor","encarregado"] },
     { to:"/audit-log",            icon:"🔍", label:"Audit Log",        roles:["gestor","encarregado"] },
   ]},

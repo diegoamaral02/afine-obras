@@ -24,7 +24,7 @@ const COR_AREA = {
   "MATERIAIS":             "#7A3B99",
 };
 
-const FORM_VAZIO = { area:"", nome:"", email:"", telefone:"", tiposDemanda:"", obs:"" };
+const FORM_VAZIO = { area:"", nome:"", email:"", telefone:"", tiposDemanda:"", obs:"", clienteId:"", clienteNome:"" };
 
 function CopiarBtn({ texto }) {
   const [copiado, setCopiado] = useState(false);
@@ -54,6 +54,7 @@ export default function AnalistasContatos() {
   const [editTemplate, setEditTemplate] = useState(false);
   const [formTemplate, setFormTemplate] = useState(TEMPLATES_VAZIO);
 
+  const [clientes,  setClientes]    = useState([]);
   const [modalOpen, setModalOpen]   = useState(false);
   const [editando,  setEditando]    = useState(null);
   const [form,      setForm]        = useState(FORM_VAZIO);
@@ -65,6 +66,14 @@ export default function AnalistasContatos() {
     const unsub = onSnapshot(collection(db, "analistas_contatos"), snap => {
       setAnalistas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
+    });
+    return unsub;
+  }, []);
+
+  // Carrega clientes para seleção no modal
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "clientes"), snap => {
+      setClientes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
     return unsub;
   }, []);
@@ -106,8 +115,15 @@ export default function AnalistasContatos() {
 
   function abrirEditar(a) {
     setEditando(a);
-    setForm({ area:a.area||"", nome:a.nome||"", email:a.email||"", telefone:a.telefone||"", tiposDemanda:a.tiposDemanda||"", obs:a.obs||"" });
+    setForm({ area:a.area||"", nome:a.nome||"", email:a.email||"", telefone:a.telefone||"", tiposDemanda:a.tiposDemanda||"", obs:a.obs||"", clienteId:a.clienteId||"", clienteNome:a.clienteNome||"" });
     setModalOpen(true);
+  }
+
+  function selecionarCliente(id) {
+    if (!id) { set("clienteId",""); set("clienteNome",""); return; }
+    const c = clientes.find(x=>x.id===id);
+    set("clienteId", id);
+    set("clienteNome", c?.razaoSocial||c?.nomeFantasia||c?.nome||"");
   }
 
   async function salvar() {
@@ -202,7 +218,10 @@ export default function AnalistasContatos() {
                   <tbody>
                     {lista.map(a => (
                       <tr key={a.id}>
-                        <td style={{ fontWeight: 600, fontSize: 13 }}>{a.nome}</td>
+                        <td>
+                          <div style={{ fontWeight: 600, fontSize: 13 }}>{a.nome}</div>
+                          {a.clienteNome && <div style={{ fontSize: 11, color: "var(--cinza-med)", marginTop: 2 }}>{a.clienteNome}</div>}
+                        </td>
                         <td>
                           <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}>
                             <span style={{ color: "var(--cinza-med)" }}>{a.email || "—"}</span>
@@ -339,6 +358,13 @@ export default function AnalistasContatos() {
                 <div style={{fontSize:11,color:"var(--cinza-med)",marginTop:4}}>Separe múltiplos tipos com ponto e vírgula (;)</div>
               </div>
               <div className="form-group" style={{margin:0}}>
+                <label>Cliente vinculado</label>
+                <select value={form.clienteId} onChange={e=>selecionarCliente(e.target.value)}>
+                  <option value="">Todos os clientes</option>
+                  {clientes.map(c=><option key={c.id} value={c.id}>{c.razaoSocial||c.nomeFantasia||c.nome}</option>)}
+                </select>
+              </div>
+              <div className="form-group" style={{margin:0}}>
                 <label>Observações</label>
                 <input value={form.obs} onChange={e=>set("obs",e.target.value)} />
               </div>
@@ -354,8 +380,8 @@ export default function AnalistasContatos() {
   );
 }
 
-// Hook para uso externo (Gerenciamento) — filtra analistas por tipo de demanda
-export function useAnalistasPorTipo(tipoDemanda) {
+// Hook para uso externo (Gerenciamento) — filtra analistas por tipo de demanda e cliente
+export function useAnalistasPorTipo(tipoDemanda, clienteId) {
   const [analistas, setAnalistas] = useState([]);
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "analistas_contatos"), snap => {
@@ -368,11 +394,11 @@ export function useAnalistasPorTipo(tipoDemanda) {
     if (!tipoDemanda) return [];
     const palavras = tipoDemanda.toUpperCase().split(/[\s\/]+/).filter(p => p.length > 3);
     return analistas.filter(a => {
+      // Filtro por cliente: inclui analistas sem cliente vinculado e do cliente selecionado
+      if (clienteId && a.clienteId && a.clienteId !== clienteId) return false;
       const td = (a.tiposDemanda || "").toUpperCase();
-      // Correspondência direta por nome do tipo
       if (td.includes(tipoDemanda.toUpperCase())) return true;
-      // Correspondência por palavras-chave (ex: "Espaço Itaú" → "ITAU", "Reforma e Remanejamento" → "REFORMA")
       return palavras.some(p => td.includes(p));
     });
-  }, [analistas, tipoDemanda]);
+  }, [analistas, tipoDemanda, clienteId]);
 }
