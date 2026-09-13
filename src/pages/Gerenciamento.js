@@ -487,6 +487,21 @@ function ModalConfigurarEventos({ demanda, onClose, addToast }) {
 function DemandaModal({ demanda, clientes, onClose, addToast }) {
   const { userProfile, currentUser } = useAuth();
   const isNova = !demanda?.id;
+  const [gestores, setGestores] = useState([]);
+
+  useEffect(() => {
+    const DEPS_GESTOR = ["gestao","adm","financeiro","comercial","fiscal","compras","encarregado","gestor"];
+    const unsub = onSnapshot(collection(db, "usuarios"), snap => {
+      const lista = snap.docs
+        .map(d => ({ ...d.data() }))
+        .filter(u => u.adm === true || DEPS_GESTOR.includes(u.departamento || u.perfil || ""))
+        .map(u => u.nome || u.email || "")
+        .filter(Boolean)
+        .sort();
+      setGestores([...new Set(lista)]);
+    });
+    return unsub;
+  }, []); // eslint-disable-line
 
   const [form, setForm] = useState({
     clienteId:          demanda?.clienteId         || "",
@@ -677,7 +692,14 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
           </div>
           <div className="form-group">
             <label className="required">Responsável interno</label>
-            <input value={form.responsavel} onChange={e=>set("responsavel",e.target.value)}/>
+            <select value={form.responsavel} onChange={e=>set("responsavel",e.target.value)}>
+              <option value="">Selecione...</option>
+              {gestores.map(g=><option key={g} value={g}>{g}</option>)}
+              {/* Mantém valor salvo mesmo que não esteja mais na lista */}
+              {form.responsavel && !gestores.includes(form.responsavel) && (
+                <option value={form.responsavel}>{form.responsavel}</option>
+              )}
+            </select>
           </div>
         </div>
         <div className="form-group">
