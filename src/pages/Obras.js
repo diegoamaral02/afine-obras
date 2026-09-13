@@ -422,8 +422,8 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
         const gestores = funcionarios.filter(f => isGestorOuAdm(f) && f.id);
         await Promise.all(gestores.map(g => enviarNotificacao(g.id, NOTIF.OBRA_ATRASADA(payload.nome || "Obra")).catch(()=>{})));
       }
-      // Ao concluir obra pela primeira vez, abre lançamento a receber
-      if (statusFinal === "CONCLUÍDA" && obra?.status !== "CONCLUÍDA") {
+      // Ao concluir obra (sem lançamento já gerado), abre modal financeiro
+      if (statusFinal === "CONCLUÍDA" && !obra?.lancamentoReceberGerado) {
         setLancamentoReceber({
           descricao:   payload.nome || "",
           obraId:      obra?.id     || "",
@@ -464,7 +464,14 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
       <LancamentoReceberModal
         dados={lancamentoReceber}
         onClose={() => { setLancamentoReceber(null); onClose(); }}
-        onSalvo={() => { setLancamentoReceber(null); onClose(); }}
+        onSalvo={async () => {
+          // Marca que lançamento já foi gerado para não abrir novamente
+          if (obra?.id) {
+            await updateComAuditoria("obras", obra.id, { lancamentoReceberGerado: true }, currentUser?.uid, nomeUser).catch(()=>{});
+          }
+          setLancamentoReceber(null);
+          onClose();
+        }}
       />
     );
   }
