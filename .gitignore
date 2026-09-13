@@ -3,3 +3,5 @@ node_modules
 .env*
 scripts/serviceAccount.json
 scripts/node_modules
+scripts/seed-analistas.js
+serviceAccountKey.json

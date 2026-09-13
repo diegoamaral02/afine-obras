@@ -8,6 +8,7 @@ import Modal from "../components/Modal";
 import { useToast } from "../hooks/useToast";
 import { isGestorOuAdm, isCampo as isCampoHelper } from "../constants/departamentos";
 import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
+import { useAnalistasPorTipo } from "./AnalistasContatos";
 
 // ── CONSTANTES ────────────────────────────────────────────────────────────────
 const TIPOS_DEMANDA = [
@@ -524,6 +525,7 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
   const [saving, setSaving] = useState(false);
   function set(f,v) { setForm(p=>({...p,[f]:v})); }
 
+  const analistasDoTipo = useAnalistasPorTipo(form.tipoDemanda);
   const clienteSel = clientes.find(c=>c.id===form.clienteId);
   const agencias = clienteSel?.agencias || [];
 
@@ -624,6 +626,46 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
               </optgroup>
             ))}
           </select>
+
+          {/* Analistas responsáveis pelo tipo selecionado */}
+          {analistasDoTipo.length > 0 && (
+            <div style={{marginTop:10,background:"var(--cinza-lt)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 14px"}}>
+              <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",
+                color:"var(--cinza-med)",marginBottom:8}}>
+                Analistas responsáveis
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {analistasDoTipo.map(a => (
+                  <div key={a.id} style={{display:"flex",alignItems:"flex-start",gap:10,
+                    background:"var(--bg-card)",borderRadius:8,padding:"8px 12px",
+                    border:"1px solid var(--border)"}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:600,fontSize:12}}>{a.nome}</div>
+                      <div style={{fontSize:11,color:"var(--cinza-med)",marginTop:1}}>{a.area}</div>
+                      {a.tiposDemanda && (
+                        <div style={{fontSize:10,color:"var(--cinza-med)",marginTop:2,fontStyle:"italic"}}>
+                          {a.tiposDemanda}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{display:"flex",flexDirection:"column",gap:4,flexShrink:0,alignItems:"flex-end"}}>
+                      {a.email && (
+                        <a href={`mailto:${a.email}`} style={{fontSize:11,color:"var(--azul,#185FA5)",textDecoration:"none",
+                          display:"flex",alignItems:"center",gap:4}}>
+                          ✉️ {a.email}
+                        </a>
+                      )}
+                      {a.telefone && (
+                        <span style={{fontSize:11,color:"var(--cinza-med)",display:"flex",alignItems:"center",gap:4}}>
+                          📞 {a.telefone}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="form-grid">

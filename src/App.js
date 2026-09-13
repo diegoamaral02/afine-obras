@@ -40,6 +40,7 @@ import BITendencias   from "./pages/BITendencias";
 import Garantias      from "./pages/Garantias";
 import { Equipe, Ocorrencias } from "./pages/Equipe";
 import OcorrenciasCanteiro from "./pages/OcorrenciasCanteiro";
+import AnalistasContatos from "./pages/AnalistasContatos";
 import NotFound from "./pages/NotFound";
 
 import "./index.css";
@@ -77,6 +78,7 @@ const MENU = [
     { to:"/bi",                   icon:"📊", label:"BI & Tendências",  roles:["gestor","encarregado"] },
     { to:"/sla",                  icon:"⏰", label:"SLA",              roles:["gestor","encarregado"] },
     { to:"/checklist-templates",  icon:"📋", label:"Checklists",       roles:["gestor","encarregado"] },
+    { to:"/analistas",            icon:"📇", label:"Analistas",        roles:["gestor","encarregado"] },
     { to:"/garantias",            icon:"🛡️", label:"Garantias",        roles:["gestor","encarregado"] },
     { to:"/audit-log",            icon:"🔍", label:"Audit Log",        roles:["gestor","encarregado"] },
   ]},
@@ -432,6 +434,7 @@ function AppShell() {
             <Route path="/ponto"             element={<PontoEletronico/>}/>
             <Route path="/garantias"         element={<Garantias/>}/>
             <Route path="/bi"               element={<BITendencias/>}/>
+            <Route path="/analistas"         element={<AnalistasContatos/>}/>
             <Route path="/audit-log"        element={<AuditLog/>}/>
             <Route path="/seed"               element={<SeedPage/>}/>
             <Route path="*"                   element={<NotFound/>}/>
