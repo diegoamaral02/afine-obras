@@ -297,16 +297,21 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
             (form.clienteId ? m.clienteId === form.clienteId : m.cliente === form.cliente)
           );
           const qtd = conclMes.length + 1; // +1 esta que acabou de concluir
+          // Soma valorServico de todas as manutenções do mês (incluindo a atual)
+          const somaValor = conclMes.reduce((s,m) => s + (Number(m.valorServico)||0), 0)
+                          + (Number(form.valorServico)||0);
+          const proxMes = new Date(); proxMes.setMonth(proxMes.getMonth() + 1);
+          const venc15  = `${proxMes.getFullYear()}-${String(proxMes.getMonth()+1).padStart(2,"0")}-15`;
           setLancamentoReceber({
             descricao: `Manutenções ${form.cliente||""} — ${mesAtual}`.trim(),
             obraId:    obraId || "",
             obraNome:  form.cliente || "",
             competencia: mesAtual,
-            vencimento:  "",
+            vencimento:  venc15,
             categoria:   "Medição / BM",
             obs:         `${qtd} manutenção(ões) concluída(s) no mês`,
             origem:      `Manutenção — ${form.titulo||""} (conclusão do mês)`,
-            valor:       "",
+            valor:       somaValor > 0 ? String(somaValor) : "",
           });
           setSaving(false);
           return; // aguarda modal financeiro

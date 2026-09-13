@@ -539,6 +539,7 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
     entradaGestor:      demanda?.entradaGestor      || "",
     enviadoFinanceiro:  demanda?.enviadoFinanceiro  || false,
     eventosConfig:      demanda?.eventosConfig      || [],
+    valorOrcamento:     demanda?.valorOrcamento     || "",
   });
 
   const [saving, setSaving] = useState(false);
@@ -596,6 +597,7 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
       reservaMaterial:form.reservaMaterial, formAutodesk:form.formAutodesk,
       gmudNumero:form.gmudNumero, gmudData:form.gmudData,
       gmudStatus:form.gmudStatus, gmudObs:form.gmudObs,
+      valorOrcamento:form.valorOrcamento ? Number(form.valorOrcamento) : 0,
       orcConstrutora:form.orcConstrutora, orcInstaladora:form.orcInstaladora,
       medicaoConstrutora:form.medicaoConstrutora,
       docConstrutora:form.docConstrutora, docAfine:form.docAfine,
@@ -617,16 +619,18 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
       const eraFinalizada = demanda && STATUS_FINALIZA.has(demanda.status);
       if (STATUS_FINALIZA.has(form.status) && !eraFinalizada) {
         const agencia = form.agenciaNome ? ` — ${form.agenciaNome}` : "";
+        const proxMes = new Date(); proxMes.setMonth(proxMes.getMonth() + 1);
+        const venc15  = `${proxMes.getFullYear()}-${String(proxMes.getMonth()+1).padStart(2,"0")}-15`;
         setLancamentoReceber({
           descricao: `${form.tipoDemanda}${agencia}`.trim(),
           obraId:    "",
           obraNome:  `${form.clienteNome}${agencia}`.trim(),
           competencia: agora.slice(0,7),
-          vencimento:  "",
+          vencimento:  venc15,
           categoria:   "Medição / BM",
           obs:         `Proj SAP: ${form.projSAP||""} · UPE: ${form.codUPE||""}`.replace(/·\s*$/,"").trim(),
           origem:      `Gerenciamento — ${form.tipoDemanda} (${form.status})`,
-          valor:       "",
+          valor:       form.valorOrcamento ? String(form.valorOrcamento) : "",
         });
         return; // não fecha — espera o modal financeiro
       }
@@ -806,6 +810,9 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
         </div>
 
         <SectionLabel label="Financeiro"/>
+        <div className="form-grid">
+          <div className="form-group"><label>Valor orçado (R$)</label><input type="number" value={form.valorOrcamento} onChange={e=>set("valorOrcamento",e.target.value)} placeholder="0,00"/></div>
+        </div>
         <div className="form-grid">
           <div className="form-group"><label>Orç. Construtora (R$)</label><input type="number" value={form.orcConstrutora} onChange={e=>set("orcConstrutora",e.target.value)}/></div>
           <div className="form-group"><label>Orç. Instaladora (R$)</label><input type="number" value={form.orcInstaladora} onChange={e=>set("orcInstaladora",e.target.value)}/></div>

@@ -424,16 +424,18 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
       }
       // Ao concluir obra (sem lançamento já gerado), abre modal financeiro
       if (statusFinal === "CONCLUÍDA" && !obra?.lancamentoReceberGerado) {
+        const proxMes = new Date(); proxMes.setMonth(proxMes.getMonth() + 1);
+        const venc15  = `${proxMes.getFullYear()}-${String(proxMes.getMonth()+1).padStart(2,"0")}-15`;
         setLancamentoReceber({
           descricao:   payload.nome || "",
           obraId:      obra?.id     || "",
           obraNome:    payload.nome || "",
           competencia: agora.slice(0,7),
-          vencimento:  "",
+          vencimento:  venc15,
           categoria:   "Saldo contratual",
           obs:         `Cliente: ${payload.cliente||""}`,
           origem:      `Obra concluída — ${payload.nome||""}`,
-          valor:       "",
+          valor:       payload.valorOrcamento ? String(payload.valorOrcamento) : "",
         });
         setSaving(false);
         return;
