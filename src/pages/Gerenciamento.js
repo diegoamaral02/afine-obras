@@ -615,9 +615,8 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
         await updateComAuditoria("gerenciamento",demanda.id,payload,currentUser?.uid,userProfile?.nome);
         addToast("Demanda atualizada!");
       }
-      // Ao finalizar demanda pela primeira vez, abre modal de lançamento a receber
-      const eraFinalizada = demanda && STATUS_FINALIZA.has(demanda.status);
-      if (STATUS_FINALIZA.has(form.status) && !eraFinalizada) {
+      // Ao finalizar demanda sem lançamento gerado, abre modal financeiro
+      if (STATUS_FINALIZA.has(form.status) && !demanda?.lancamentoReceberGerado) {
         const agencia = form.agenciaNome ? ` — ${form.agenciaNome}` : "";
         const proxMes = new Date(); proxMes.setMonth(proxMes.getMonth() + 1);
         const venc15  = `${proxMes.getFullYear()}-${String(proxMes.getMonth()+1).padStart(2,"0")}-15`;
@@ -648,7 +647,13 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
       <LancamentoReceberModal
         dados={lancamentoReceber}
         onClose={() => { setLancamentoReceber(null); onClose(); }}
-        onSalvo={() => { setLancamentoReceber(null); onClose(); }}
+        onSalvo={async () => {
+          if (demanda?.id) {
+            await updateComAuditoria("gerenciamento", demanda.id, { lancamentoReceberGerado: true }, currentUser?.uid, userProfile?.nome).catch(()=>{});
+          }
+          setLancamentoReceber(null);
+          onClose();
+        }}
       />
     );
   }
