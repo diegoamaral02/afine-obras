@@ -15,14 +15,13 @@ const TEMPLATES_VAZIO = {
   reformaEmail: "", reformaAssunto: "", reformaObs: "Reforma (Plano Diretor / Espaço Itaú)",
 };
 
-const AREAS = ["TELECOM - TELEFONIA","GIMEA - EQUIPAMENTOS","TRANSPORTE","SEGURANÇA","MATERIAIS"];
-const COR_AREA = {
-  "TELECOM - TELEFONIA":   "#185FA5",
-  "GIMEA - EQUIPAMENTOS":  "#7B4F00",
-  "TRANSPORTE":            "#2D6A1F",
-  "SEGURANÇA":             "#B83232",
-  "MATERIAIS":             "#7A3B99",
-};
+// Paleta de cores para áreas — novas áreas recebem cor do ciclo
+const CORES_CICLO = ["#185FA5","#7B4F00","#2D6A1F","#B83232","#7A3B99","#B87D00","#1A7A6E","#8B3A62","#4A6741","#5A4A8B"];
+function corParaArea(area, index) {
+  // Itaú: mantém mapeamento histórico
+  const fixo = { "TELECOM - TELEFONIA":"#185FA5","GIMEA - EQUIPAMENTOS":"#7B4F00","TRANSPORTE":"#2D6A1F","SEGURANÇA":"#B83232","MATERIAIS":"#7A3B99" };
+  return fixo[area] || CORES_CICLO[index % CORES_CICLO.length];
+}
 
 const FORM_VAZIO = { area:"", nome:"", email:"", telefone:"", tiposDemanda:"", obs:"", clienteId:"", clienteNome:"" };
 
@@ -111,15 +110,28 @@ export default function AnalistasContatos() {
     );
   }, [analistas, busca, filtroCliente]);
 
+  // Áreas ordenadas por ordem de aparição nos analistas filtrados
+  const areasOrdenadas = useMemo(() => {
+    const vistas = [];
+    filtrados.forEach(a => { if (a.area && !vistas.includes(a.area)) vistas.push(a.area); });
+    return vistas;
+  }, [filtrados]);
+
   const porArea = useMemo(() => {
     const mapa = {};
-    AREAS.forEach(a => { mapa[a] = []; });
     filtrados.forEach(a => {
-      if (!mapa[a.area]) mapa[a.area] = [];
-      mapa[a.area].push(a);
+      const k = a.area || "SEM ÁREA";
+      if (!mapa[k]) mapa[k] = [];
+      mapa[k].push(a);
     });
     return mapa;
   }, [filtrados]);
+
+  // Áreas disponíveis no modal para o cliente selecionado no form
+  const areasDoCliente = useMemo(() => {
+    if (!form.clienteId) return [...new Set(analistas.map(a=>a.area).filter(Boolean))].sort();
+    return [...new Set(analistas.filter(a=>a.clienteId===form.clienteId).map(a=>a.area).filter(Boolean))].sort();
+  }, [analistas, form.clienteId]);
 
   function abrirNovo() {
     setEditando(null);
@@ -141,11 +153,15 @@ export default function AnalistasContatos() {
     setModalOpen(true);
   }
 
-  function selecionarCliente(id) {
-    if (!id) { set("clienteId",""); set("clienteNome",""); return; }
+  const [novaArea, setNovaArea] = useState("");
+
+  function selecionarClienteModal(id) {
+    if (!id) { set("clienteId",""); set("clienteNome",""); set("area",""); return; }
     const c = clientes.find(x=>x.id===id);
     set("clienteId", id);
     set("clienteNome", c?.razaoSocial||c?.nomeFantasia||c?.nome||"");
+    set("area",""); // reseta área ao trocar cliente
+    setNovaArea("");
   }
 
   async function salvar() {
@@ -232,11 +248,16 @@ export default function AnalistasContatos() {
 
       {loading && <div className="spinner" />}
 
-      {/* Analistas por área */}
-      {!loading && AREAS.map(area => {
+      {/* Analistas por área — áreas dinâmicas conforme cliente selecionado */}
+      {!loading && areasOrdenadas.length === 0 && (
+        <div style={{ color:"var(--cinza-med)", fontSize:13, padding:"24px 0", textAlign:"center" }}>
+          Nenhum analista encontrado. Clique em "+ Novo analista" para começar.
+        </div>
+      )}
+      {!loading && areasOrdenadas.map((area, idx) => {
         const lista = porArea[area] || [];
-        if (lista.length === 0 && busca) return null;
-        const cor = COR_AREA[area] || "#1A1A1A";
+        if (lista.length === 0) return null;
+        const cor = corParaArea(area, idx);
         return (
           <div key={area} style={{ marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
@@ -247,22 +268,17 @@ export default function AnalistasContatos() {
               <span style={{ fontSize: 11, color: "var(--cinza-med)" }}>({lista.length})</span>
             </div>
 
-            {lista.length === 0 ? (
-              <div style={{ fontSize: 12, color: "var(--cinza-med)", padding: "8px 0" }}>
-                Nenhum analista nesta área.
-              </div>
-            ) : (
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Nome</th>
-                      <th>E-mail</th>
-                      <th>Telefone</th>
-                      <th>Tipos de demanda atendidos</th>
-                      {isGestor && <th style={{ width: 80 }}></th>}
-                    </tr>
-                  </thead>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>E-mail</th>
+                    <th>Telefone</th>
+                    <th>Tipos de demanda atendidos</th>
+                    {isGestor && <th style={{ width: 80 }}></th>}
+                  </tr>
+                </thead>
                   <tbody>
                     {lista.map(a => (
                       <tr key={a.id}>
@@ -306,7 +322,6 @@ export default function AnalistasContatos() {
                   </tbody>
                 </table>
               </div>
-            )}
           </div>
         );
       })}
@@ -381,11 +396,23 @@ export default function AnalistasContatos() {
             <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
               <div className="form-group" style={{margin:0}}>
                 <label className="required">Área</label>
-                <select value={form.area} onChange={e=>set("area",e.target.value)}>
+                <select value={form.area === "__nova__" ? "__nova__" : form.area} onChange={e=>{
+                  if (e.target.value === "__nova__") { set("area","__nova__"); setNovaArea(""); }
+                  else { set("area", e.target.value); setNovaArea(""); }
+                }}>
                   <option value="">Selecione...</option>
-                  {AREAS.map(a=><option key={a} value={a}>{a}</option>)}
-                  <option value="OUTRO">OUTRO</option>
+                  {areasDoCliente.map(a=><option key={a} value={a}>{a}</option>)}
+                  <option value="__nova__">+ Nova área...</option>
                 </select>
+                {form.area === "__nova__" && (
+                  <input
+                    value={novaArea}
+                    onChange={e=>{ setNovaArea(e.target.value.toUpperCase()); set("area", e.target.value.toUpperCase()); }}
+                    placeholder="Digite o nome da nova área"
+                    style={{ marginTop:6, fontSize:13 }}
+                    autoFocus
+                  />
+                )}
               </div>
               <div className="form-group" style={{margin:0}}>
                 <label className="required">Nome</label>
@@ -407,8 +434,8 @@ export default function AnalistasContatos() {
               </div>
               <div className="form-group" style={{margin:0}}>
                 <label>Cliente vinculado</label>
-                <select value={form.clienteId} onChange={e=>selecionarCliente(e.target.value)}>
-                  <option value="">Todos os clientes</option>
+                <select value={form.clienteId} onChange={e=>selecionarClienteModal(e.target.value)}>
+                  <option value="">Sem cliente específico</option>
                   {clientes.map(c=><option key={c.id} value={c.id}>{c.razaoSocial||c.nomeFantasia||c.nome}</option>)}
                 </select>
               </div>
