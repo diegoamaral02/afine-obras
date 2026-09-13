@@ -322,6 +322,18 @@ service cloud.firestore {
       allow write: if isEncarregado();
     }
 
+    // ── Analistas & Contatos ──────────────────────────────────────
+    match /analistas_contatos/{id} {
+      allow read:  if isAuth();
+      allow write: if isEncarregado();
+    }
+
+    // ── Configurações gerais (templates de material etc.) ─────────
+    match /configuracoes/{id} {
+      allow read:  if isAuth();
+      allow write: if isEncarregado();
+    }
+
     // ── Catálogo de itens de compras ──────────────────────────────
     match /catalogo_itens/{id} {
       allow read:   if isAuth();
