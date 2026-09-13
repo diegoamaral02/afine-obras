@@ -135,7 +135,8 @@ export default function AnalistasContatos() {
 
   function abrirNovo() {
     setEditando(null);
-    // Pré-seleciona o cliente ativo na barra de filtro
+    setCriandoNovaArea(false);
+    setNovaArea("");
     const c = filtroCliente && filtroCliente !== "sem-cliente"
       ? clientes.find(x => x.id === filtroCliente)
       : null;
@@ -149,18 +150,22 @@ export default function AnalistasContatos() {
 
   function abrirEditar(a) {
     setEditando(a);
+    setCriandoNovaArea(false);
+    setNovaArea("");
     setForm({ area:a.area||"", nome:a.nome||"", email:a.email||"", telefone:a.telefone||"", tiposDemanda:a.tiposDemanda||"", obs:a.obs||"", clienteId:a.clienteId||"", clienteNome:a.clienteNome||"" });
     setModalOpen(true);
   }
 
-  const [novaArea, setNovaArea] = useState("");
+  const [novaArea,        setNovaArea]        = useState("");
+  const [criandoNovaArea, setCriandoNovaArea] = useState(false);
 
   function selecionarClienteModal(id) {
-    if (!id) { set("clienteId",""); set("clienteNome",""); set("area",""); return; }
+    if (!id) { set("clienteId",""); set("clienteNome",""); set("area",""); setCriandoNovaArea(false); setNovaArea(""); return; }
     const c = clientes.find(x=>x.id===id);
     set("clienteId", id);
     set("clienteNome", c?.razaoSocial||c?.nomeFantasia||c?.nome||"");
-    set("area",""); // reseta área ao trocar cliente
+    set("area","");
+    setCriandoNovaArea(false);
     setNovaArea("");
   }
 
@@ -394,20 +399,39 @@ export default function AnalistasContatos() {
               <button onClick={() => setModalOpen(false)} style={{ background:"none",border:"none",fontSize:20,cursor:"pointer",color:"var(--cinza-med)" }}>×</button>
             </div>
             <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
+              {/* 1. Cliente — primeiro campo */}
+              <div className="form-group" style={{margin:0}}>
+                <label>Cliente vinculado</label>
+                <select value={form.clienteId} onChange={e=>selecionarClienteModal(e.target.value)}>
+                  <option value="">Sem cliente específico</option>
+                  {clientes.map(c=><option key={c.id} value={c.id}>{c.razaoSocial||c.nomeFantasia||c.nome}</option>)}
+                </select>
+              </div>
+              {/* 2. Área — opções mudam conforme cliente */}
               <div className="form-group" style={{margin:0}}>
                 <label className="required">Área</label>
-                <select value={form.area === "__nova__" ? "__nova__" : form.area} onChange={e=>{
-                  if (e.target.value === "__nova__") { set("area","__nova__"); setNovaArea(""); }
-                  else { set("area", e.target.value); setNovaArea(""); }
-                }}>
+                <select
+                  value={criandoNovaArea ? "__nova__" : form.area}
+                  onChange={e=>{
+                    if (e.target.value === "__nova__") {
+                      setCriandoNovaArea(true);
+                      setNovaArea("");
+                      set("area","");
+                    } else {
+                      setCriandoNovaArea(false);
+                      setNovaArea("");
+                      set("area", e.target.value);
+                    }
+                  }}
+                >
                   <option value="">Selecione...</option>
                   {areasDoCliente.map(a=><option key={a} value={a}>{a}</option>)}
                   <option value="__nova__">+ Nova área...</option>
                 </select>
-                {form.area === "__nova__" && (
+                {criandoNovaArea && (
                   <input
                     value={novaArea}
-                    onChange={e=>{ setNovaArea(e.target.value.toUpperCase()); set("area", e.target.value.toUpperCase()); }}
+                    onChange={e=>{ const v=e.target.value.toUpperCase(); setNovaArea(v); set("area",v); }}
                     placeholder="Digite o nome da nova área"
                     style={{ marginTop:6, fontSize:13 }}
                     autoFocus
@@ -431,13 +455,6 @@ export default function AnalistasContatos() {
                 <input value={form.tiposDemanda} onChange={e=>set("tiposDemanda",e.target.value)}
                   placeholder="Ex: ENCERRAMENTO; PLANO DIRETOR (separe por ;)" />
                 <div style={{fontSize:11,color:"var(--cinza-med)",marginTop:4}}>Separe múltiplos tipos com ponto e vírgula (;)</div>
-              </div>
-              <div className="form-group" style={{margin:0}}>
-                <label>Cliente vinculado</label>
-                <select value={form.clienteId} onChange={e=>selecionarClienteModal(e.target.value)}>
-                  <option value="">Sem cliente específico</option>
-                  {clientes.map(c=><option key={c.id} value={c.id}>{c.razaoSocial||c.nomeFantasia||c.nome}</option>)}
-                </select>
               </div>
               <div className="form-group" style={{margin:0}}>
                 <label>Observações</label>
