@@ -9,6 +9,7 @@ import { useToast } from "../hooks/useToast";
 import { isGestorOuAdm, isCampo as isCampoHelper } from "../constants/departamentos";
 import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 import { useAnalistasPorTipo } from "./AnalistasContatos";
+import LancamentoReceberModal from "../components/LancamentoReceberModal";
 
 // ── CONSTANTES ────────────────────────────────────────────────────────────────
 const TIPOS_DEMANDA = [
@@ -484,10 +485,13 @@ function ModalConfigurarEventos({ demanda, onClose, addToast }) {
 }
 
 // ── MODAL DEMANDA ─────────────────────────────────────────────────────────────
+const STATUS_FINALIZA = new Set(["CONCLUÍDA","FINALIZADA — EXEC. DOCUMENTAÇÃO"]);
+
 function DemandaModal({ demanda, clientes, onClose, addToast }) {
   const { userProfile, currentUser } = useAuth();
   const isNova = !demanda?.id;
   const [gestores, setGestores] = useState([]);
+  const [lancamentoReceber, setLancamentoReceber] = useState(null); // dados para o modal financeiro
 
   useEffect(() => {
     const DEPS_GESTOR = ["gestao","adm","financeiro","comercial","fiscal","compras","encarregado","gestor"];
@@ -609,6 +613,23 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
         await updateComAuditoria("gerenciamento",demanda.id,payload,currentUser?.uid,userProfile?.nome);
         addToast("Demanda atualizada!");
       }
+      // Ao finalizar demanda pela primeira vez, abre modal de lançamento a receber
+      const eraFinalizada = demanda && STATUS_FINALIZA.has(demanda.status);
+      if (STATUS_FINALIZA.has(form.status) && !eraFinalizada) {
+        const agencia = form.agenciaNome ? ` — ${form.agenciaNome}` : "";
+        setLancamentoReceber({
+          descricao: `${form.tipoDemanda}${agencia}`.trim(),
+          obraId:    "",
+          obraNome:  `${form.clienteNome}${agencia}`.trim(),
+          competencia: agora.slice(0,7),
+          vencimento:  "",
+          categoria:   "Medição / BM",
+          obs:         `Proj SAP: ${form.projSAP||""} · UPE: ${form.codUPE||""}`.replace(/·\s*$/,"").trim(),
+          origem:      `Gerenciamento — ${form.tipoDemanda} (${form.status})`,
+          valor:       "",
+        });
+        return; // não fecha — espera o modal financeiro
+      }
       onClose();
     } catch(e) { addToast("Erro ao salvar: "+e.message,"error"); }
     setSaving(false);
@@ -617,6 +638,16 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
   const SectionLabel = ({label}) => (
     <div style={{fontSize:11,fontWeight:700,color:"#7A7A7A",textTransform:"uppercase",letterSpacing:".06em",marginTop:6,paddingTop:6,borderTop:"1px solid #f0f0f0"}}>{label}</div>
   );
+
+  if (lancamentoReceber) {
+    return (
+      <LancamentoReceberModal
+        dados={lancamentoReceber}
+        onClose={() => { setLancamentoReceber(null); onClose(); }}
+        onSalvo={() => { setLancamentoReceber(null); onClose(); }}
+      />
+    );
+  }
 
   return (
     <Modal title={isNova?"➕ Nova demanda":"✏️ Editar demanda"} onClose={onClose}

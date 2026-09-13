@@ -22,6 +22,7 @@ import { isGestorOuAdm, isCampo as isCampoHelper } from "../constants/departamen
 import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 import { salvarComFallbackOffline } from "../utils/offlineQueue";
 import { registrarExecutorOffline } from "../hooks/useFilaOffline";
+import LancamentoReceberModal from "../components/LancamentoReceberModal";
 
 registrarExecutorOffline("manutencao:update", async ({ id, payload, uid, nome }) => {
   await updateComAuditoria("manutencoes", id, payload, uid, nome);
@@ -85,9 +86,10 @@ function NovoDescritivo({ onAdicionar }) {
 }
 
 // ── Modal da manutenção ───────────────────────────────────────────────────────
-function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onClose, addToast }) {
+function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onClose, addToast, todasManuts }) {
   const { userProfile, currentUser } = useAuth();
   const isCampo = isCampoHelper(userProfile);
+  const [lancamentoReceber, setLancamentoReceber] = useState(null);
   const isExternoUser = (userProfile?.departamento==="empreiteiro"||userProfile?.departamento==="terceiro");
   const uid     = currentUser?.uid;
   const nomeUser= userProfile?.nome || currentUser?.email || "–";
@@ -284,6 +286,31 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
             .then(snap => snap.docs.forEach(d => enviarNotificacao(d.id, NOTIF.SEM_OT(form.titulo||"Manutenção")).catch(()=>{})))
             .catch(()=>{});
         }
+        // Ao concluir manutenção: abre lançamento a receber com soma do mês
+        if (form.status === "CONCLUÍDA" && manut?.status !== "CONCLUÍDA") {
+          const mesAtual = new Date().toISOString().slice(0,7);
+          // Conta manutenções concluídas no mês para o mesmo cliente
+          const conclMes = (todasManuts||[]).filter(m =>
+            m.id !== manut?.id &&
+            m.status === "CONCLUÍDA" &&
+            (m.concluidaEm||"").slice(0,7) === mesAtual &&
+            (form.clienteId ? m.clienteId === form.clienteId : m.cliente === form.cliente)
+          );
+          const qtd = conclMes.length + 1; // +1 esta que acabou de concluir
+          setLancamentoReceber({
+            descricao: `Manutenções ${form.cliente||""} — ${mesAtual}`.trim(),
+            obraId:    obraId || "",
+            obraNome:  form.cliente || "",
+            competencia: mesAtual,
+            vencimento:  "",
+            categoria:   "Medição / BM",
+            obs:         `${qtd} manutenção(ões) concluída(s) no mês`,
+            origem:      `Manutenção — ${form.titulo||""} (conclusão do mês)`,
+            valor:       "",
+          });
+          setSaving(false);
+          return; // aguarda modal financeiro
+        }
         onClose();
       } else if (resultado.enfileirado) {
         addToast("📡 Sem conexão — salvo no dispositivo. Será enviado automaticamente quando a internet voltar.", "warning");
@@ -311,6 +338,16 @@ function ManutencaoModal({ manut, obraId, funcionarios, clientes, criadoPor, onC
   const P_FOTOS  = PASSO_BASE + PASSOS.indexOf("Fotos & Checklist");
   const P_TERMO  = PASSO_BASE + PASSOS.indexOf("Termo de Chaves");
   const P_OS     = PASSO_BASE + PASSOS.indexOf("OS Digital");
+
+  if (lancamentoReceber) {
+    return (
+      <LancamentoReceberModal
+        dados={lancamentoReceber}
+        onClose={() => { setLancamentoReceber(null); onClose(); }}
+        onSalvo={() => { setLancamentoReceber(null); onClose(); }}
+      />
+    );
+  }
 
   return (
     <Modal title={manut?.id?"Editar manutenção":"Nova manutenção"} onClose={onClose}
@@ -1486,6 +1523,7 @@ export default function Manutencao({ obraAtual }) {
           criadoPor={{ nome:userProfile?.nome||currentUser?.email, uid:currentUser?.uid }}
           onClose={()=>setModal(null)}
           addToast={addToast}
+          todasManuts={manuts}
         />
       )}
     </div>
