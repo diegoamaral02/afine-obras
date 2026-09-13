@@ -27,6 +27,7 @@ import CustosMaoDeObra from "../components/CustosMaoDeObra";
 import { useToast } from "../hooks/useToast";
 import { Ocorrencias } from "./Equipe";
 import Medicao from "./Medicao";
+import LancamentoReceberModal from "../components/LancamentoReceberModal";
 import Diario from "./Diario";
 import GanttChart from "../components/GanttChart";
 import HistoricoAlteracoes from "../components/HistoricoAlteracoes";
@@ -91,6 +92,7 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   const { userProfile, currentUser } = useAuth();
   const { confirm, confirmModal } = useConfirm();
   const isCampoUser = isCampo(userProfile);
+  const [lancamentoReceber, setLancamentoReceber] = useState(null);
   const nomeUser = userProfile?.nome || currentUser?.email || "–";
   const [aba, setAba] = useState(() => {
     if (!isCampoUser) return "dados";
@@ -420,6 +422,22 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
         const gestores = funcionarios.filter(f => isGestorOuAdm(f) && f.id);
         await Promise.all(gestores.map(g => enviarNotificacao(g.id, NOTIF.OBRA_ATRASADA(payload.nome || "Obra")).catch(()=>{})));
       }
+      // Ao concluir obra pela primeira vez, abre lançamento a receber
+      if (statusFinal === "CONCLUÍDA" && obra?.status !== "CONCLUÍDA") {
+        setLancamentoReceber({
+          descricao:   payload.nome || "",
+          obraId:      obra?.id     || "",
+          obraNome:    payload.nome || "",
+          competencia: agora.slice(0,7),
+          vencimento:  "",
+          categoria:   "Saldo contratual",
+          obs:         `Cliente: ${payload.cliente||""}`,
+          origem:      `Obra concluída — ${payload.nome||""}`,
+          valor:       "",
+        });
+        setSaving(false);
+        return;
+      }
       onClose();
     } else if (resultado.enfileirado) {
       addToast("📡 Sem conexão — salvo no dispositivo. Será enviado automaticamente quando a internet voltar.", "warning");
@@ -440,6 +458,16 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
     ? [...(!isExternoUser?["custos"]:[]),"materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"termo_chaves","os_digital"]
     : ["dados","endereço","financeiro","cronograma",...(!isExternoUser?["custos"]:[]),"materiais","fotos_checklist",...(isDescaracterizacao?["descaracterizacao"]:[]),"termo_chaves","os_digital",...(obra?.id?["historico"]:[])];
   const LABELS = { dados:"Dados", "endereço":"Endereço", financeiro:"Financeiro", cronograma:"📅 Cronograma", custos:"💰 Custos", materiais:"Materiais", fotos_checklist:"Fotos & Checklist", os_digital:"OS Digital", descaracterizacao:"📋 Descaracterização", termo_chaves:"🔑 Termo de Chaves", historico:"🕑 Histórico" };
+
+  if (lancamentoReceber) {
+    return (
+      <LancamentoReceberModal
+        dados={lancamentoReceber}
+        onClose={() => { setLancamentoReceber(null); onClose(); }}
+        onSalvo={() => { setLancamentoReceber(null); onClose(); }}
+      />
+    );
+  }
 
   return (
     <>{confirmModal}
