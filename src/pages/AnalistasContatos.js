@@ -54,7 +54,8 @@ export default function AnalistasContatos() {
   const [editTemplate, setEditTemplate] = useState(false);
   const [formTemplate, setFormTemplate] = useState(TEMPLATES_VAZIO);
 
-  const [clientes,  setClientes]    = useState([]);
+  const [clientes,      setClientes]     = useState([]);
+  const [filtroCliente, setFiltroCliente] = useState(""); // "" = todos
   const [modalOpen, setModalOpen]   = useState(false);
   const [editando,  setEditando]    = useState(null);
   const [form,      setForm]        = useState(FORM_VAZIO);
@@ -86,16 +87,29 @@ export default function AnalistasContatos() {
     });
   }, []);
 
+  // Clientes que têm pelo menos 1 analista cadastrado
+  const clientesComAnalistas = useMemo(() => {
+    const ids = new Set(analistas.map(a => a.clienteId).filter(Boolean));
+    return clientes.filter(c => ids.has(c.id));
+  }, [analistas, clientes]);
+
   const filtrados = useMemo(() => {
+    let lista = analistas;
+    // Filtro por cliente: "" = todos; "sem-cliente" = sem vínculo; id = específico
+    if (filtroCliente === "sem-cliente") {
+      lista = lista.filter(a => !a.clienteId);
+    } else if (filtroCliente) {
+      lista = lista.filter(a => a.clienteId === filtroCliente);
+    }
     const q = busca.toLowerCase();
-    if (!q) return analistas;
-    return analistas.filter(a =>
+    if (!q) return lista;
+    return lista.filter(a =>
       (a.nome||"").toLowerCase().includes(q) ||
       (a.email||"").toLowerCase().includes(q) ||
       (a.tiposDemanda||"").toLowerCase().includes(q) ||
       (a.area||"").toLowerCase().includes(q)
     );
-  }, [analistas, busca]);
+  }, [analistas, busca, filtroCliente]);
 
   const porArea = useMemo(() => {
     const mapa = {};
@@ -109,7 +123,15 @@ export default function AnalistasContatos() {
 
   function abrirNovo() {
     setEditando(null);
-    setForm(FORM_VAZIO);
+    // Pré-seleciona o cliente ativo na barra de filtro
+    const c = filtroCliente && filtroCliente !== "sem-cliente"
+      ? clientes.find(x => x.id === filtroCliente)
+      : null;
+    setForm({
+      ...FORM_VAZIO,
+      clienteId:   c ? c.id : "",
+      clienteNome: c ? (c.razaoSocial||c.nomeFantasia||c.nome||"") : "",
+    });
     setModalOpen(true);
   }
 
@@ -166,12 +188,38 @@ export default function AnalistasContatos() {
         <div>
           <div className="panel-title">Analistas & Contatos</div>
           <div style={{ fontSize: 12, color: "var(--cinza-med)" }}>
-            Contatos por área — vinculados ao tipo de demanda em Gerenciamento
+            {filtroCliente && filtroCliente !== "sem-cliente"
+              ? `${clientes.find(c=>c.id===filtroCliente)?.razaoSocial||clientes.find(c=>c.id===filtroCliente)?.nomeFantasia||clientes.find(c=>c.id===filtroCliente)?.nome||"Cliente"} — contatos por área`
+              : "Contatos por área — vinculados ao tipo de demanda em Gerenciamento"}
           </div>
         </div>
         {isGestor && (
           <button className="btn btn-primary" onClick={abrirNovo}>+ Novo analista</button>
         )}
+      </div>
+
+      {/* Abas de cliente */}
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:16 }}>
+        {[
+          { id:"", label:"Todos", count: analistas.length },
+          ...clientesComAnalistas.map(c => ({
+            id: c.id,
+            label: c.razaoSocial||c.nomeFantasia||c.nome,
+            count: analistas.filter(a=>a.clienteId===c.id).length,
+          })),
+          ...(analistas.some(a=>!a.clienteId) ? [{ id:"sem-cliente", label:"Sem cliente", count: analistas.filter(a=>!a.clienteId).length }] : []),
+        ].map(tab => (
+          <button key={tab.id} onClick={()=>setFiltroCliente(tab.id)}
+            style={{
+              padding:"5px 14px", borderRadius:20, fontSize:12, fontWeight:600, cursor:"pointer",
+              border: filtroCliente===tab.id ? "2px solid var(--azul)" : "1px solid var(--border)",
+              background: filtroCliente===tab.id ? "var(--azul)" : "var(--bg-card)",
+              color: filtroCliente===tab.id ? "#fff" : "var(--texto)",
+              transition:"all .15s",
+            }}>
+            {tab.label} <span style={{ opacity:.7, fontWeight:400 }}>({tab.count})</span>
+          </button>
+        ))}
       </div>
 
       {/* Busca */}
