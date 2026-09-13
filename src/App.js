@@ -15,13 +15,13 @@ import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 
 import Login           from "./pages/Login";
 import PainelGerencial from "./pages/PainelGerencial";
-import Dashboard       from "./pages/Dashboard";
 import Obras           from "./pages/Obras";
 import Diario          from "./pages/Diario";
 import Manutencao      from "./pages/Manutencao";
 import Funcionarios    from "./pages/Funcionarios";
 import Fornecedores    from "./pages/Fornecedores";
 import Compras         from "./pages/Compras";
+import FinanceiroUnificado from "./pages/FinanceiroUnificado";
 import Financeiro      from "./pages/Financeiro";
 import Despesas        from "./pages/Despesas";
 import DRE             from "./pages/DRE";
@@ -51,42 +51,34 @@ function Protected({ children }) {
 
 const MENU = [
   { id:"principal", label:"Principal", roles:["gestor","encarregado","campo"], items:[
-    { to:"/",           icon:"🏠", label:"Home",             roles:["gestor","encarregado"] },
-    { to:"/calendario", icon:"📅", label:"Calendário",       roles:["gestor","encarregado","campo"] },
-    { to:"/painel",     icon:"📊", label:"Painel Gerencial", roles:["gestor","encarregado"] },
+    { to:"/",           icon:"🏠", label:"Painel",      roles:["gestor","encarregado"] },
+    { to:"/calendario", icon:"📅", label:"Calendário",  roles:["gestor","encarregado","campo"] },
   ]},
   { id:"operacao", label:"Operação", roles:["gestor","encarregado","campo"], items:[
-    { to:"/obras",         icon:"🏗️", label:"Obras",               roles:["gestor","encarregado","campo"] },
-    { to:"/manutencao",    icon:"🔧", label:"Manutenção",           roles:["gestor","encarregado","campo"] },
-    { to:"/ocorrencias",   icon:"⚡", label:"Ocorrências",          roles:["gestor","encarregado","campo"] },
-    { to:"/gerenciamento", icon:"📋", label:"Gerenciamento",        roles:["gestor","encarregado","campo"] },
+    { to:"/obras",         icon:"🏗️", label:"Obras",         roles:["gestor","encarregado","campo"] },
+    { to:"/manutencao",    icon:"🔧", label:"Manutenção",     roles:["gestor","encarregado","campo"] },
+    { to:"/ocorrencias",   icon:"⚡", label:"Ocorrências",    roles:["gestor","encarregado","campo"] },
+    { to:"/gerenciamento", icon:"📋", label:"Gerenciamento",  roles:["gestor","encarregado","campo"] },
   ]},
   { id:"suprimentos", label:"Suprimentos", roles:["gestor","encarregado","campo"], items:[
-    { to:"/compras",   icon:"🛒", label:"Compras",   roles:["gestor","encarregado","campo"] },
-    { to:"/materiais", icon:"📦", label:"Materiais", roles:["gestor","encarregado"] },
+    { to:"/compras",      icon:"🛒", label:"Compras",      roles:["gestor","encarregado","campo"] },
+    { to:"/materiais",    icon:"📦", label:"Materiais",    roles:["gestor","encarregado"] },
+    { to:"/fornecedores", icon:"🤝", label:"Fornecedores", roles:["gestor","encarregado"] },
   ]},
-  { id:"comercial", label:"Comercial", roles:["gestor","encarregado"], items:[
-    { to:"/comercial/clientes", icon:"🏢", label:"Clientes",     roles:["gestor","encarregado"] },
-    { to:"/fornecedores",       icon:"🤝", label:"Fornecedores", roles:["gestor","encarregado"] },
+  { id:"pessoas", label:"Pessoas & Clientes", roles:["gestor","encarregado","campo"], items:[
+    { to:"/comercial/clientes", icon:"🏢", label:"Clientes",         roles:["gestor","encarregado"] },
+    { to:"/equipe",             icon:"👷", label:"Equipe",            roles:["gestor","encarregado"] },
+    { to:"/funcionarios",       icon:"👤", label:"Funcionários",      roles:["gestor"] },
+    { to:"/ponto",              icon:"⏱️", label:"Ponto Eletrônico",  roles:["gestor","encarregado","campo"] },
   ]},
-  { id:"pessoas", label:"Pessoas", roles:["gestor","encarregado","campo"], items:[
-    { to:"/equipe",       icon:"👷", label:"Equipe",            roles:["gestor","encarregado"] },
-    { to:"/funcionarios", icon:"👤", label:"Funcionários",      roles:["gestor"] },
-    { to:"/ponto",        icon:"⏱️", label:"Ponto Eletrônico",  roles:["gestor","encarregado","campo"] },
-  ]},
-  { id:"financeiro", label:"Financeiro", roles:["gestor","encarregado","campo"], items:[
-    { to:"/dre",      icon:"📈", label:"Resultados", roles:["gestor","encarregado"] },
-    { to:"/despesas", icon:"🧾", label:"Despesas",   roles:["gestor","encarregado","campo"] },
-  ]},
-  { id:"sla", label:"SLA & Qualidade", roles:["gestor","encarregado"], items:[
-    { to:"/sla",       icon:"⏰", label:"Dashboard SLA",  roles:["gestor","encarregado"] },
-    { to:"/sla/config",icon:"⚙️", label:"Configurar SLA", roles:["gestor","encarregado"] },
-  ]},
-  { id:"gestao", label:"Gestão", roles:["gestor","encarregado"], items:[
-    { to:"/bi",                   icon:"📊", label:"BI & Tendências",      roles:["gestor","encarregado"] },
-    { to:"/checklist-templates",  icon:"📋", label:"Templates Checklist",  roles:["gestor","encarregado"] },
-    { to:"/garantias",            icon:"🛡️", label:"Garantias",            roles:["gestor","encarregado"] },
-    { to:"/audit-log",            icon:"🔍", label:"Audit Log",            roles:["gestor","encarregado"] },
+  { id:"financeiro", label:"Financeiro & Gestão", roles:["gestor","encarregado","campo"], items:[
+    { to:"/financeiro",           icon:"💰", label:"Financeiro",       roles:["gestor","encarregado"] },
+    { to:"/despesas",             icon:"🧾", label:"Despesas",         roles:["gestor","encarregado","campo"] },
+    { to:"/bi",                   icon:"📊", label:"BI & Tendências",  roles:["gestor","encarregado"] },
+    { to:"/sla",                  icon:"⏰", label:"SLA",              roles:["gestor","encarregado"] },
+    { to:"/checklist-templates",  icon:"📋", label:"Checklists",       roles:["gestor","encarregado"] },
+    { to:"/garantias",            icon:"🛡️", label:"Garantias",        roles:["gestor","encarregado"] },
+    { to:"/audit-log",            icon:"🔍", label:"Audit Log",        roles:["gestor","encarregado"] },
   ]},
 ];
 
@@ -273,6 +265,10 @@ function AppShell() {
   const [comprasPend,  setComprasPend]  = useState(0);
   const [sideOpen,     setSideOpen]     = useState(false);
   const [showNotifs,   setShowNotifs]   = useState(false);
+  const [todasObras,   setTodasObras]   = useState([]);
+  const [busca,        setBusca]        = useState("");
+  const [showBusca,    setShowBusca]    = useState(false);
+  const navigate = useNavigate();
   const { agendamentosDodia } = useAgenda();
   const { notifs, naoLidas, marcarLida, marcarTodasLidas } = useNotificacoes(currentUser?.uid);
   usePushNotificacoes(currentUser?.uid);
@@ -293,8 +289,16 @@ function AppShell() {
   useEffect(()=>{
     const u1=onSnapshot(query(collection(db,"manutencoes"),where("status","in",["ABERTA","EM ANDAMENTO"])),snap=>setManutAbertas(snap.size));
     const u2=onSnapshot(query(collection(db,"compras"),where("status","in",["SOLICITAÇÃO","COTAÇÃO"])),snap=>setComprasPend(snap.size));
-    return()=>{u1();u2();};
+    const u3=onSnapshot(collection(db,"obras"),snap=>setTodasObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    return()=>{u1();u2();u3();};
   },[]);
+
+  const resultadosBusca = busca.trim().length >= 2
+    ? todasObras.filter(o => {
+        const q = busca.toLowerCase();
+        return (o.nome||"").toLowerCase().includes(q) || (o.cliente||"").toLowerCase().includes(q);
+      }).slice(0, 6)
+    : [];
 
   const badges = {
     "/manutencao":  manutAbertas>0  ? {count:manutAbertas,  type:"red"}    : 0,
@@ -320,6 +324,39 @@ function AppShell() {
               )}
             </div>
           </div>
+
+          {/* Busca global */}
+          {!isCampoUser && (
+            <div style={{position:"relative",flex:"0 1 280px",margin:"0 16px"}}>
+              <input
+                value={busca}
+                onChange={e=>{setBusca(e.target.value);setShowBusca(true);}}
+                onFocus={()=>setShowBusca(true)}
+                onBlur={()=>setTimeout(()=>setShowBusca(false),150)}
+                placeholder="🔍 Buscar obra ou cliente..."
+                style={{width:"100%",padding:"6px 12px",border:"1px solid var(--border)",borderRadius:20,
+                  background:"var(--cinza-lt)",fontSize:13,outline:"none",boxSizing:"border-box",
+                  color:"var(--text)"}}
+              />
+              {showBusca && resultadosBusca.length > 0 && (
+                <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,zIndex:400,
+                  background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,
+                  boxShadow:"0 8px 24px rgba(0,0,0,.12)",overflow:"hidden"}}>
+                  {resultadosBusca.map(o=>(
+                    <div key={o.id} onMouseDown={()=>{setObraAtual(o);setBusca("");navigate("/obras");}}
+                      style={{padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid var(--border)",
+                        transition:"background .1s"}}
+                      onMouseEnter={e=>e.currentTarget.style.background="var(--cinza-lt)"}
+                      onMouseLeave={e=>e.currentTarget.style.background=""}>
+                      <div style={{fontWeight:600,fontSize:13}}>{o.nome}</div>
+                      <div style={{fontSize:11,color:"var(--cinza-med)"}}>{o.cliente} · {o.status}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:"auto"}}>
             {/* Indicador de conexão */}
             {!isOnline && (
@@ -372,8 +409,8 @@ function AppShell() {
 
         <div className="page">
           <Routes>
-            <Route path="/"                   element={isCampoUser ? <Navigate to="/manutencao" replace/> : <Dashboard obraAtual={obraAtual?.id}/>}/>
-            <Route path="/painel"             element={<PainelGerencial/>}/>
+            <Route path="/"                   element={isCampoUser ? <Navigate to="/manutencao" replace/> : <PainelGerencial/>}/>
+            <Route path="/painel"             element={<Navigate to="/" replace/>}/>
             <Route path="/calendario"         element={<Calendario/>}/>
             <Route path="/comercial"          element={<Comercial subpagina="funil"/>}/>
             <Route path="/comercial/clientes" element={<Comercial subpagina="clientes"/>}/>
@@ -385,9 +422,9 @@ function AppShell() {
             <Route path="/funcionarios"       element={<Funcionarios/>}/>
             <Route path="/fornecedores"       element={<Fornecedores/>}/>
             <Route path="/compras"            element={<Compras/>}/>
-            <Route path="/financeiro"         element={<Financeiro/>}/>
+            <Route path="/financeiro"         element={<FinanceiroUnificado/>}/>
             <Route path="/despesas"           element={<Despesas/>}/>
-            <Route path="/dre"                element={<DRE/>}/>
+            <Route path="/dre"                element={<Navigate to="/financeiro?tab=dre" replace/>}/>
             <Route path="/materiais"          element={<MateriaisGlobal/>}/>
             <Route path="/sla"               element={<SLADashboard/>}/>
             <Route path="/sla/config"             element={<SLAConfig/>}/>
