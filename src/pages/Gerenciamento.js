@@ -10,6 +10,22 @@ import { isGestorOuAdm, isCampo as isCampoHelper } from "../constants/departamen
 import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 
 // ── CONSTANTES ────────────────────────────────────────────────────────────────
+const TIPOS_DEMANDA = [
+  {
+    grupo: "GRANDES OBRAS",
+    itens: ["Espaço Itaú", "Plano Diretor", "Reforma e Remanejamento"],
+  },
+  {
+    grupo: "PONTUAL",
+    itens: [
+      "Pequenas Intervenções", "IONs", "Unificadas", "Retrofit",
+      "Espaço Itaú Simplificado", "Auto Atendimento", "Cobertura",
+      "Infiltração", "Espaço Person", "Encerramento", "Desmobilização",
+      "Demanda Pontual",
+    ],
+  },
+];
+
 const STATUS_LIST = [
   "AGENDAMENTO","SOLICITAÇÃO MATERIAL","EXECUÇÃO",
   "ANDAMENTO DEMANDA EXTRA","SUSPENSA",
@@ -477,8 +493,6 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
     agenciaId:          demanda?.agenciaId          || "",
     agenciaNome:        demanda?.agenciaNome        || "",
     tipoDemanda:        demanda?.tipoDemanda        || "",
-    tiposConfig:        [...new Set([...(demanda?.tiposConfig||[]), ...(demanda?.tipoDemanda?[demanda.tipoDemanda]:[])])],
-    novoTipo:           "",
     status:             demanda?.status             || "AGENDAMENTO",
     responsavel:        demanda?.responsavel        || userProfile?.nome || "",
     gestorCliente:      demanda?.gestorCliente      || "",
@@ -515,14 +529,12 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
 
   function selecionarCliente(id) {
     const c = clientes.find(x=>x.id===id);
-    const novostipos = c?.tiposDemandaGerenciamento || [];
     setForm(p => ({
       ...p,
       clienteId:   id,
       clienteNome: c?.razaoSocial||c?.nomeFantasia||c?.nome||"",
       agenciaId:   "",
       agenciaNome: "",
-      tiposConfig: [...new Set([...novostipos, ...(p.tipoDemanda?[p.tipoDemanda]:[])])],
     }));
   }
 
@@ -530,13 +542,6 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
     const ag = agencias.find(a=>a.id===id);
     set("agenciaId", id);
     set("agenciaNome", ag ? `${ag.numero||""} ${ag.nome||""}`.trim() : "");
-  }
-
-  function adicionarTipo() {
-    const t = form.novoTipo.trim();
-    if (!t || form.tiposConfig.includes(t)) return;
-    set("tiposConfig",[...form.tiposConfig, t]);
-    set("novoTipo","");
   }
 
   async function salvar() {
@@ -548,7 +553,7 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
     const payload = {
       clienteId:form.clienteId, clienteNome:form.clienteNome,
       agenciaId:form.agenciaId, agenciaNome:form.agenciaNome,
-      tipoDemanda:form.tipoDemanda, tiposConfig:form.tiposConfig,
+      tipoDemanda:form.tipoDemanda,
       status:form.status, responsavel:form.responsavel,
       gestorCliente:form.gestorCliente, inicio:form.inicio,
       terminoPrevisto:form.terminoPrevisto, termoChaves:form.termoChaves,
@@ -609,31 +614,16 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
 
         <div className="form-group">
           <label className="required">Tipo de demanda</label>
-          {form.tiposConfig.length===0 ? (
-            <div style={{fontSize:12,color:"#7A7A7A",background:"#fafafa",border:"1px dashed #ddd",borderRadius:7,padding:"8px 10px"}}>
-              ⚠️ Nenhum tipo cadastrado. Adicione abaixo.
-            </div>
-          ) : (
-            <select value={form.tipoDemanda} onChange={e=>set("tipoDemanda",e.target.value)}>
-              <option value="">Selecione...</option>
-              {form.tiposConfig.map(t=><option key={t} value={t}>{t}</option>)}
-            </select>
-          )}
-          <div style={{display:"flex",gap:6,marginTop:6}}>
-            <input value={form.novoTipo} onChange={e=>set("novoTipo",e.target.value)}
-              onKeyDown={e=>e.key==="Enter"&&adicionarTipo()}
-              placeholder="+ Novo tipo para este cliente" style={{flex:1,fontSize:12}}/>
-            <button type="button" className="btn btn-sm" onClick={adicionarTipo} style={{whiteSpace:"nowrap"}}>Adicionar</button>
-          </div>
-          {form.tiposConfig.length>0&&(
-            <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>
-              {form.tiposConfig.map((t,i)=>(
-                <span key={i} style={{background:"#F3F2EF",padding:"2px 8px",borderRadius:10,fontSize:11,display:"flex",alignItems:"center",gap:4}}>
-                  {t}<button onClick={()=>set("tiposConfig",form.tiposConfig.filter((_,j)=>j!==i))} style={{background:"none",border:"none",cursor:"pointer",color:"#BD3838",fontSize:12,padding:0,lineHeight:1}}>✕</button>
-                </span>
-              ))}
-            </div>
-          )}
+          <select value={form.tipoDemanda} onChange={e=>set("tipoDemanda",e.target.value)}>
+            <option value="">Selecione...</option>
+            {TIPOS_DEMANDA.map(grupo=>(
+              <optgroup key={grupo.grupo} label={grupo.grupo}>
+                {grupo.itens.map(item=>(
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
         </div>
 
         <div className="form-grid">
