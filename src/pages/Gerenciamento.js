@@ -544,6 +544,17 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
   const clienteSel = clientes.find(c=>c.id===form.clienteId);
   const agencias = clienteSel?.agencias || [];
 
+  // Tipos de demanda do cliente selecionado — carregados do Firestore
+  const [tiposDemandaCliente, setTiposDemandaCliente] = useState([]);
+  useEffect(() => {
+    if (!form.clienteId) { setTiposDemandaCliente([]); return; }
+    const unsub = onSnapshot(
+      doc(db, "configuracoes", `tipos_demanda_${form.clienteId}`),
+      snap => setTiposDemandaCliente(snap.exists() ? (snap.data().grupos || []) : [])
+    );
+    return unsub;
+  }, [form.clienteId]); // eslint-disable-line
+
   function selecionarCliente(id) {
     const c = clientes.find(x=>x.id===id);
     setForm(p => ({
@@ -552,6 +563,7 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
       clienteNome: c?.razaoSocial||c?.nomeFantasia||c?.nome||"",
       agenciaId:   "",
       agenciaNome: "",
+      tipoDemanda: "",
     }));
   }
 
@@ -631,16 +643,26 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
 
         <div className="form-group">
           <label className="required">Tipo de demanda</label>
-          <select value={form.tipoDemanda} onChange={e=>set("tipoDemanda",e.target.value)}>
-            <option value="">Selecione...</option>
-            {TIPOS_DEMANDA.map(grupo=>(
+          <select value={form.tipoDemanda} onChange={e=>set("tipoDemanda",e.target.value)}
+            disabled={!form.clienteId}>
+            <option value="">
+              {!form.clienteId ? "Selecione um cliente primeiro" :
+               tiposDemandaCliente.length === 0 ? "Nenhum tipo configurado para este cliente" :
+               "Selecione..."}
+            </option>
+            {tiposDemandaCliente.map(grupo=>(
               <optgroup key={grupo.grupo} label={grupo.grupo}>
-                {grupo.itens.map(item=>(
+                {(grupo.itens||[]).map(item=>(
                   <option key={item} value={item}>{item}</option>
                 ))}
               </optgroup>
             ))}
           </select>
+          {form.clienteId && tiposDemandaCliente.length === 0 && (
+            <div style={{fontSize:11,color:"var(--cinza-med)",marginTop:4}}>
+              Configure os tipos de demanda deste cliente em <strong>Analistas &amp; Contatos - Gerenciamento</strong>.
+            </div>
+          )}
 
           {/* Analistas responsáveis pelo tipo selecionado */}
           {analistasDoTipo.length > 0 && (

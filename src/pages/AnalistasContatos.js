@@ -53,6 +53,13 @@ export default function AnalistasContatos() {
   const [editTemplate, setEditTemplate] = useState(false);
   const [formTemplate, setFormTemplate] = useState(TEMPLATES_VAZIO);
 
+  // Tipos de demanda por cliente
+  const [clienteTipos,    setClienteTipos]    = useState(""); // clienteId selecionado na seção de tipos
+  const [tiposGrupos,     setTiposGrupos]     = useState([]); // grupos carregados do Firestore
+  const [editandoTipos,   setEditandoTipos]   = useState(false);
+  const [formTipos,       setFormTipos]       = useState([]); // [{grupo, itens:[]}] em edição
+  const [savingTipos,     setSavingTipos]     = useState(false);
+
   const [clientes,      setClientes]     = useState([]);
   const [filtroCliente, setFiltroCliente] = useState(""); // "" = todos
   const [modalOpen, setModalOpen]   = useState(false);
@@ -85,6 +92,51 @@ export default function AnalistasContatos() {
       if (d) setTemplates(prev => ({ ...prev, ...d.data() }));
     });
   }, []);
+
+  // Carrega tipos de demanda do cliente selecionado na seção de configuração
+  useEffect(() => {
+    if (!clienteTipos) { setTiposGrupos([]); return; }
+    const unsub = onSnapshot(doc(db, "configuracoes", `tipos_demanda_${clienteTipos}`), snap => {
+      setTiposGrupos(snap.exists() ? (snap.data().grupos || []) : []);
+    });
+    return unsub;
+  }, [clienteTipos]); // eslint-disable-line
+
+  async function salvarTipos() {
+    if (!clienteTipos) return;
+    setSavingTipos(true);
+    try {
+      await setDoc(doc(db, "configuracoes", `tipos_demanda_${clienteTipos}`), { grupos: formTipos });
+      setEditandoTipos(false);
+      addToast("Tipos de demanda salvos!");
+    } catch(e) { addToast("Erro: "+e.message,"error"); }
+    setSavingTipos(false);
+  }
+
+  function iniciarEdicaoTipos() {
+    // Clona para edição — garante itens como array
+    setFormTipos(tiposGrupos.map(g=>({ grupo:g.grupo, itens:[...(g.itens||[])] })));
+    setEditandoTipos(true);
+  }
+
+  function addGrupo() {
+    setFormTipos(p=>[...p,{grupo:"NOVO GRUPO",itens:[]}]);
+  }
+  function removeGrupo(gi) {
+    setFormTipos(p=>p.filter((_,i)=>i!==gi));
+  }
+  function setGrupoNome(gi,v) {
+    setFormTipos(p=>p.map((g,i)=>i===gi?{...g,grupo:v.toUpperCase()}:g));
+  }
+  function addItem(gi) {
+    setFormTipos(p=>p.map((g,i)=>i===gi?{...g,itens:[...g.itens,""]}:g));
+  }
+  function setItem(gi,ii,v) {
+    setFormTipos(p=>p.map((g,i)=>i===gi?{...g,itens:g.itens.map((it,j)=>j===ii?v:it)}:g));
+  }
+  function removeItem(gi,ii) {
+    setFormTipos(p=>p.map((g,i)=>i===gi?{...g,itens:g.itens.filter((_,j)=>j!==ii)}:g));
+  }
 
   // Clientes que têm pelo menos 1 analista cadastrado
   const clientesComAnalistas = useMemo(() => {
@@ -330,6 +382,80 @@ export default function AnalistasContatos() {
           </div>
         );
       })}
+
+      {/* Tipos de Demanda por Cliente */}
+      <div style={{ marginTop: 32, borderTop: "2px solid var(--border)", paddingTop: 24 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+          <div>
+            <div style={{ fontWeight:700, fontSize:14 }}>📋 Tipos de Demanda por Cliente</div>
+            <div style={{ fontSize:12, color:"var(--cinza-med)" }}>Configure os tipos disponíveis no Gerenciamento de Obras para cada cliente</div>
+          </div>
+        </div>
+
+        {/* Seletor de cliente */}
+        <div className="form-group" style={{ marginBottom:16, maxWidth:360 }}>
+          <label style={{ fontSize:12 }}>Cliente</label>
+          <select value={clienteTipos} onChange={e=>{ setClienteTipos(e.target.value); setEditandoTipos(false); }}>
+            <option value="">Selecione um cliente...</option>
+            {clientes.map(c=><option key={c.id} value={c.id}>{c.razaoSocial||c.nomeFantasia||c.nome}</option>)}
+          </select>
+        </div>
+
+        {clienteTipos && !editandoTipos && (
+          <div>
+            {tiposGrupos.length === 0 ? (
+              <div style={{ color:"var(--cinza-med)", fontSize:13, marginBottom:12 }}>
+                Nenhum tipo de demanda configurado para este cliente.
+              </div>
+            ) : (
+              <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:12 }}>
+                {tiposGrupos.map((g,i)=>(
+                  <div key={i} style={{ background:"var(--cinza-lt)", border:"1px solid var(--border)", borderRadius:10, padding:"12px 16px" }}>
+                    <div style={{ fontWeight:700, fontSize:12, textTransform:"uppercase", letterSpacing:".06em", marginBottom:8 }}>{g.grupo}</div>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                      {(g.itens||[]).map((it,j)=>(
+                        <span key={j} style={{ background:"var(--bg-card)", border:"1px solid var(--border)", borderRadius:10, padding:"2px 10px", fontSize:12 }}>{it}</span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {isGestor && (
+              <button className="btn btn-sm" onClick={iniciarEdicaoTipos}>✏️ Editar tipos</button>
+            )}
+          </div>
+        )}
+
+        {clienteTipos && editandoTipos && (
+          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+            {formTipos.map((g,gi)=>(
+              <div key={gi} style={{ background:"var(--cinza-lt)", border:"1px solid var(--border)", borderRadius:10, padding:"14px 16px" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+                  <input value={g.grupo} onChange={e=>setGrupoNome(gi,e.target.value)}
+                    style={{ fontWeight:700, fontSize:13, flex:1 }} placeholder="Nome do grupo" />
+                  <button onClick={()=>removeGrupo(gi)} style={{ background:"none", border:"none", cursor:"pointer", color:"var(--vermelho)", fontSize:16 }}>✕</button>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {g.itens.map((it,ii)=>(
+                    <div key={ii} style={{ display:"flex", gap:6, alignItems:"center" }}>
+                      <input value={it} onChange={e=>setItem(gi,ii,e.target.value)}
+                        style={{ flex:1, fontSize:13 }} placeholder="Nome do tipo" />
+                      <button onClick={()=>removeItem(gi,ii)} style={{ background:"none", border:"none", cursor:"pointer", color:"var(--cinza-med)", fontSize:14 }}>✕</button>
+                    </div>
+                  ))}
+                  <button className="btn btn-sm" onClick={()=>addItem(gi)} style={{ alignSelf:"flex-start", marginTop:4 }}>+ Item</button>
+                </div>
+              </div>
+            ))}
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+              <button className="btn btn-sm" onClick={addGrupo}>+ Grupo</button>
+              <button className="btn btn-primary" onClick={salvarTipos} disabled={savingTipos}>{savingTipos?"Salvando...":"Salvar"}</button>
+              <button className="btn" onClick={()=>setEditandoTipos(false)}>Cancelar</button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Templates de Material */}
       <div style={{ marginTop: 32, borderTop: "2px solid var(--border)", paddingTop: 24 }}>
