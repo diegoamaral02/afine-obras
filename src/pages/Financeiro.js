@@ -64,7 +64,7 @@ function LancamentoModal({ lanc, obras, onClose, addToast }) {
     if(!form.vencimento){alert("Informe a data de vencimento.");return;}
     setSaving(true);
     const agora=new Date().toISOString();
-    const payload={...form,valor:Number(form.valor),valorPago:Number(form.valorPago)||0,updatedAt:agora,autorNome:userProfile?.nome||"–"};
+    const payload={...form,valor:Number(form.valor),valorPago:Number(form.valorPago)||0,updatedAt:agora,autorNome:userProfile?.nome||"–",autorId:currentUser?.uid||""};
     try {
       if(lanc?.id){await updateComAuditoria("financeiro",lanc.id,payload,currentUser?.uid,userProfile?.nome);addToast("✓ Atualizado!");}
       else{
@@ -363,7 +363,7 @@ function AbaLancamentos({ lancs, obras, addToast }) {
                 <th>Tipo</th><th>Descrição</th><th>Categoria</th><th>Obra</th>
                 <th>Fornecedor/Cliente</th><th>NF</th><th>Valor</th>
                 <th>Vencimento</th><th>Pgto</th><th>Competência</th>
-                <th>Forma Pgto</th><th>Status</th><th></th>
+                <th>Forma Pgto</th><th>Funcionário</th><th>Status</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -397,6 +397,7 @@ function AbaLancamentos({ lancs, obras, addToast }) {
                     <td style={{fontSize:11}}>{l.pagamento?fmtDate(l.pagamento):<span style={{color:"#aaa"}}>–</span>}</td>
                     <td style={{fontSize:11}}>{l.competencia||"–"}</td>
                     <td style={{fontSize:11}}>{l.formaPag||"–"}</td>
+                    <td style={{fontSize:11}}>{l.autorNome||<span style={{color:"#aaa"}}>–</span>}</td>
                     <td><StatusBadge status={l.status}/></td>
                     <td>
                       <div style={{display:"flex",gap:4}}>
@@ -512,6 +513,7 @@ function AbaContasPagar({ lancs, obras, addToast }) {
                   {l.fornecedor&&<span>{l.fornecedor}</span>}
                   {l.cnpj&&<span style={{marginLeft:6,color:"#aaa"}}>{l.cnpj}</span>}
                   {l.obraNome&&<span style={{marginLeft:6,color:"var(--afine-yellow-dk)"}}>· {l.obraNome}</span>}
+                  {l.autorNome&&<span style={{marginLeft:6,color:"#aaa"}}>· por {l.autorNome}</span>}
                 </div>
                 {l.numeroNF&&<div style={{fontSize:10,color:"#7A7A7A",marginTop:2}}>NF: {l.numeroNF}{l.formaPag&&` · ${l.formaPag}`}</div>}
                 {venc&&<div style={{fontSize:11,color:"var(--vermelho)",fontWeight:700,marginTop:3}}>⚠ {dias} dia{dias>1?"s":""} em atraso</div>}
@@ -613,6 +615,7 @@ function AbaContasReceber({ lancs, obras, addToast }) {
                   {l.categoria&&<span style={{marginRight:8,background:"var(--cinza-lt)",padding:"1px 6px",borderRadius:8}}>{l.categoria}</span>}
                   {l.fornecedor&&<span>{l.fornecedor}</span>}
                   {l.obraNome&&<span style={{marginLeft:6,color:"var(--afine-yellow-dk)"}}>· {l.obraNome}</span>}
+                  {l.autorNome&&<span style={{marginLeft:6,color:"#aaa"}}>· por {l.autorNome}</span>}
                 </div>
                 {venc&&<div style={{fontSize:11,color:"var(--vermelho)",fontWeight:700,marginTop:3}}>⚠ {dias} dia{dias>1?"s":""} em atraso</div>}
               </div>
