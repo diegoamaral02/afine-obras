@@ -1,6 +1,6 @@
 // src/contexts/AgendaContext.js — v2: filtrado por perfil + memoizado
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
-import { collection, onSnapshot, getDocs, query, where, limit } from "firebase/firestore";
+import { collection, onSnapshot, getDocs, query, where, limit, orderBy } from "firebase/firestore";
 import { db } from "../firebase";
 import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 import { useAuth } from "./AuthContext";
