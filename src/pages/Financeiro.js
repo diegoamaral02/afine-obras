@@ -4,6 +4,7 @@ import { collection, onSnapshot, getDocs, addDoc, doc, query, orderBy, limit, wh
 import { db } from "../firebase";
 import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
+import { useAgenda } from "../contexts/AgendaContext";
 import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
 import { enviarNotificacao, NOTIF } from "../hooks/useNotificacoes";
 import Modal from "../components/Modal";
@@ -897,8 +898,8 @@ function AbaAging({ lancs, obras, addToast }) {
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function Financeiro() {
   const { toasts, addToast } = useToast();
+  const { obras } = useAgenda();
   const [lancs,   setLancs]   = useState([]);
-  const [obras,   setObras]   = useState([]);
   const [compras, setCompras] = useState([]);
   const [despesas,setDespesas]= useState([]);
   const [loading, setLoading] = useState(true);
@@ -909,10 +910,9 @@ export default function Financeiro() {
     // financeiro e compras: real-time (dados ativos editados/monitorados nesta página)
     const u1=onSnapshot(query(collection(db,"financeiro"),orderBy("vencimento","asc"),limit(500)),
       snap=>{setLancs(snap.docs.map(x=>({id:x.id,...x.data()})));setLoading(false);});
-    const u3=onSnapshot(collection(db,"compras"),snap=>setCompras(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    // obras e despesas: leitura única — dados de referência que não mudam durante a sessão
-    getDocs(collection(db,"obras")).then(snap=>setObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    getDocs(collection(db,"despesas")).then(snap=>setDespesas(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u3=onSnapshot(query(collection(db,"compras"),limit(1000)),snap=>setCompras(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    // despesas: leitura única — dado de referência para conciliação
+    getDocs(query(collection(db,"despesas"),orderBy("data","desc"),limit(2000))).then(snap=>setDespesas(snap.docs.map(d=>({id:d.id,...d.data()}))));
     return()=>{u1();u3();};
   },[]);
 

@@ -1,6 +1,7 @@
 // src/pages/Dashboard.js — Dashboard executivo com KPIs, pipeline, gráficos
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { collection, onSnapshot, query, where, limit } from "firebase/firestore";
+import { useAgenda } from "../contexts/AgendaContext";
 import { db } from "../firebase";
 import { statusBadge, fmtDate } from "../utils/helpers";
 import { Link } from "react-router-dom";
@@ -22,7 +23,7 @@ function MiniBar({ label, value, max, color }) {
 
 export default function Dashboard({ obraAtual }) {
   const { userProfile } = useAuth();
-  const [obras,      setObras]      = useState([]);
+  const { obras } = useAgenda();
   const [manuts,     setManuts]     = useState([]);
   const [lancs,      setLancs]      = useState([]);
   const [compras,    setCompras]    = useState([]);
@@ -31,14 +32,13 @@ export default function Dashboard({ obraAtual }) {
   const [mantsObra,   setMantsObra]   = useState([]);
 
   useEffect(()=>{
-    const u1=onSnapshot(collection(db,"obras"),snap=>setObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u2=onSnapshot(query(collection(db,"manutencoes"),where("status","in",["ABERTA","EM ANDAMENTO"])),snap=>setManuts(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u3=onSnapshot(collection(db,"financeiro"),snap=>setLancs(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u4=onSnapshot(query(collection(db,"compras"),where("status","in",["SOLICITAÇÃO","COTAÇÃO","APROVADA"])),snap=>setCompras(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u1=onSnapshot(query(collection(db,"manutencoes"),where("status","in",["ABERTA","EM ANDAMENTO"])),snap=>setManuts(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u2=onSnapshot(query(collection(db,"financeiro"),limit(500)),snap=>setLancs(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u3=onSnapshot(query(collection(db,"compras"),where("status","in",["SOLICITAÇÃO","COTAÇÃO","APROVADA"])),snap=>setCompras(snap.docs.map(d=>({id:d.id,...d.data()}))));
     // Compras já aprovadas/em andamento de recebimento — representam valor
     // comprometido ainda não lançado como pagamento no Financeiro
-    const u5=onSnapshot(query(collection(db,"compras"),where("status","in",["APROVADA","ORDEM DE COMPRA","RECEBIDO","AGUARD. NF"])),snap=>setComprasComprometidas(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    return()=>{u1();u2();u3();u4();u5();};
+    const u4=onSnapshot(query(collection(db,"compras"),where("status","in",["APROVADA","ORDEM DE COMPRA","RECEBIDO","AGUARD. NF"])),snap=>setComprasComprometidas(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    return()=>{u1();u2();u3();u4();};
   },[]);
 
   // KPIs específicos da obra selecionada

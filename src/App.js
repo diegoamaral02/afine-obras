@@ -267,11 +267,10 @@ function AppShell() {
   const [comprasPend,  setComprasPend]  = useState(0);
   const [sideOpen,     setSideOpen]     = useState(false);
   const [showNotifs,   setShowNotifs]   = useState(false);
-  const [todasObras,   setTodasObras]   = useState([]);
   const [busca,        setBusca]        = useState("");
   const [showBusca,    setShowBusca]    = useState(false);
   const navigate = useNavigate();
-  const { agendamentosDodia } = useAgenda();
+  const { agendamentosDodia, obras: todasObras } = useAgenda();
   const { notifs, naoLidas, marcarLida, marcarTodasLidas } = useNotificacoes(currentUser?.uid);
   usePushNotificacoes(currentUser?.uid);
   const filaOffline = useFilaOffline();
@@ -291,8 +290,7 @@ function AppShell() {
   useEffect(()=>{
     const u1=onSnapshot(query(collection(db,"manutencoes"),where("status","in",["ABERTA","EM ANDAMENTO"])),snap=>setManutAbertas(snap.size));
     const u2=onSnapshot(query(collection(db,"compras"),where("status","in",["SOLICITAÇÃO","COTAÇÃO"])),snap=>setComprasPend(snap.size));
-    const u3=onSnapshot(collection(db,"obras"),snap=>setTodasObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    return()=>{u1();u2();u3();};
+    return()=>{u1();u2();};
   },[]);
 
   const resultadosBusca = busca.trim().length >= 2

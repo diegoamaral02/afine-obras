@@ -1,6 +1,7 @@
 // src/pages/OcorrenciasCanteiro.js — chamados rápidos do canteiro (cross-obra, qualquer perfil)
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, onSnapshot, query, orderBy, where } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy, where, limit } from "firebase/firestore";
+import { useAgenda } from "../contexts/AgendaContext";
 import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
 import { db } from "../firebase";
 import { fmtDate } from "../utils/helpers";
@@ -351,12 +352,12 @@ function OcorrCard({ o, onEdit }) {
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function OcorrenciasCanteiro() {
   const { userProfile, currentUser } = useAuth();
+  const { obras: todasObras } = useAgenda();
   const { toasts, addToast } = useToast();
   const { confirmModal } = useConfirm();
   const isCampoUser = isCampo(userProfile);
 
   const [ocorr,        setOcorr]        = useState([]);
-  const [todasObras,   setTodasObras]   = useState([]);
   const [todosUsuarios,setTodosUsuarios]= useState([]);
   const [loading,      setLoading]      = useState(true);
   const [modal,        setModal]        = useState(null);
@@ -374,16 +375,9 @@ export default function OcorrenciasCanteiro() {
     );
   }, []);
 
-  // Carrega todas as obras
-  useEffect(() => {
-    return onSnapshot(collection(db, "obras"), snap => {
-      setTodasObras(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-  }, []);
-
   // Carrega usuários
   useEffect(() => {
-    return onSnapshot(collection(db, "usuarios"), snap => {
+    return onSnapshot(query(collection(db, "usuarios"), limit(200)), snap => {
       setTodosUsuarios(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
   }, []);

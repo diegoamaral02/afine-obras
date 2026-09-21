@@ -495,7 +495,7 @@ function DemandaModal({ demanda, clientes, onClose, addToast }) {
 
   useEffect(() => {
     const DEPS_GESTOR = ["gestao","adm","financeiro","comercial","fiscal","compras","encarregado","gestor"];
-    const unsub = onSnapshot(collection(db, "usuarios"), snap => {
+    const unsub = onSnapshot(query(collection(db, "usuarios"), limit(200)), snap => {
       const lista = snap.docs
         .map(d => ({ ...d.data() }))
         .filter(u => u.adm === true || DEPS_GESTOR.includes(u.departamento || u.perfil || ""))

@@ -1,6 +1,7 @@
 // src/pages/Compras.js — v5: permissões revisadas + recusa/revisão + rastreio por etapa + PDF + catálogo de itens
 import React, { useEffect, useState, useMemo, useRef } from "react";
-import { collection, onSnapshot, addDoc, updateDoc, doc, getDocs, writeBatch } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, doc, getDocs, writeBatch, query, limit } from "firebase/firestore";
+import { useAgenda } from "../contexts/AgendaContext";
 import { db } from "../firebase";
 import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -1018,11 +1019,11 @@ function ResumoCotacao({ valorCotado, fornecedorNome, prazoEntrega }) {
 // ── Página Principal ──────────────────────────────────────────────────────────
 export default function Compras() {
   const { userProfile, currentUser } = useAuth();
+  const { obras } = useAgenda();
   const souCampo = isCampo(userProfile);
   const nomeUser = userProfile?.nome || currentUser?.email || "–";
   const { toasts, addToast } = useToast();
   const [compras,      setCompras]      = useState([]);
-  const [obras,        setObras]        = useState([]);
   const [manutencoes,  setManutencoes]  = useState([]);
   const [fornecedores, setFornecedores] = useState([]);
   const [loading,      setLoading]      = useState(true);
@@ -1032,10 +1033,9 @@ export default function Compras() {
 
   useEffect(()=>{
     const u1=onSnapshot(collection(db,"compras"),snap=>{const d=snap.docs.map(x=>({id:x.id,...x.data()}));d.sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));setCompras(d);setLoading(false);});
-    const u2=onSnapshot(collection(db,"obras"),snap=>setObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u3=onSnapshot(collection(db,"manutencoes"),snap=>setManutencoes(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u4=onSnapshot(collection(db,"fornecedores"),snap=>setFornecedores(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    return()=>{u1();u2();u3();u4();};
+    const u2=onSnapshot(query(collection(db,"manutencoes"),limit(500)),snap=>setManutencoes(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u3=onSnapshot(collection(db,"fornecedores"),snap=>setFornecedores(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    return()=>{u1();u2();u3();};
   },[]);
 
   // Campo só vê as próprias solicitações (compatível com registros antigos sem autorId, via nome)

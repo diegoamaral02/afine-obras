@@ -3,8 +3,9 @@ import React, { useEffect, useState, useMemo } from "react";
 import { useConfirm } from "../hooks/useConfirm";
 import { usePagination } from "../hooks/usePagination";
 import {
-  collection, onSnapshot, writeBatch, doc,
+  collection, onSnapshot, writeBatch, doc, query, limit,
 } from "firebase/firestore";
+import { useAgenda } from "../contexts/AgendaContext";
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
 import Modal from "../components/Modal";
@@ -333,9 +334,9 @@ export default function Garantias() {
   const { userProfile, currentUser } = useAuth();
   const { toasts, addToast } = useToast();
 
+  const { obras } = useAgenda();
   const [garantias,   setGarantias]   = useState([]);
   const [manutencoes, setManutencoes] = useState([]);
-  const [obras,       setObras]       = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [search,      setSearch]      = useState("");
   const [filtro,      setFiltro]      = useState("todas");
@@ -352,13 +353,10 @@ export default function Garantias() {
       setGarantias(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
     });
-    const unsubM = onSnapshot(collection(db, "manutencoes"), snap => {
+    const unsubM = onSnapshot(query(collection(db, "manutencoes"), limit(500)), snap => {
       setManutencoes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
-    const unsubO = onSnapshot(collection(db, "obras"), snap => {
-      setObras(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-    return () => { unsubG(); unsubM(); unsubO(); };
+    return () => { unsubG(); unsubM(); };
   }, []);
 
   // atualização automática de status vencidas (batch, máx 20 por vez)

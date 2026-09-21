@@ -1,7 +1,7 @@
 // src/pages/Manutencao.js — v2: sub-abas, alocação de campo, rastreio de criador, demandas filtradas
 import { buscarCEP } from "../utils/cep";
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, onSnapshot, query, where, doc, getDoc, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, query, where, doc, getDoc, getDocs, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import { statusBadge, fmtDate, initials } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -1083,7 +1083,7 @@ export default function Manutencao({ obraAtual }) {
   },[obraAtual]);
 
   useEffect(()=>{
-    return onSnapshot(collection(db,"usuarios"),snap=>{
+    return onSnapshot(query(collection(db,"usuarios"),limit(200)),snap=>{
       setFuncionarios(snap.docs.map(d=>({id:d.id,...d.data()})).filter(f=>f.status==="ATIVO"||!f.status));
     });
   },[]);

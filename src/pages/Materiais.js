@@ -3,6 +3,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { useConfirm } from "../hooks/useConfirm";
 import { usePagination } from "../hooks/usePagination";
 import { collection, onSnapshot, query, where, getDocs, limit, addDoc, orderBy } from "firebase/firestore";
+import { useAgenda } from "../contexts/AgendaContext";
 import { db } from "../firebase";
 import { fmtDate } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -863,10 +864,10 @@ function ExtratoModal({ item, movs, onClose }) {
 
 export default function MateriaisGlobal() {
   const { userProfile, currentUser } = useAuth();
+  const { obras } = useAgenda();
   const { toasts, addToast } = useToast();
   const [materiais,  setMateriais]  = useState([]);
   const [movs,       setMovs]       = useState([]);
-  const [obras,      setObras]      = useState([]);
   const [manut,      setManut]      = useState([]);
   const [compras,    setCompras]    = useState([]);
   const [transferencias, setTransferencias] = useState([]);
@@ -911,11 +912,10 @@ export default function MateriaisGlobal() {
       data.sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
       setMovs(data);
     });
-    const u3 = onSnapshot(collection(db,"obras"), snap => setObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u4 = onSnapshot(collection(db,"manutencoes"), snap => setManut(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u5 = onSnapshot(query(collection(db,"compras"), where("demandaTipo","==","obra")), snap => setCompras(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u6 = onSnapshot(collection(db,"transferencias_material"), snap => setTransferencias(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    return ()=>{ u1(); u2(); u3(); u4(); u5(); u6(); };
+    const u3 = onSnapshot(query(collection(db,"manutencoes"),limit(500)), snap => setManut(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u4 = onSnapshot(query(collection(db,"compras"), where("demandaTipo","==","obra")), snap => setCompras(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u5 = onSnapshot(collection(db,"transferencias_material"), snap => setTransferencias(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    return ()=>{ u1(); u2(); u3(); u4(); u5(); };
   }, []);
 
   // ── Estoque por Compras: o que foi comprado/recebido (conferido) em cada

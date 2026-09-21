@@ -1,6 +1,6 @@
 // src/contexts/AgendaContext.js — v2: filtrado por perfil + memoizado
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
-import { collection, onSnapshot, getDocs, doc, query, where, limit, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, getDocs, query, where, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import { addComAuditoria, updateComAuditoria, deleteComAuditoria } from "../services/auditoria";
 import { useAuth } from "./AuthContext";
@@ -60,7 +60,7 @@ export function AgendaProvider({ children }) {
     // Funcionários: apenas perfis de gestão precisam da lista completa
     let u4 = ()=>{};
     if (isGestor) {
-      u4 = onSnapshot(collection(db,"usuarios"), snap =>
+      u4 = onSnapshot(query(collection(db,"usuarios"),limit(200)), snap =>
         setFuncionarios(snap.docs.map(d=>({id:d.id,...d.data()})).filter(f=>f.status==="ATIVO"||!f.status))
       , ()=>{});
     }

@@ -1,6 +1,6 @@
 // src/pages/Diario.js — com atividades pré-prontas, equipe da obra, controle por usuário/obra
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, query, where, doc } from "firebase/firestore";
+import { collection, onSnapshot, query, where, doc, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import { fmtDate, initials } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -278,7 +278,7 @@ export default function Diario({ obraAtual }) {
 
   // Todos funcionários para modal de permissões
   useEffect(() => {
-    return onSnapshot(collection(db,"usuarios"), snap => setTodosFuncs(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    return onSnapshot(query(collection(db,"usuarios"),limit(200)), snap => setTodosFuncs(snap.docs.map(d=>({id:d.id,...d.data()}))));
   }, []);
 
   const climaEmoji = {"Ensolarado":"☀️","Parcialmente nublado":"⛅","Nublado":"☁️","Chuva fraca":"🌧️","Chuva forte":"⛈️"};

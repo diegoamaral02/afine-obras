@@ -1,6 +1,6 @@
 // src/pages/BITendencias.js — BI com gráficos SVG puro, zero libs externas
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
 import LineChart from "../components/charts/LineChart";
@@ -105,11 +105,14 @@ export default function BITendencias() {
     setLoading(true);
     setErro(null);
     try {
+      const umAnoAtras = new Date();
+      umAnoAtras.setFullYear(umAnoAtras.getFullYear() - 1);
+      const isoUmAno = umAnoAtras.toISOString().split("T")[0];
       const [snapManuts, snapDespesas, snapObras, snapContratos] = await Promise.all([
-        getDocs(collection(db, "manutencoes")),
-        getDocs(collection(db, "despesas")),
-        getDocs(collection(db, "obras")),
-        getDocs(collection(db, "contratos")),
+        getDocs(query(collection(db, "manutencoes"), where("createdAt", ">=", isoUmAno), limit(2000))),
+        getDocs(query(collection(db, "despesas"),    where("data",      ">=", isoUmAno), limit(2000))),
+        getDocs(query(collection(db, "obras"),       orderBy("updatedAt", "desc"),       limit(500))),
+        getDocs(query(collection(db, "contratos"),   orderBy("updatedAt", "desc"),       limit(500))),
       ]);
 
       const manutencoes = snapManuts.docs.map(d => ({ id: d.id, ...d.data() }));

@@ -1,6 +1,6 @@
 // src/pages/SLADashboard.js — dashboard de conformidade de SLA
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, doc } from "firebase/firestore";
+import { collection, onSnapshot, doc, query, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import { calcularSLA } from "../utils/sla";
 import { SLA_DEFAULTS } from "../utils/sla";
@@ -49,7 +49,7 @@ export default function SLADashboard() {
 
   // Carrega manutenções
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, "manutencoes"), snap => {
+    const unsub = onSnapshot(query(collection(db, "manutencoes"), limit(1000)), snap => {
       setManutencoes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
     });

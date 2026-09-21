@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useConfirm } from "../hooks/useConfirm";
 import {
   collection, onSnapshot, query,
-  where, orderBy, getDocs
+  where, orderBy, getDocs, limit
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
@@ -702,7 +702,7 @@ function RelatorioGestor({ obras, manutencoes, userProfile, currentUser }) {
 
   // Carrega mapa de departamentos dos usuários
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, "usuarios"), snap => {
+    const unsub = onSnapshot(query(collection(db, "usuarios"), limit(200)), snap => {
       const mapa = {};
       snap.docs.forEach(d => { mapa[d.id] = d.data().departamento || d.data().perfil || "campo"; });
       setUsuariosMap(mapa);

@@ -1,6 +1,7 @@
 // src/pages/Funcionarios.js — com departamentos, permissões e gestão completa
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, doc, setDoc, updateDoc, addDoc, writeBatch } from "firebase/firestore";
+import { collection, onSnapshot, doc, setDoc, updateDoc, addDoc, writeBatch, query, limit } from "firebase/firestore";
+import { useAgenda } from "../contexts/AgendaContext";
 import { db, auth } from "../firebase";
 import { statusBadge, fmtDate, initials } from "../utils/helpers";
 import { useAuth } from "../contexts/AuthContext";
@@ -394,9 +395,9 @@ function FuncionarioModal({ func, obras, onClose, addToast }) {
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function Funcionarios() {
   const { userProfile } = useAuth();
+  const { obras } = useAgenda();
   const { toasts, addToast } = useToast();
   const [funcs,        setFuncs]        = useState([]);
-  const [obras,        setObras]        = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [search,       setSearch]       = useState("");
   const [filtroDep,    setFiltroDep]    = useState("todos");
@@ -408,9 +409,8 @@ export default function Funcionarios() {
   const isGestor = isGestorOuAdm(userProfile);
 
   useEffect(()=>{
-    const u1=onSnapshot(collection(db,"usuarios"),snap=>{setFuncs(snap.docs.map(d=>({id:d.id,...d.data()}))); setLoading(false);});
-    const u2=onSnapshot(collection(db,"obras"),snap=>setObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    return()=>{u1();u2();};
+    const u1=onSnapshot(query(collection(db,"usuarios"),limit(200)),snap=>{setFuncs(snap.docs.map(d=>({id:d.id,...d.data()}))); setLoading(false);});
+    return()=>{u1();};
   },[]);
 
   const filtered = funcs.filter(f=>{

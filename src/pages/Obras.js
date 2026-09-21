@@ -1,7 +1,7 @@
 // src/pages/Obras.js — completo com endereço, busca CEP, fotos, medições, subcontratados
 import React, { useEffect, useState, useMemo } from "react";
 import { useConfirm } from "../hooks/useConfirm";
-import { collection, onSnapshot, doc, query, where, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, doc, query, where, getDocs, limit } from "firebase/firestore";
 import { db, storage } from "../firebase";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { statusBadge, fmtDate } from "../utils/helpers";
@@ -1368,7 +1368,7 @@ export default function Obras({ onObraSelect }) {
   },[]);
 
   useEffect(() => {
-    return onSnapshot(collection(db,"usuarios"), snap => {
+    return onSnapshot(query(collection(db,"usuarios"),limit(200)), snap => {
       setFuncionarios(snap.docs.map(d=>({id:d.id,...d.data()})).filter(f=>f.status==="ATIVO"||!f.status));
     });
   },[]);

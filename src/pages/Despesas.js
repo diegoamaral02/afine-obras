@@ -3,7 +3,8 @@
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useConfirm } from "../hooks/useConfirm";
 import { usePagination } from "../hooks/usePagination";
-import { collection, onSnapshot, doc, query, orderBy, limit } from "firebase/firestore";
+import { collection, onSnapshot, doc, query, orderBy, limit, where } from "firebase/firestore";
+import { useAgenda } from "../contexts/AgendaContext";
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
 import { podeEditar, isCampo } from "../constants/departamentos";
@@ -418,30 +419,33 @@ function DespesaModal({ despesa, funcionarios, obras, manutencoes, onClose, addT
 // ── Página principal ─────────────────────────────────────────────────────────
 export default function Despesas() {
   const { userProfile, currentUser } = useAuth();
+  const { obras } = useAgenda();
   const podeEditarDespesas = podeEditar(userProfile, "despesas"); // editar/excluir/revisar = gestão/financeiro/adm
   const souCampo = isCampo(userProfile);
   const nomeUser = userProfile?.nome || currentUser?.email || "–";
   const { toasts, addToast } = useToast();
+  const anoAtual = new Date().getFullYear();
   const [despesas,     setDespesas]     = useState([]);
   const [funcionarios, setFuncionarios] = useState([]);
-  const [obras,        setObras]        = useState([]);
   const [manutencoes,  setManutencoes]  = useState([]);
   const [loading,       setLoading]      = useState(true);
+  const [anoFiltro,     setAnoFiltro]    = useState(anoAtual);
   const [search,        setSearch]       = useState("");
   const [filtros,       setFiltros]      = useState({ periodo:{de:"",ate:""}, funcionarioNome:"", metodoPagamento:"", obraId:"", categoria:"", statusReembolso:"", revisado:"" });
   const { confirm, confirmModal } = useConfirm();
-  // qtdMostrar substituído por paginação
   const [modal,         setModal]        = useState(null);
   const [preview,       setPreview]      = useState(null);
 
   useEffect(()=>{
-    const q1 = query(collection(db,"despesas"), orderBy("data","desc"), limit(3000));
+    setLoading(true);
+    const de  = `${anoFiltro}-01-01`;
+    const ate = `${anoFiltro}-12-31`;
+    const q1 = query(collection(db,"despesas"), where("data",">=",de), where("data","<=",ate), orderBy("data","desc"), limit(500));
     const u1 = onSnapshot(q1, snap=>{ setDespesas(snap.docs.map(d=>({id:d.id,...d.data()}))); setLoading(false); }, ()=>setLoading(false));
-    const u2 = onSnapshot(collection(db,"usuarios"), snap=>setFuncionarios(snap.docs.map(d=>({id:d.id,...d.data()})).filter(f=>f.status==="ATIVO"||!f.status)));
-    const u3 = onSnapshot(collection(db,"obras"), snap=>setObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u4 = onSnapshot(collection(db,"manutencoes"), snap=>setManutencoes(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    return ()=>{u1();u2();u3();u4();};
-  },[]);
+    const u2 = onSnapshot(query(collection(db,"usuarios"),limit(200)), snap=>setFuncionarios(snap.docs.map(d=>({id:d.id,...d.data()})).filter(f=>f.status==="ATIVO"||!f.status)));
+    const u3 = onSnapshot(query(collection(db,"manutencoes"),limit(500)), snap=>setManutencoes(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    return ()=>{u1();u2();u3();};
+  },[anoFiltro]);
 
   const nomesFuncionarios = useMemo(()=>[...new Set(despesas.map(d=>d.funcionarioNome).filter(Boolean))].sort(),[despesas]);
 
@@ -518,12 +522,17 @@ export default function Despesas() {
       <div className="panel-header">
         <div>
           <div className="panel-title">Despesas</div>
-          <div style={{fontSize:12,color:"#7A7A7A"}}>{despesasVisiveis.length} registro(s){souCampo?" seu(s)":""} · {filtradas.length} exibido(s) no filtro atual</div>
+          <div style={{fontSize:12,color:"#7A7A7A"}}>{despesasVisiveis.length} registro(s) em {anoFiltro}{souCampo?" seu(s)":""} · {filtradas.length} exibido(s) no filtro atual</div>
         </div>
-        <div style={{display:"flex",gap:8}}>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          {/* Seletor de ano — evita carregar todo o histórico de uma vez */}
+          <div style={{display:"flex",alignItems:"center",gap:4,border:"1px solid var(--borda)",borderRadius:6,padding:"4px 8px",background:"var(--card-bg)"}}>
+            <button onClick={()=>setAnoFiltro(a=>a-1)} style={{background:"none",border:"none",cursor:"pointer",padding:"0 4px",fontSize:16,color:"var(--texto)",lineHeight:1}}>‹</button>
+            <span style={{fontSize:13,fontWeight:600,minWidth:36,textAlign:"center",color:"var(--texto)"}}>{anoFiltro}</span>
+            <button onClick={()=>setAnoFiltro(a=>Math.min(a+1,anoAtual))} disabled={anoFiltro>=anoAtual} style={{background:"none",border:"none",cursor:"pointer",padding:"0 4px",fontSize:16,color:anoFiltro>=anoAtual?"var(--cinza-med)":"var(--texto)",lineHeight:1}}>›</button>
+          </div>
           <BtnExcel onClick={exportar} disabled={filtradas.length===0}/>
           <button className="btn btn-sm" disabled={filtradas.length===0} onClick={()=>exportarDespesasParaPDF(filtradas)}>📄 PDF</button>
-          {/* Qualquer usuário pode lançar sua própria despesa — sem aprovação prévia */}
           <button className="btn btn-primary" onClick={()=>setModal({despesa:null})}>+ Nova despesa</button>
         </div>
       </div>

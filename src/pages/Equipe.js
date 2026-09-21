@@ -1,6 +1,6 @@
 // src/pages/Equipe.js — v2: alocação cruzada (obras + manutenções) com reatribuição direta
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, onSnapshot, query, where, addDoc, doc } from "firebase/firestore";
+import { collection, onSnapshot, query, where, addDoc, doc, limit } from "firebase/firestore";
 import { addComAuditoria, updateComAuditoria } from "../services/auditoria";
 import { db } from "../firebase";
 import { statusBadge, fmtDate, initials } from "../utils/helpers";
@@ -230,9 +230,9 @@ function ColaboradorCard({ colaborador, alocacoes, historico = [], onVerInfo, on
 // ── EXPORT: Equipe (página principal) ─────────────────────────────────────────
 export function Equipe() {
   const { userProfile } = useAuth();
+  const { obras } = useAgenda();
   const { toasts, addToast } = useToast();
   const [funcionarios, setFuncionarios] = useState([]);
-  const [obras,        setObras]        = useState([]);
   const [manutencoes,  setManutencoes]  = useState([]);
   const [loading,       setLoading]      = useState(true);
   const [search,        setSearch]       = useState("");
@@ -244,14 +244,13 @@ export function Equipe() {
   const canEdit = isGestorOuAdm(userProfile);
 
   useEffect(()=>{
-    const u1=onSnapshot(collection(db,"usuarios"),snap=>{
+    const u1=onSnapshot(query(collection(db,"usuarios"),limit(200)),snap=>{
       const DEPS_EQUIPE = ["campo","empreiteiro","terceiro"];
       setFuncionarios(snap.docs.map(d=>({id:d.id,...d.data()})).filter(f=>(f.status==="ATIVO"||!f.status)&&DEPS_EQUIPE.includes(f.departamento)));
       setLoading(false);
     });
-    const u2=onSnapshot(collection(db,"obras"),snap=>setObras(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u3=onSnapshot(collection(db,"manutencoes"),snap=>setManutencoes(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    return()=>{u1();u2();u3();};
+    const u2=onSnapshot(query(collection(db,"manutencoes"),limit(500)),snap=>setManutencoes(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    return()=>{u1();u2();};
   },[]);
 
   // Demandas abertas (para o modal de realocação) — só manutenções não concluídas

@@ -2,7 +2,7 @@
 // Exibe o histórico de alterações de qualquer documento (subcoleção /historico).
 // Uso: <HistoricoAlteracoes colecao="obras" docId={id} />
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
+import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { db } from "../firebase";
 
 function fmtDatetime(iso) {
@@ -32,10 +32,11 @@ export default function HistoricoAlteracoes({ colecao, docId, maxEntradas = 20 }
     setLoading(true);
     const q = query(
       collection(db, colecao, docId, "historico"),
-      orderBy("alteradoEm", "desc")
+      orderBy("alteradoEm", "desc"),
+      limit(maxEntradas)
     );
     const unsub = onSnapshot(q, snap => {
-      setEntradas(snap.docs.slice(0, maxEntradas).map(d => ({ id: d.id, ...d.data() })));
+      setEntradas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
     });
     return unsub;
