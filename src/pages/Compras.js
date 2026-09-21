@@ -1032,7 +1032,7 @@ export default function Compras() {
   const [modal,        setModal]        = useState(null);
 
   useEffect(()=>{
-    const u1=onSnapshot(collection(db,"compras"),snap=>{const d=snap.docs.map(x=>({id:x.id,...x.data()}));d.sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));setCompras(d);setLoading(false);});
+    const u1=onSnapshot(query(collection(db,"compras"),limit(1000)),snap=>{const d=snap.docs.map(x=>({id:x.id,...x.data()}));d.sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));setCompras(d);setLoading(false);});
     const u2=onSnapshot(query(collection(db,"manutencoes"),limit(500)),snap=>setManutencoes(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u3=onSnapshot(collection(db,"fornecedores"),snap=>setFornecedores(snap.docs.map(d=>({id:d.id,...d.data()}))));
     return()=>{u1();u2();u3();};

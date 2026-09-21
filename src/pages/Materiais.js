@@ -52,7 +52,7 @@ function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }
 
   // Carrega lista de colaboradores (leitura única)
   useEffect(() => {
-    getDocs(collection(db, "usuarios")).then(snap => {
+    getDocs(query(collection(db, "usuarios"), limit(200))).then(snap => {
       setUsuarios(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => u.nome));
     }).catch(() => {});
   }, []);
@@ -112,7 +112,7 @@ function MovimentacaoModal({ item, tipo, obras, manutencoes, onClose, addToast }
       // Alerta de reposição automática após saída abaixo do mínimo
       if (tipo === "saida" && item.estoqueMin > 0 && novoSaldo <= item.estoqueMin) {
         try {
-          const snapUsers = await getDocs(collection(db, "usuarios"));
+          const snapUsers = await getDocs(query(collection(db, "usuarios"), limit(200)));
           const destinatarios = snapUsers.docs
             .map(d => ({ id: d.id, ...d.data() }))
             .filter(u => u.id !== currentUser?.uid && (
