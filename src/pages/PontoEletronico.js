@@ -131,7 +131,7 @@ function GeoLink({ geo }) {
 
 // ─── Bloco de registro de ponto (usado por campo E gestor) ───────────────────
 
-function RegistroPonto({ userProfile, currentUser, obras, manutencoes, pontosHoje, addToast }) {
+function RegistroPonto({ userProfile, currentUser, obras, manutencoes, pontosHoje, addToast, indicesPendentes }) {
   const [vinculoTipo, setVinculoTipo] = useState("escritorio");
   const [vinculoId, setVinculoId] = useState("");
   const [obs, setObs] = useState("");
@@ -268,7 +268,7 @@ function RegistroPonto({ userProfile, currentUser, obras, manutencoes, pontosHoj
         </div>
 
         {/* Seleção de vínculo */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 14, justifyContent: "center" }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, justifyContent: "center", flexWrap: "wrap" }}>
           {[
             { v: "escritorio", label: "🏢 Escritório" },
             { v: "obra", label: "🏗️ Obra" },
@@ -301,6 +301,17 @@ function RegistroPonto({ userProfile, currentUser, obras, manutencoes, pontosHoj
           <input value={obs} onChange={e => setObs(e.target.value)} placeholder="Ex: chegada atrasada por trânsito" />
         </div>
 
+        {/* Aviso temporário enquanto índice Firestore ainda está sendo criado */}
+        {indicesPendentes && (
+          <div style={{
+            background: "#FDF2D9", border: "1px solid #F5C800", borderRadius: "var(--r-lg)",
+            padding: "10px 14px", marginBottom: 14, fontSize: 12, color: "#7A5400", fontWeight: 600,
+            display: "flex", alignItems: "center", gap: 8,
+          }}>
+            ⏳ Sistema sendo configurado — aguarde ~2 minutos e recarregue a página.
+          </div>
+        )}
+
         {/* Botão principal */}
         <button
           className={`btn ${isEntrada ? "btn-success" : "btn-danger"}`}
@@ -310,7 +321,7 @@ function RegistroPonto({ userProfile, currentUser, obras, manutencoes, pontosHoj
             letterSpacing: "-.01em",
           }}
           onClick={handleRegistrar}
-          disabled={salvando || !podeRegistrar}
+          disabled={salvando || !podeRegistrar || indicesPendentes}
         >
           {salvando
             ? "📡 Obtendo localização..."
@@ -1017,6 +1028,7 @@ export default function PontoEletronico() {
   const [obras, setObras] = useState([]);
   const [manutencoes, setManutencoes] = useState([]);
   const [pontosHoje, setPontosHoje] = useState([]);
+  const [indicesPendentes, setIndicesPendentes] = useState(false);
 
   const perfil = resolverPerfilMenu(userProfile);
   const ehCampo = isCampo(userProfile);
@@ -1052,9 +1064,10 @@ export default function PontoEletronico() {
       where("timestamp", "<=", hoje + "T23:59:59.999Z"),
       orderBy("timestamp", "asc")
     );
-    const unsub = onSnapshot(q, snap => {
-      setPontosHoje(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    const unsub = onSnapshot(q,
+      snap => { setPontosHoje(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setIndicesPendentes(false); },
+      err  => { if (err.code === "failed-precondition") setIndicesPendentes(true); }
+    );
     return unsub;
   }, [currentUser]);
 
@@ -1081,6 +1094,7 @@ export default function PontoEletronico() {
             manutencoes={manutencoes}
             pontosHoje={pontosHoje}
             addToast={addToast}
+            indicesPendentes={indicesPendentes}
           />
         ) : ehPJNaoCampo ? (
           /* PJ não-campo: não bate ponto, acessa só relatório */
@@ -1111,6 +1125,7 @@ export default function PontoEletronico() {
                 manutencoes={manutencoes}
                 pontosHoje={pontosHoje}
                 addToast={addToast}
+                indicesPendentes={indicesPendentes}
               />
             )}
 
