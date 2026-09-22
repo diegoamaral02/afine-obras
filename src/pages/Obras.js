@@ -270,7 +270,7 @@ function ObraModal({ obra, funcionarios, clientes, onClose, addToast }) {
   }, [obra?.id]);
   useEffect(() => {
     if (!obra?.id) return;
-    return onSnapshot(collection(db,"transferencias_material"), snap => {
+    return onSnapshot(query(collection(db,"transferencias_material"),limit(1000)), snap => {
       const todas = snap.docs.map(d=>({id:d.id,...d.data()}));
       setTransferenciasObra(todas.filter(t=>t.obraOrigemId===obra.id||t.obraDestinoId===obra.id));
     }, err => console.error("Erro ao buscar transferências:", err));

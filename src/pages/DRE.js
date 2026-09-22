@@ -822,7 +822,7 @@ export default function DRE() {
     getDocs(query(collection(db,"materiais_estoque"),limit(500))).then(snap=>setMats(snap.docs.map(d=>({id:d.id,...d.data()}))));
     getDocs(query(collection(db,"movimentacoes"),limit(1000))).then(snap=>setMovs(snap.docs.map(d=>({id:d.id,...d.data()}))));
     getDocs(query(collection(db,"manutencoes"),limit(500))).then(snap=>setManuts(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    getDocs(collection(db,"transferencias_material")).then(snap=>setTransferencias(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    getDocs(query(collection(db,"transferencias_material"),limit(1000))).then(snap=>setTransferencias(snap.docs.map(d=>({id:d.id,...d.data()}))));
     return()=>{u2();u5();u7();};
   },[]);
 

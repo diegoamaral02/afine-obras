@@ -914,7 +914,7 @@ export default function MateriaisGlobal() {
     });
     const u3 = onSnapshot(query(collection(db,"manutencoes"),limit(500)), snap => setManut(snap.docs.map(d=>({id:d.id,...d.data()}))));
     const u4 = onSnapshot(query(collection(db,"compras"), where("demandaTipo","==","obra")), snap => setCompras(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    const u5 = onSnapshot(collection(db,"transferencias_material"), snap => setTransferencias(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const u5 = onSnapshot(query(collection(db,"transferencias_material"),limit(1000)), snap => setTransferencias(snap.docs.map(d=>({id:d.id,...d.data()}))));
     return ()=>{ u1(); u2(); u3(); u4(); u5(); };
   }, []);
 
